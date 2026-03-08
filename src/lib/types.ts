@@ -27,6 +27,7 @@ export interface CompanyProfile {
   createdAt: any;
   monitoringFrequency?: 'off' | 'weekly' | 'biweekly' | 'monthly';
   nextScanAt?: any;
+  lastScanAt?: any;
 }
 
 export interface ScanRecord {

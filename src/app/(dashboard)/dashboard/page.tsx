@@ -10,10 +10,10 @@ import {
   ShieldCheck, 
   Users, 
   Zap, 
+  Activity,
   ArrowRight,
   TrendingUp,
   History,
-  Activity,
   Calendar,
   Lightbulb
 } from "lucide-react";
@@ -28,6 +28,7 @@ import {
   Area 
 } from 'recharts';
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const MOCK_TREND_DATA = [
   { name: 'Jan', score: 62 },
@@ -161,9 +162,16 @@ export default function DashboardPage() {
               </div>
               <div className="pt-4 border-t">
                  <div className="text-[10px] font-bold text-muted-foreground uppercase mb-2">Historical Health</div>
-                 <div className="flex gap-1">
-                    {[1,1,1,0,1,1,1].map((status, i) => (
-                      <div key={i} className={cn("h-6 w-full rounded-sm", status === 1 ? "bg-green-100" : "bg-red-100")} />
+                 <div className="flex gap-1.5 h-6">
+                    {[1,1,1,1,0,1,1,1,1,1].map((status, i) => (
+                      <div 
+                        key={i} 
+                        className={cn(
+                            "flex-1 rounded-[2px] transition-opacity hover:opacity-80", 
+                            status === 1 ? "bg-green-500/80" : "bg-red-400/80"
+                        )} 
+                        title={status === 1 ? "Scan Successful" : "Scan Error Detected"}
+                      />
                     ))}
                  </div>
               </div>

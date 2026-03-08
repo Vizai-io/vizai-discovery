@@ -19,9 +19,11 @@ import {
   Loader2, 
   AlertCircle,
   CheckCircle2,
-  Settings2
+  Settings2,
+  History
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export default function MonitoringPage() {
   const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
@@ -33,7 +35,16 @@ export default function MonitoringPage() {
       try {
         const q = query(collection(db, "companyProfiles"), where("organizationId", "==", "org_default_acme"));
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CompanyProfile));
+        const data = snapshot.docs.map(doc => {
+            const d = doc.data();
+            return { 
+                id: doc.id, 
+                ...d,
+                // Ensure defaults for mock monitoring if missing
+                monitoringFrequency: d.monitoringFrequency || 'off',
+                lastScanAt: d.lastScanAt || Timestamp.now()
+            } as CompanyProfile;
+        });
         setProfiles(data);
       } catch (error) {
         console.error("Error fetching profiles:", error);
@@ -120,7 +131,7 @@ export default function MonitoringPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid md:grid-cols-3 gap-8 items-center">
+                <div className="grid md:grid-cols-4 gap-8 items-start">
                   <div className="space-y-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
@@ -143,41 +154,59 @@ export default function MonitoringPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 border-x px-8">
+                  <div className="space-y-2 border-x px-6">
                     <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                      <Calendar className="w-3 h-3" /> Next Scheduled Scan
+                      <History className="w-3 h-3" /> Last Completed
                     </div>
-                    {profile.nextScanAt ? (
+                    {profile.lastScanAt ? (
                       <div className="space-y-1">
-                        <div className="text-xl font-bold text-primary">
-                          {profile.nextScanAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        <div className="text-sm font-bold text-primary">
+                          {profile.lastScanAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </div>
-                        <div className="text-[10px] text-accent font-bold uppercase">
-                          Targeting 24 Intelligence Vectors
+                        <div className="text-[9px] text-muted-foreground font-medium">
+                          Status: <span className="text-green-600 font-bold uppercase">Successful</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-sm text-muted-foreground italic">No scans scheduled</div>
+                      <div className="text-sm text-muted-foreground italic">No historical scans</div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 border-r pr-6">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3" /> Next Scheduled
+                    </div>
+                    {profile.nextScanAt ? (
+                      <div className="space-y-1">
+                        <div className="text-sm font-bold text-primary">
+                          {profile.nextScanAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                        <div className="text-[9px] text-accent font-bold uppercase">
+                          24 Vector Analysis
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground italic">Scheduling disabled</div>
                     )}
                   </div>
 
                   <div className="space-y-4">
                     <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                      <RefreshCcw className="w-3 h-3" /> Status & Health
+                      <RefreshCcw className="w-3 h-3" /> System Health
                     </div>
                     <div className="flex items-center gap-3">
                        <div className={cn(
-                         "w-10 h-10 rounded-full flex items-center justify-center",
+                         "w-8 h-8 rounded-full flex items-center justify-center",
                          profile.monitoringFrequency !== 'off' ? "bg-green-50 text-green-600" : "bg-muted text-muted-foreground"
                        )}>
-                         {profile.monitoringFrequency !== 'off' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                         {profile.monitoringFrequency !== 'off' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                        </div>
                        <div>
-                         <div className="text-sm font-bold text-primary">
-                           {profile.monitoringFrequency !== 'off' ? 'System Ready' : 'Monitoring Inactive'}
+                         <div className="text-xs font-bold text-primary">
+                           {profile.monitoringFrequency !== 'off' ? 'Operational' : 'Idle'}
                          </div>
-                         <p className="text-[10px] text-muted-foreground">
-                           {profile.monitoringFrequency !== 'off' ? 'API Endpoint: Connected' : 'Enable scheduling to track trends'}
+                         <p className="text-[9px] text-muted-foreground">
+                           {profile.monitoringFrequency !== 'off' ? 'Endpoint Ready' : 'Enable to start'}
                          </p>
                        </div>
                     </div>
@@ -204,29 +233,18 @@ export default function MonitoringPage() {
         )}
       </div>
 
-      {/* Monitoring Explanation */}
       <Card className="border-none shadow-sm bg-primary text-white overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <Settings2 className="w-5 h-5 text-accent" />
-            Monitoring Architecture
+            Monitoring Logic
           </CardTitle>
-          <Badge className="bg-accent text-primary font-bold">V1.2 Engine</Badge>
+          <Badge className="bg-accent text-primary font-bold">Engine v1.2</Badge>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
           <p className="text-sm leading-relaxed opacity-80">
-            Automated monitoring performs a high-fidelity scan across all 24 discovery vectors on your scheduled interval. This builds a historical baseline, allowing the <strong>Optimization Scenario</strong> engine to track your progress and adjust recommendations based on shifting AI training sets.
+            Monitoring automatically triggers multi-vector discovery audits on your selected frequency. This builds the historical data required for the <strong>Optimization Scenario</strong> engine to accurately track your visibility uplift over time.
           </p>
-          <div className="grid sm:grid-cols-2 gap-4 pt-2">
-             <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <div className="text-[10px] font-bold text-accent uppercase mb-1">Alerting</div>
-                <p className="text-xs opacity-70">Immediate notifications when visibility drops below your set baseline threshold.</p>
-             </div>
-             <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <div className="text-[10px] font-bold text-accent uppercase mb-1">Consistency</div>
-                <p className="text-xs opacity-70">Maintains a reliable snapshot history for quarterly performance reviews.</p>
-             </div>
-          </div>
         </CardContent>
       </Card>
     </div>
