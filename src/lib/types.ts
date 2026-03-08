@@ -15,6 +15,8 @@ export interface Organization {
   createdAt: any;
 }
 
+export type ServicePackageType = 'Snapshot' | 'Foundation' | 'Growth' | 'Monitoring';
+
 export interface CompanyProfile {
   id: string;
   organizationId: string;
@@ -94,13 +96,20 @@ export interface IndustryQuery {
   intentType: 'best' | 'local' | 'comparison' | 'capability';
 }
 
+export interface ProposalWorkstream {
+  title: string;
+  description: string;
+  packageType?: ServicePackageType;
+}
+
 export interface ProposalData {
   summary: string;
   gaps: string[];
-  workstreams: { title: string; description: string }[];
+  workstreams: ProposalWorkstream[];
   projections: string;
   monitoringPlan: string;
   estimatedInvestment?: string;
+  suggestedPackage?: ServicePackageType;
   updatedAt?: any;
 }
 
@@ -177,6 +186,7 @@ export interface StrategicRecommendation {
   category: 'Structured Data' | 'Content / Positioning' | 'Entity / Citation Signals' | 'Competitive Visibility' | string;
   priority: 'high' | 'medium' | 'low';
   expectedImpact: string;
+  packageType?: ServicePackageType;
 }
 
 export interface ScanResults {

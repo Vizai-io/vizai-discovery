@@ -5,13 +5,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/firebase/config";
-import { ScanRecord, ProposalData } from "@/lib/types";
+import { ScanRecord, ProposalData, ServicePackageType } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   ChevronLeft, 
   Briefcase, 
@@ -24,10 +25,13 @@ import {
   TrendingUp,
   Target,
   Search,
-  Activity
+  Activity,
+  Boxes,
+  Zap
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { PackageService } from "@/lib/services/package-service";
 
 export default function ProposalBuilderPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -42,7 +46,8 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
     workstreams: [],
     projections: "",
     monitoringPlan: "",
-    estimatedInvestment: ""
+    estimatedInvestment: "",
+    suggestedPackage: 'Snapshot'
   });
 
   useEffect(() => {
@@ -58,14 +63,19 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
           if (data.proposal) {
             setProposal(data.proposal);
           } else {
-            // Pre-populate from scan results
+            const suggested = PackageService.getSuggestedPackage(data.results.categoryScores);
             setProposal({
               summary: `Strategy proposal for ${data.results.companyName} to improve AI discovery visibility from current index of ${data.results.overallScore.toFixed(1)}.`,
               gaps: data.results.knowledgeGaps?.map(g => g.description) || [],
-              workstreams: data.results.priorityActions?.map(a => ({ title: a.title, description: a.description })) || [],
+              workstreams: data.results.priorityActions?.map(a => ({ 
+                title: a.title, 
+                description: a.description,
+                packageType: a.packageType || suggested
+              })) || [],
               projections: `Targeting a ${ (data.results.overallScore + 15).toFixed(1) } visibility index within 90 days.`,
               monitoringPlan: "Weekly multi-vector discovery audits and competitive intrusion alerts.",
-              estimatedInvestment: "$12,500 / quarter"
+              estimatedInvestment: suggested === 'Growth' ? "$15,000 / quarter" : "$12,500 / quarter",
+              suggestedPackage: suggested
             });
           }
         }
@@ -104,8 +114,12 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
   };
   const removeGap = (i: number) => setProposal(p => ({ ...p, gaps: p.gaps.filter((_, idx) => idx !== i) }));
 
-  const addWorkstream = () => setProposal(p => ({ ...p, workstreams: [...p.workstreams, { title: "", description: "" }] }));
-  const updateWorkstream = (i: number, field: 'title' | 'description', val: string) => {
+  const addWorkstream = () => setProposal(p => ({ 
+    ...p, 
+    workstreams: [...p.workstreams, { title: "", description: "", packageType: proposal.suggestedPackage || 'Snapshot' }] 
+  }));
+  
+  const updateWorkstream = (i: number, field: any, val: string) => {
     const next = [...proposal.workstreams];
     next[i] = { ...next[i], [field]: val };
     setProposal(p => ({ ...p, workstreams: next }));
@@ -121,6 +135,8 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
     );
   }
 
+  const activePackageInfo = proposal.suggestedPackage ? PackageService.getPackageInfo(proposal.suggestedPackage) : null;
+
   return (
     <div className="min-h-screen bg-slate-50 pb-20 selection:bg-accent/20">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-50 print:hidden">
@@ -135,6 +151,22 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
           </div>
         </div>
         <div className="flex gap-3">
+          <div className="flex items-center gap-2 mr-4 bg-muted/50 px-3 py-1.5 rounded-lg border">
+             <Boxes className="w-4 h-4 text-primary" />
+             <Select 
+               value={proposal.suggestedPackage} 
+               onValueChange={(val) => setProposal({...proposal, suggestedPackage: val as ServicePackageType})}
+             >
+               <SelectTrigger className="border-none bg-transparent h-6 focus:ring-0 text-xs font-bold p-0 min-w-[100px]">
+                 <SelectValue placeholder="Package tier" />
+               </SelectTrigger>
+               <SelectContent>
+                 {Object.keys(PackageService.PACKAGES).map(p => (
+                   <SelectItem key={p} value={p}>{p} Tier</SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+          </div>
           <Button variant="outline" className="gap-2" onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4" /> Save Draft
           </Button>
@@ -157,6 +189,31 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
             <div className="text-[10px] text-muted-foreground uppercase tracking-widest">v1.4 Enterprise</div>
           </div>
         </div>
+
+        {/* Package Indicator - NEW */}
+        {activePackageInfo && (
+          <div className="bg-primary text-white p-8 rounded-[2rem] shadow-xl overflow-hidden relative print:border print:bg-white print:text-primary print:shadow-none">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="flex flex-col md:flex-row justify-between items-center gap-8 relative z-10">
+              <div className="space-y-2 text-center md:text-left">
+                <div className="flex items-center justify-center md:justify-start gap-2">
+                  <Badge className="bg-accent text-primary font-black uppercase tracking-[0.2em] border-none px-3 py-1">
+                    {activePackageInfo.label}
+                  </Badge>
+                </div>
+                <h2 className="text-2xl font-black tracking-tight leading-tight">Recommended Engagement Framework</h2>
+                <p className="text-sm text-white/70 max-w-lg leading-relaxed">{activePackageInfo.description}</p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 shrink-0">
+                {activePackageInfo.focus.map(f => (
+                  <div key={f} className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 px-4 py-2 rounded-full backdrop-blur-sm">
+                    <Zap className="w-3 h-3 text-accent fill-current" /> {f}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Section: Executive Summary */}
         <section className="space-y-4">
@@ -222,13 +279,18 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
             {proposal.workstreams.map((ws, i) => (
               <div key={i} className="flex gap-3 items-start group">
                 <Card className="flex-1 border-none shadow-sm print:shadow-none print:border bg-white overflow-hidden border-l-4 border-l-primary">
-                  <CardContent className="p-6 space-y-2">
-                    <Input 
-                      value={ws.title} 
-                      onChange={(e) => updateWorkstream(i, 'title', e.target.value)}
-                      className="text-lg font-black text-primary border-none focus-visible:ring-0 p-0 h-auto"
-                      placeholder="Workstream Title"
-                    />
+                  <CardContent className="p-6 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <Input 
+                        value={ws.title} 
+                        onChange={(e) => updateWorkstream(i, 'title', e.target.value)}
+                        className="text-lg font-black text-primary border-none focus-visible:ring-0 p-0 h-auto flex-1 mr-4"
+                        placeholder="Workstream Title"
+                      />
+                      <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest h-5 print:border-primary/20">
+                        Tier: {ws.packageType || 'Core'}
+                      </Badge>
+                    </div>
                     <Textarea 
                       value={ws.description} 
                       onChange={(e) => updateWorkstream(i, 'description', e.target.value)}

@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/firebase/config";
-import { ScanRecord, StrategicRecommendation } from "@/lib/types";
+import { ScanRecord, StrategicRecommendation, ServicePackageType } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   FileSearch, 
   ChevronLeft, 
@@ -25,17 +26,20 @@ import {
   Trash2,
   Plus,
   StickyNote,
-  MessageSquare,
   Share2,
   Copy,
   ExternalLink,
   Eye,
   Calendar,
-  Briefcase
+  Briefcase,
+  Boxes,
+  Zap,
+  Info
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { PackageService } from "@/lib/services/package-service";
 
 export default function ScanReviewPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -79,6 +83,11 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
     fetchScan();
   }, [params.id]);
 
+  const suggestedPackage = useMemo(() => {
+    if (!scan) return null;
+    return PackageService.getSuggestedPackage(scan.results.categoryScores);
+  }, [scan]);
+
   const handleSave = async (isApproval = false) => {
     setSaving(true);
     try {
@@ -110,7 +119,6 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
 
       if (isApproval) router.push("/admin");
       else {
-        // Refresh local state
         setScan(prev => prev ? { ...prev, ...updates } : null);
       }
     } catch (e) {
@@ -130,11 +138,12 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
       description: "Brief description of the recommendation...",
       category: "Strategy",
       priority: "medium",
-      expectedImpact: "Visibility gain"
+      expectedImpact: "Visibility gain",
+      packageType: 'Snapshot'
     }]);
   };
 
-  const handleUpdateRecommendation = (index: number, field: keyof StrategicRecommendation, value: string) => {
+  const handleUpdateRecommendation = (index: number, field: keyof StrategicRecommendation, value: any) => {
     const updated = [...recommendations];
     updated[index] = { ...updated[index], [field]: value };
     setRecommendations(updated);
@@ -210,7 +219,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                 value={overview}
                 onChange={(e) => setOverview(e.target.value)}
                 placeholder="Strategic overview of the AI scan report findings..."
-                className="min-h-[250px] text-sm leading-relaxed"
+                className="min-h-[200px] text-sm leading-relaxed"
               />
             </CardContent>
           </Card>
@@ -237,8 +246,8 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
+                  <div className="grid grid-cols-12 gap-4">
+                    <div className="col-span-6 space-y-1.5">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label>
                       <Input 
                         value={rec.title} 
@@ -246,13 +255,29 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                         className="h-8 text-xs font-bold"
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Expected Impact</Label>
+                    <div className="col-span-3 space-y-1.5">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Impact</Label>
                       <Input 
                         value={rec.expectedImpact} 
                         onChange={(e) => handleUpdateRecommendation(i, 'expectedImpact', e.target.value)}
                         className="h-8 text-xs"
                       />
+                    </div>
+                    <div className="col-span-3 space-y-1.5">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Package Mapping</Label>
+                      <Select 
+                        value={rec.packageType || 'Snapshot'} 
+                        onValueChange={(val) => handleUpdateRecommendation(i, 'packageType', val)}
+                      >
+                        <SelectTrigger className="h-8 text-[10px] font-bold bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.keys(PackageService.PACKAGES).map(p => (
+                            <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -269,9 +294,44 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
           </Card>
         </div>
 
-        {/* Sidebar: Internal Context & Sharing */}
+        {/* Sidebar: Internal Context & Intelligence */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Share Management - NEW */}
+          {/* Package Intelligence - NEW */}
+          <Card className="border-none shadow-sm overflow-hidden bg-primary text-white">
+            <CardHeader className="bg-white/10 pb-4">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                <Boxes className="w-4 h-4 text-accent" />
+                Package Intelligence
+              </CardTitle>
+              <CardDescription className="text-white/60 text-[10px]">Internal alignment suggestion</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
+                <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center text-primary">
+                  <Zap className="w-5 h-5 fill-current" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase text-accent">Recommended Tier</div>
+                  <div className="text-lg font-black">{suggestedPackage}</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-[9px] font-bold uppercase text-white/40 tracking-tighter">Tier Focus Areas</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestedPackage && PackageService.getPackageInfo(suggestedPackage).focus.map(f => (
+                    <Badge key={f} variant="outline" className="text-[8px] bg-white/5 border-white/10 text-white font-medium">
+                      {f}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[10px] leading-relaxed italic opacity-70 border-t border-white/10 pt-3">
+                Mapping recommendations to the <strong>{suggestedPackage}</strong> tier will improve conversion during the strategy briefing.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Share Management */}
           <Card className={cn(
             "border-none shadow-sm overflow-hidden bg-white",
             !isApproved && "opacity-60 grayscale pointer-events-none"
@@ -281,13 +341,12 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                 <Share2 className="w-3 h-3 text-accent" />
                 Share Management
               </CardTitle>
-              {!isApproved && <CardDescription className="text-[9px]">Approve audit to enable sharing</CardDescription>}
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-[10px] font-bold uppercase">Public Share Link</Label>
-                  <p className="text-[9px] text-muted-foreground">Enable view-only external access</p>
+                  <p className="text-[9px] text-muted-foreground">Enable view-only access</p>
                 </div>
                 <Switch 
                   checked={shareEnabled} 
@@ -324,81 +383,25 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                       </div>
                     </div>
                   </div>
-                  <Button asChild variant="ghost" className="w-full text-[10px] font-bold gap-2 h-8">
-                    <a href={`/share/${params.id}`} target="_blank">
-                      Preview Presentation <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm bg-primary text-white overflow-hidden">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                <StickyNote className="w-3 h-3 text-accent" />
-                Internal Admin Notes
-              </CardTitle>
-              <CardDescription className="text-white/50 text-[10px]">Private section for consulting team</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Textarea 
-                value={internalNotes}
-                onChange={(e) => setInternalNotes(e.target.value)}
-                placeholder="Enter internal review notes, client context, or team instructions..."
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 text-xs min-h-[150px]"
-              />
             </CardContent>
           </Card>
 
           <Card className="border-none shadow-sm bg-white overflow-hidden">
             <CardHeader className="border-b bg-muted/20">
-              <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="w-3 h-3" />
-                Audit Lifecycle
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <StickyNote className="w-3 h-3" />
+                Internal Admin Notes
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-6 space-y-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase">Review Status</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['draft', 'in-review', 'approved', 'shared'].map((status) => (
-                    <Button 
-                      key={status} 
-                      variant={reviewStatus === status ? 'default' : 'outline'}
-                      size="sm"
-                      className="text-[10px] capitalize h-8"
-                      onClick={() => setReviewStatus(status as any)}
-                      disabled={isApproved && status !== 'approved'}
-                    >
-                      {status}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="pt-4 border-t space-y-3">
-                 <div className="flex justify-between items-center text-[10px]">
-                    <span className="text-muted-foreground font-bold">Audit Score:</span>
-                    <span className="font-black text-primary">{scan.results.overallScore.toFixed(1)}</span>
-                 </div>
-                 <div className="flex justify-between items-center text-[10px]">
-                    <span className="text-muted-foreground font-bold">Last Reviewed:</span>
-                    <span className="font-medium">
-                      {scan.lastReviewedAt ? scan.lastReviewedAt.toDate().toLocaleDateString() : 'N/A'}
-                    </span>
-                 </div>
-              </div>
-
-              {isApproved && (
-                <div className="p-3 bg-green-50 rounded-xl border border-green-100 flex items-start gap-2">
-                  <Lock className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                  <p className="text-[10px] text-green-700 leading-relaxed italic">
-                    This scan is marked as <strong>Approved</strong>. Changes are locked for client-facing presentation views.
-                  </p>
-                </div>
-              )}
+            <CardContent className="pt-4">
+              <Textarea 
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                placeholder="Private review context..."
+                className="text-xs min-h-[120px]"
+              />
             </CardContent>
           </Card>
         </div>
