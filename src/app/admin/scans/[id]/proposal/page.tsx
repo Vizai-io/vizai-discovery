@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
@@ -30,10 +30,10 @@ import {
   Zap
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import { PackageService } from "@/lib/services/package-service";
 
-export default function ProposalBuilderPage({ params }: { params: { id: string } }) {
+export default function ProposalBuilderPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const [scan, setScan] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,7 +54,7 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
     async function fetchScan() {
       setLoading(true);
       try {
-        const docRef = doc(db, "scans", params.id);
+        const docRef = doc(db, "scans", id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data() as ScanRecord;
@@ -86,12 +86,12 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
       }
     }
     fetchScan();
-  }, [params.id]);
+  }, [id]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const docRef = doc(db, "scans", params.id);
+      const docRef = doc(db, "scans", id);
       await updateDoc(docRef, {
         proposal: {
           ...proposal,
@@ -190,7 +190,7 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
           </div>
         </div>
 
-        {/* Package Indicator - NEW */}
+        {/* Package Indicator */}
         {activePackageInfo && (
           <div className="bg-primary text-white p-8 rounded-[2rem] shadow-xl overflow-hidden relative print:border print:bg-white print:text-primary print:shadow-none">
             <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -201,7 +201,7 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
                     {activePackageInfo.label}
                   </Badge>
                 </div>
-                <h2 className="text-2xl font-black tracking-tight leading-tight">Recommended Engagement Framework framework</h2>
+                <h2 className="text-2xl font-black tracking-tight leading-tight">Recommended Engagement Framework</h2>
                 <p className="text-sm text-white/70 max-w-lg leading-relaxed">{activePackageInfo.description}</p>
               </div>
               <div className="grid grid-cols-1 gap-2 shrink-0">

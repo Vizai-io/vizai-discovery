@@ -2,7 +2,7 @@
 "use client";
 
 import { ScoreCard } from "@/components/dashboard/score-card";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   ShieldCheck, 
@@ -14,46 +14,27 @@ import {
   FileText,
   Lightbulb,
   ExternalLink,
-  Layers,
-  Globe,
   Loader2,
-  ArrowRight,
-  ShieldAlert,
-  ArrowUpRight,
-  GitCompare,
-  Radar,
-  FileSearch,
-  Lock,
-  Copy,
   AlertCircle,
   RefreshCcw,
-  Info,
   CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogTrigger
-} from "@/components/ui/dialog";
-import { useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { StrategicRecommendation, ScanResults, ScanRecord } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { toast } from "@/hooks/use-toast";
 
-export default function ScanResultsPage({ params }: { params: { id: string } }) {
+export default function ScanResultsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, "scans", params.id), (docSnap) => {
+    const unsubscribe = onSnapshot(doc(db, "scans", id), (docSnap) => {
       if (docSnap.exists()) {
         setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
       }
@@ -63,7 +44,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [params.id]);
+  }, [id]);
 
   const results = useMemo(() => scanRecord?.results || {
     overallScore: 0,
@@ -88,7 +69,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
   }, [queryDiscovery]);
 
   const copyShareLink = () => {
-    const url = `${window.location.origin}/share/${scanRecord?.id}`;
+    const url = `${window.location.origin}/share/${id}`;
     navigator.clipboard.writeText(url);
     toast({ title: "Link Copied" });
   };
@@ -123,7 +104,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           <h3 className="text-2xl font-black text-primary tracking-tight">Audit in Progress</h3>
           <p className="text-muted-foreground">Writing deterministic signals to intelligence graph...</p>
           <div className="bg-muted/30 p-4 rounded-2xl border text-xs font-mono max-w-sm mx-auto text-left">
-            ID: {scanRecord.id}<br/>
+            ID: {id}<br/>
             Step: {scanRecord.currentStep || "Minimal Path Execution"}
           </div>
         </div>
@@ -139,9 +120,9 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           <div className="flex flex-wrap gap-6 items-center text-[10px] font-mono font-bold uppercase">
             <div className="bg-amber-200 px-2 py-1 rounded">Diagnostic Hub</div>
             <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-600" /> Result Doc: YES</div>
-            <div>ID: {scanRecord.id}</div>
+            <div>ID: {id}</div>
             <div>Status: {scanRecord.status}</div>
-            <div>Path: scans/{params.id}</div>
+            <div>Path: scans/{id}</div>
           </div>
           <Button size="xs" variant="outline" className="bg-white text-[10px] h-7" onClick={() => window.location.reload()}>Refresh Path</Button>
         </Card>
@@ -151,14 +132,14 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b pb-8">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
-             <FileText className="w-3 h-3 text-accent" /> Audit Identifier: SCAN-{scanRecord.id.slice(0,8).toUpperCase()}
+             <FileText className="w-3 h-3 text-accent" /> Audit Identifier: SCAN-{id.slice(0,8).toUpperCase()}
           </div>
           <h2 className="text-4xl font-headline font-black text-primary tracking-tighter">Discovery Intelligence Audit</h2>
           <p className="text-muted-foreground">Subject: <strong className="text-primary">{results.companyName || "Client Account"}</strong> • {results.industry || "General"}</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="rounded-full gap-2" onClick={copyShareLink}><Share2 className="w-4 h-4" /> Share</Button>
-          <Link href={`/scans/${scanRecord.id}/report`}><Button className="bg-primary text-white rounded-full px-6 gap-2">Presentation View <ExternalLink className="w-4 h-4" /></Button></Link>
+          <Link href={`/scans/${id}/report`}><Button className="bg-primary text-white rounded-full px-6 gap-2">Presentation View <ExternalLink className="w-4 h-4" /></Button></Link>
         </div>
       </div>
 

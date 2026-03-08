@@ -11,33 +11,20 @@ import {
   Search, 
   Zap, 
   Share2,
-  CheckCircle2,
-  AlertTriangle,
   FileText,
   Lightbulb,
-  TrendingUp,
-  Activity,
   ExternalLink,
-  Layers,
-  Globe,
-  Info,
-  Scale,
-  Sparkles,
   Loader2,
   ArrowRight,
   ShieldAlert,
   ArrowUpRight,
-  ChevronRight,
-  TrendingDown,
-  Cpu,
-  History,
   GitCompare,
-  Check,
   Radar,
   FileSearch,
   Lock,
   Copy,
-  Briefcase
+  AlertCircle,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -49,19 +36,19 @@ import {
   DialogDescription,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { useState, useEffect, useMemo } from "react";
-import { QueryDiscoveryData, StrategicRecommendation, QueryRecord, RealQueryResult, ScanResults, ScanRecord } from "@/lib/types";
-import { QueryEngine } from "@/lib/services/query-engine";
-import { AIResponseParser, ValidationComparison } from "@/lib/services/ai-response-parser";
+import { use, useState, useEffect, useMemo } from "react";
+import { StrategicRecommendation, ScanResults, ScanRecord } from "@/lib/types";
+import { AIResponseParser } from "@/lib/services/ai-response-parser";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
-import { SCORING_MODEL, calculateProjectedImprovement } from "@/lib/services/scoring-model";
+import { calculateProjectedImprovement } from "@/lib/services/scoring-model";
 import { toast } from "@/hooks/use-toast";
 import { ConsultationRequestDialog } from "@/components/consultation/consultation-request-dialog";
 
-export default function ScanResultsPage({ params }: { params: { id: string } }) {
+export default function ScanResultsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -69,7 +56,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     async function fetchScan() {
       setLoading(true);
       try {
-        if (params.id === 'latest') {
+        if (id === 'latest') {
           const scansRef = collection(db, "scans");
           const q = query(scansRef, where("status", "==", "completed"), orderBy("date", "desc"), limit(1));
           const snapshot = await getDocs(q);
@@ -77,7 +64,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
             setScanRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ScanRecord);
           }
         } else {
-          const docRef = doc(db, "scans", params.id);
+          const docRef = doc(db, "scans", id);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
@@ -90,7 +77,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       }
     }
     fetchScan();
-  }, [params.id]);
+  }, [id]);
 
   const results = useMemo(() => scanRecord?.results || {
     overallScore: 72.4,
@@ -174,7 +161,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
                <FileText className="w-3 h-3 text-accent" />
-               Report Identifier: {params.id === 'latest' ? 'SCAN-LATEST' : `SCAN-${params.id.slice(0,8).toUpperCase()}`}
+               Report Identifier: {id === 'latest' ? 'SCAN-LATEST' : `SCAN-${id.slice(0,8).toUpperCase()}`}
             </div>
             {scanRecord?.reviewStatus && (
               <Badge 
@@ -233,7 +220,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
               <Lock className="w-4 h-4" /> Share Access
             </Button>
           )}
-          <Link href={`/scans/report/${params.id}`}>
+          <Link href={`/scans/report/${id}`}>
             <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 rounded-full px-6">
               <ExternalLink className="w-4 h-4" /> Presentation View
             </Button>
@@ -266,74 +253,13 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         </Card>
       )}
 
-      {isHighCompetitorThreat && !isLowVisibility && (
-        <Card className="border-none shadow-lg bg-primary/5 border-l-4 border-l-accent overflow-hidden">
-          <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-accent/10 text-primary flex items-center justify-center shrink-0">
-                <Users className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <CardTitle className="text-lg font-bold text-primary">High Competitor Intrusion Risk</CardTitle>
-                <p className="text-sm text-muted-foreground font-medium">Rivals are capturing 50%+ of your target intent vectors. Reclaiming share-of-voice is prioritized.</p>
-              </div>
-            </div>
-            <ConsultationRequestDialog 
-              sourceScanId={scanRecord?.id} 
-              defaultValues={{ serviceInterest: "Competitor Displacement" }}
-              trigger={
-                <Button className="bg-primary hover:bg-primary/90 text-white font-bold px-8 rounded-full h-12 shadow-lg shadow-primary/20 gap-2">
-                  See Displacement Strategy <ArrowRight className="w-4 h-4" />
-                </Button>
-              }
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Primary KPI Row */}
+      {/* Metric Pillars */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <ScoreCard 
-          title="Overall Visibility" 
-          score={results.overallScore} 
-          trend={4.2} 
-          icon={Search} 
-          className="bg-primary text-white" 
-          description="Avg. AI prominence"
-          tooltip="Consolidated Index based on multi-vector intent resolution."
-        />
-        <ScoreCard 
-          title="Description Accuracy" 
-          score={results.categoryScores.descriptionAccuracy} 
-          trend={1.5} 
-          icon={ShieldCheck} 
-          description="Model alignment"
-          tooltip="Accuracy of AI summaries vs official brand data."
-        />
-        <ScoreCard 
-          title="Citation Strength" 
-          score={results.categoryScores.citationStrength} 
-          trend={8.4} 
-          icon={Target} 
-          description="Authority sourcing"
-          tooltip="Quality and volume of authoritative external citations."
-        />
-        <ScoreCard 
-          title="Service Coverage" 
-          score={results.categoryScores.serviceCoverage} 
-          trend={-0.8} 
-          icon={Zap} 
-          description="Indexing depth"
-          tooltip="Breath of service taxonomy resolution across models."
-        />
-        <ScoreCard 
-          title="Competitor Threat" 
-          score={results.categoryScores.competitorShareOfVoice} 
-          trend={-2.1} 
-          icon={Users} 
-          description="Rival prominence"
-          tooltip="Aggressiveness of rival recommendations in similar queries."
-        />
+        <ScoreCard title="Overall Visibility" score={results.overallScore} trend={4.2} icon={Search} className="bg-primary text-white" description="Avg. AI prominence" />
+        <ScoreCard title="Description Accuracy" score={results.categoryScores.descriptionAccuracy} trend={1.5} icon={ShieldCheck} description="Model alignment" />
+        <ScoreCard title="Citation Strength" score={results.categoryScores.citationStrength} trend={8.4} icon={Target} description="Authority sourcing" />
+        <ScoreCard title="Service Coverage" score={results.categoryScores.serviceCoverage} trend={-0.8} icon={Zap} description="Indexing depth" />
+        <ScoreCard title="Competitor Threat" score={results.categoryScores.competitorShareOfVoice} trend={-2.1} icon={Users} description="Rival prominence" />
       </div>
 
       <div className="grid lg:grid-cols-12 gap-6">
@@ -348,22 +274,9 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
             <CardContent className="pt-8 space-y-6 text-center">
               <div className="relative inline-flex items-center justify-center">
                 <svg className="w-32 h-32 transform -rotate-90">
+                  <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-muted/30" />
                   <circle
-                    cx="64"
-                    cy="64"
-                    r="58"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    fill="transparent"
-                    className="text-muted/30"
-                  />
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="58"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    fill="transparent"
+                    cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent"
                     strokeDasharray={364.4}
                     strokeDashoffset={364.4 - (364.4 * (aggregateAccuracy || results.simulationAccuracy || 74)) / 100}
                     className="text-accent transition-all duration-1000 ease-out"
@@ -375,30 +288,20 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                   <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Fidelity Score</span>
                 </div>
               </div>
-              <div className="space-y-2">
-                 <p className="text-xs font-medium text-muted-foreground leading-relaxed px-4">
-                   This score measures how closely VizAI&apos;s discovery simulation matches real AI responses from Gemini 1.5 Flash knowledge models.
-                 </p>
-              </div>
             </CardContent>
          </Card>
 
          {/* Real AI Validation Table */}
          <Card className="lg:col-span-8 border-none shadow-md bg-white overflow-hidden border-l-4 border-l-accent">
             <CardHeader className="flex flex-row items-center justify-between bg-accent/5 py-4 px-8">
-              <div className="space-y-1">
-                <CardTitle className="text-lg font-black text-primary flex items-center gap-2 tracking-tight">
-                  <GitCompare className="w-5 h-5 text-accent" />
-                  Real AI Validation
-                </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Simulation vs. Live Ground Truth</CardDescription>
-              </div>
-              <Badge className="bg-primary text-white text-[9px] uppercase tracking-[0.2em] px-2 py-1">Model Accuracy Audit</Badge>
+              <CardTitle className="text-lg font-black text-primary flex items-center gap-2 tracking-tight">
+                <GitCompare className="w-5 h-5 text-accent" /> Real AI Validation
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="grid divide-y">
                 {(validationComparisons.length > 0 ? validationComparisons : []).slice(0, 2).map((comp, i) => (
-                  <div key={i} className="p-6 grid md:grid-cols-12 gap-6 hover:bg-muted/5 transition-colors">
+                  <div key={i} className="p-6 grid md:grid-cols-12 gap-6">
                     <div className="md:col-span-6 space-y-2">
                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Vector: "{comp.query}"</div>
                        <div className="flex items-center gap-3">
@@ -409,157 +312,12 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                           <span className="text-xs font-black text-primary">{comp.alignmentScore.toFixed(0)}%</span>
                        </div>
                     </div>
-                    <div className="md:col-span-3">
-                       <div className="text-[9px] font-bold text-muted-foreground uppercase mb-1">Simulated</div>
-                       <div className="text-[10px] font-medium opacity-70 truncate">{comp.simulatedMentions.slice(0,2).join(", ")}...</div>
-                    </div>
-                    <div className="md:col-span-3">
-                       <div className="text-[9px] font-bold text-accent uppercase mb-1">Real AI</div>
-                       <div className="text-[10px] font-bold text-primary truncate">{comp.realMentions.slice(0,2).join(", ")}...</div>
-                    </div>
                   </div>
                 ))}
               </div>
             </CardContent>
          </Card>
       </div>
-
-      {/* Discovery Opportunity Engine */}
-      <Card className="border-none shadow-sm overflow-hidden bg-white">
-        <CardHeader className="flex flex-row items-center justify-between border-b bg-primary/5 py-4 px-8">
-          <div className="space-y-1">
-            <CardTitle className="text-xl font-black text-primary flex items-center gap-2 tracking-tight">
-              <Lightbulb className="w-5 h-5 text-accent" />
-              AI Discovery Opportunities
-            </CardTitle>
-            <CardDescription className="text-xs font-bold uppercase tracking-widest opacity-60">High-potential vectors captured by competitors</CardDescription>
-          </div>
-          <div className="flex items-center gap-4">
-            <Badge className="bg-accent text-primary font-black px-3 py-1 text-[10px] uppercase tracking-widest border-none">
-              {opportunities.length} Vectors Identified
-            </Badge>
-            <ConsultationRequestDialog 
-              sourceScanId={scanRecord?.id} 
-              defaultValues={{ serviceInterest: "Competitor Displacement" }}
-              trigger={
-                <Button variant="ghost" size="sm" className="text-primary font-bold text-[10px] uppercase gap-1.5 h-8">
-                  Export Strategy Brief <ExternalLink className="w-3.5 h-3.5" />
-                </Button>
-              }
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  <TableHead className="pl-8 font-bold uppercase text-[10px] tracking-widest">Discovery Intent Vector</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-widest">Captured By Rivals</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-widest text-center">Category</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-widest text-center">Priority</TableHead>
-                  <TableHead className="pr-8 font-bold uppercase text-[10px] tracking-widest text-right">Yield Potential</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {opportunities.map((opp) => (
-                  <TableRow key={opp.id} className="hover:bg-muted/10 transition-colors group">
-                    <TableCell className="pl-8 py-5">
-                      <div className="font-bold text-primary italic text-xs leading-relaxed group-hover:text-accent transition-colors">
-                        "{opp.query}"
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {opp.competitors.map((comp, i) => (
-                          <Badge key={i} variant="outline" className="text-[8px] bg-muted/50 border-none px-1.5 h-4">
-                            {comp}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                       <span className="text-[10px] font-bold text-muted-foreground uppercase">{opp.intentType}</span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        variant={opp.priority === 'high' ? 'destructive' : opp.priority === 'medium' ? 'default' : 'secondary'}
-                        className="text-[8px] uppercase px-2 py-0.5"
-                      >
-                        {opp.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right pr-8">
-                       <div className="flex items-center justify-end gap-1.5 text-[10px] font-bold text-primary">
-                          {opp.potential}
-                          <ArrowUpRight className="w-3 h-3 text-accent" />
-                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Optimization Scenario */}
-      <Card className="border-none shadow-2xl bg-gradient-to-br from-[#174C80] via-[#0d2a4a] to-black text-white overflow-hidden relative group">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-accent/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 transition-all duration-700 group-hover:scale-110" />
-        <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
-          <div className="space-y-1">
-            <CardTitle className="text-2xl font-black flex items-center gap-2 tracking-tight">
-              <Sparkles className="w-7 h-7 text-accent animate-pulse" />
-              Optimization Scenario
-            </CardTitle>
-            <CardDescription className="text-white/60 text-base">Projected visibility uplift following strategic implementations</CardDescription>
-          </div>
-          <ConsultationRequestDialog 
-            sourceScanId={scanRecord?.id}
-            trigger={
-              <Button className="bg-accent hover:bg-accent/90 text-primary font-black px-6 py-1.5 text-[10px] uppercase tracking-[0.2em] border-none rounded-full h-10 shadow-xl shadow-accent/20">
-                Implement Strategy <Zap className="w-3.5 h-3.5 ml-2 fill-current" />
-              </Button>
-            }
-          />
-        </CardHeader>
-        <CardContent className="pt-8 relative z-10">
-          <div className="grid lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-              <div className="p-8 bg-white/5 rounded-[2rem] border border-white/10 text-center space-y-2 backdrop-blur-md">
-                <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">Current Index</div>
-                <div className="text-5xl font-black">{results.overallScore.toFixed(1)}</div>
-                <div className="text-[10px] text-white/60 font-bold uppercase tracking-tighter">Market Baseline: 64.2</div>
-              </div>
-              <div className="p-8 bg-accent/10 rounded-[2rem] border border-accent/30 text-center space-y-2 relative overflow-hidden backdrop-blur-md group/proj">
-                <div className="absolute top-0 left-0 w-full h-1 bg-accent/50 animate-pulse" />
-                <div className="text-[10px] font-bold text-accent uppercase tracking-[0.2em]">Projected Index</div>
-                <div className="text-5xl font-black text-accent">{projection.projectedOverall.toFixed(1)}</div>
-                <div className="text-[10px] text-accent/80 font-black uppercase">+{projection.totalGain.toFixed(1)} Yield</div>
-              </div>
-            </div>
-
-            <div className="lg:col-span-7 space-y-6">
-              <div className="space-y-4">
-                <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] flex items-center gap-2">
-                   <Layers className="w-4 h-4" /> Yield Vectors by Category
-                </div>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {projection.improvements.map((imp, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 group/v hover:bg-white/10 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-accent shadow-[0_0_12px_rgba(0,210,255,1)]" />
-                        <span className="text-sm font-bold opacity-80">{imp.label}</span>
-                      </div>
-                      <span className="text-sm font-black text-accent">+{imp.gain}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

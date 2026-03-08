@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
-import { ScanRecord, StrategicRecommendation, ServicePackageType, ReportType } from "@/lib/types";
+import { ScanRecord, StrategicRecommendation, ReportType } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,21 +20,17 @@ import {
   ShieldCheck, 
   Save, 
   CheckCircle2, 
-  Lock, 
-  AlertCircle,
   Loader2,
   Trash2,
   Plus,
   StickyNote,
   Share2,
   Copy,
-  ExternalLink,
   Eye,
   Calendar,
   Briefcase,
   Boxes,
   Zap,
-  Info,
   Shield,
   UserCheck
 } from "lucide-react";
@@ -43,7 +39,8 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { PackageService } from "@/lib/services/package-service";
 
-export default function ScanReviewPage({ params }: { params: { id: string } }) {
+export default function ScanReviewPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const [scan, setScan] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,7 +63,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
     async function fetchScan() {
       setLoading(true);
       try {
-        const docRef = doc(db, "scans", params.id);
+        const docRef = doc(db, "scans", id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data() as ScanRecord;
@@ -94,7 +91,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
       }
     }
     fetchScan();
-  }, [params.id]);
+  }, [id]);
 
   const suggestedPackage = useMemo(() => {
     if (!scan) return null;
@@ -104,7 +101,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
   const handleSave = async (isApproval = false) => {
     setSaving(true);
     try {
-      const docRef = doc(db, "scans", params.id);
+      const docRef = doc(db, "scans", id);
       const updates: Partial<ScanRecord> = {
         internalNotes,
         reviewStatus: isApproval ? 'approved' : reviewStatus,
@@ -171,7 +168,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
   };
 
   const copyShareLink = () => {
-    const url = `${window.location.origin}/share/${params.id}`;
+    const url = `${window.location.origin}/share/${id}`;
     navigator.clipboard.writeText(url);
     toast({
       title: "Link Copied",
@@ -206,7 +203,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
           </div>
         </div>
         <div className="flex gap-3">
-          <Link href={`/admin/scans/${params.id}/proposal`}>
+          <Link href={`/admin/scans/${id}/proposal`}>
             <Button variant="outline" className="gap-2 border-accent text-primary font-bold">
               <Briefcase className="w-4 h-4 text-accent" />
               Build Proposal
@@ -433,7 +430,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                   <div className="flex gap-2">
                     <Input 
                       readOnly 
-                      value={`${window.location.origin}/share/${params.id}`} 
+                      value={`${window.location.origin}/share/${id}`} 
                       className="h-8 text-[10px] bg-muted/30 border-none"
                     />
                     <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={copyShareLink}>
@@ -448,7 +445,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                     <div className="grid grid-cols-2 gap-2 pt-1">
                        <div className="space-y-0.5">
                           <div className="text-[8px] font-bold text-muted-foreground uppercase">Identity</div>
-                          <div className="text-[10px] font-bold truncate">{anonymizeSubject ? (caseStudyTitle || 'Anonymized') : scan.results.companyName}</div>
+                          <div className="text-[10px] font-bold truncate">{anonymizeSubject ? (caseStudyTitle || 'Anonymized') : scan?.results.companyName}</div>
                        </div>
                        <div className="space-y-0.5">
                           <div className="text-[8px] font-bold text-muted-foreground uppercase">Rivals</div>
@@ -462,14 +459,14 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                       <div className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
                         <Eye className="w-2.5 h-2.5" /> Views
                       </div>
-                      <div className="text-sm font-black text-primary">{scan.viewCount || 0}</div>
+                      <div className="text-sm font-black text-primary">{scan?.viewCount || 0}</div>
                     </div>
                     <div className="p-3 bg-muted/30 rounded-xl space-y-1">
                       <div className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
                         <Calendar className="w-2.5 h-2.5" /> Last Viewed
                       </div>
                       <div className="text-[9px] font-bold text-primary truncate">
-                        {scan.lastViewedAt ? scan.lastViewedAt.toDate().toLocaleDateString() : 'Never'}
+                        {scan?.lastViewedAt ? scan.lastViewedAt.toDate().toLocaleDateString() : 'Never'}
                       </div>
                     </div>
                   </div>

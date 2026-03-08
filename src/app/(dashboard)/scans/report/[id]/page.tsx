@@ -1,9 +1,8 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   Printer, 
@@ -16,27 +15,19 @@ import {
   AlertTriangle,
   CheckCircle2,
   FileText,
-  Globe,
-  Briefcase,
   TrendingUp,
-  FileCode,
-  Layers,
-  ArrowRight,
-  ShieldAlert,
-  Lightbulb,
-  ArrowUpRight,
   Lock,
   FileSearch,
   EyeOff
 } from "lucide-react";
 import Link from "next/link";
 import { QueryDiscoveryData, StrategicRecommendation, ScanRecord } from "@/lib/types";
-import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
 import { collection, doc, getDoc, getDocs, query, where, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 
-export default function ClientReportPage({ params }: { params: { id: string } }) {
+export default function ClientReportPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -44,7 +35,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
     async function fetchScan() {
       setLoading(true);
       try {
-        if (params.id === 'latest') {
+        if (id === 'latest') {
           const scansRef = collection(db, "scans");
           const q = query(scansRef, where("status", "==", "completed"), limit(1));
           const snapshot = await getDocs(q);
@@ -52,7 +43,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
             setScanRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ScanRecord);
           }
         } else {
-          const docRef = doc(db, "scans", params.id);
+          const docRef = doc(db, "scans", id);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
@@ -65,7 +56,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
       }
     }
     fetchScan();
-  }, [params.id]);
+  }, [id]);
 
   const isCaseStudy = scanRecord?.reportType === 'case-study';
   const anonymizeSubject = scanRecord?.anonymizeSubject;
@@ -114,7 +105,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
     <div className="max-w-5xl mx-auto space-y-8 pb-20 print:space-y-6 print:pb-0">
       {/* Report Controls - Hidden on Print */}
       <div className="flex items-center justify-between print:hidden">
-        <Link href={`/scans/results/${params.id}`}>
+        <Link href={`/scans/results/${id}`}>
           <Button variant="ghost" className="gap-2">
             <ChevronLeft className="w-4 h-4" /> Back to Dashboard
           </Button>

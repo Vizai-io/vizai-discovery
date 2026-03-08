@@ -1,33 +1,30 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Search, 
   Lock, 
   Sparkles, 
-  Eye, 
-  ShieldCheck, 
   Loader2,
   AlertCircle,
   RefreshCcw,
-  Zap,
   CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 
-export default function FreeScanTeaserPage({ params }: { params: { id: string } }) {
+export default function FreeScanTeaserPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [scan, setScan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, "scans", params.id), (docSnap) => {
+    const unsubscribe = onSnapshot(doc(db, "scans", id), (docSnap) => {
       if (docSnap.exists()) {
         setScan({ id: docSnap.id, ...docSnap.data() });
       }
@@ -37,7 +34,7 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [params.id]);
+  }, [id]);
 
   if (loading) {
     return (
@@ -88,7 +85,7 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
         {process.env.NODE_ENV === 'development' && (
           <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-[10px] font-mono font-bold flex justify-between items-center text-amber-900 uppercase">
             <div className="flex gap-4">
-              <span>Path: scans/{scan.id}</span>
+              <span>Path: scans/{id}</span>
               <span className="text-green-700 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Result Data Detected</span>
             </div>
             <Button size="xs" variant="ghost" className="h-6 text-[9px]" onClick={() => window.location.reload()}>Re-Fetch</Button>

@@ -1,11 +1,10 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { doc, getDoc, updateDoc, increment, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { ScanRecord, StrategicRecommendation } from "@/lib/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   ShieldCheck, 
@@ -17,13 +16,13 @@ import {
   Globe,
   TrendingUp,
   CheckCircle2,
-  AlertTriangle,
   Lock,
   SearchCode
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
-export default function PublicSharePage({ params }: { params: { id: string } }) {
+export default function PublicSharePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [scan, setScan] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +30,7 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
   useEffect(() => {
     async function fetchSharedScan() {
       try {
-        const docRef = doc(db, "scans", params.id);
+        const docRef = doc(db, "scans", id);
         const docSnap = await getDoc(docRef);
         
         if (!docSnap.exists()) {
@@ -63,7 +62,7 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
       }
     }
     fetchSharedScan();
-  }, [params.id]);
+  }, [id]);
 
   const displayIdentity = useMemo(() => {
     if (!scan) return "";
@@ -72,13 +71,6 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
     }
     return scan.results.companyName || "Verified Client";
   }, [scan]);
-
-  const getDisplayCompetitor = (name: string, index: number) => {
-    if (scan?.anonymizeCompetitors) {
-      return `Rival ${String.fromCharCode(65 + index)}`;
-    }
-    return name;
-  };
 
   const CATEGORY_SCORES = useMemo(() => {
     if (!scan) return [];
@@ -151,7 +143,7 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
           <div className="flex flex-wrap gap-6 pt-4">
              <div className="space-y-1">
                 <div className="text-[9px] font-bold text-muted-foreground uppercase">Audit Reference</div>
-                <div className="text-xs font-bold text-primary">AUDIT-{scan.id.slice(0,8).toUpperCase()}</div>
+                <div className="text-xs font-bold text-primary">AUDIT-{id.slice(0,8).toUpperCase()}</div>
              </div>
              <div className="space-y-1">
                 <div className="text-[9px] font-bold text-muted-foreground uppercase">Publication Date</div>
@@ -248,7 +240,7 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
              </div>
           </div>
           <div className="text-[9px] text-muted-foreground uppercase tracking-[0.4em] font-bold">
-            &copy; {new Date().getFullYear()} VizAI Consulting Group • Confidential {scan.reportType === 'case-study' ? 'Anonymized Analysis' : 'Client Audit'} • Ref: {scan.id}
+            &copy; {new Date().getFullYear()} VizAI Consulting Group • Confidential {scan.reportType === 'case-study' ? 'Anonymized Analysis' : 'Client Audit'} • Ref: {id}
           </div>
         </footer>
       </main>

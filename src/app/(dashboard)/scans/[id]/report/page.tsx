@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -12,22 +12,17 @@ import {
   Search, 
   Zap, 
   Users,
-  AlertTriangle,
-  CheckCircle2,
   FileText,
-  Globe,
   TrendingUp,
-  FileSearch,
-  Lock,
   EyeOff
 } from "lucide-react";
 import Link from "next/link";
 import { StrategicRecommendation, ScanRecord } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 
-export default function ProfessionalReportPage({ params }: { params: { id: string } }) {
+export default function ProfessionalReportPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +30,7 @@ export default function ProfessionalReportPage({ params }: { params: { id: strin
     async function fetchScan() {
       setLoading(true);
       try {
-        if (params.id === 'latest') {
+        if (id === 'latest') {
           const scansRef = collection(db, "scans");
           const q = query(scansRef, where("status", "==", "completed"), limit(1));
           const snapshot = await getDocs(q);
@@ -43,7 +38,7 @@ export default function ProfessionalReportPage({ params }: { params: { id: strin
             setScanRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ScanRecord);
           }
         } else {
-          const docRef = doc(db, "scans", params.id);
+          const docRef = doc(db, "scans", id);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
@@ -56,7 +51,7 @@ export default function ProfessionalReportPage({ params }: { params: { id: strin
       }
     }
     fetchScan();
-  }, [params.id]);
+  }, [id]);
 
   const isCaseStudy = scanRecord?.reportType === 'case-study';
   const anonymizeSubject = scanRecord?.anonymizeSubject;
@@ -68,18 +63,11 @@ export default function ProfessionalReportPage({ params }: { params: { id: strin
     return scanRecord.results.companyName || "Client Account";
   }, [scanRecord, isCaseStudy, anonymizeSubject]);
 
-  const getDisplayCompetitor = (name: string, index: number) => {
-    if (anonymizeRivals) return `Rival ${String.fromCharCode(65 + index)}`;
-    return name;
-  };
-
   const results = useMemo(() => scanRecord?.results || {
     overallScore: 72.4,
     categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
     priorityActions: [] as StrategicRecommendation[]
   }, [scanRecord]);
-
-  const queryDiscovery = useMemo(() => scanRecord?.queryDiscovery || null, [scanRecord]);
 
   const CATEGORY_SCORES = [
     { label: "AI Presence", score: results.categoryScores.presence, icon: Search },
@@ -94,7 +82,7 @@ export default function ProfessionalReportPage({ params }: { params: { id: strin
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 print:space-y-6 print:pb-0">
       <div className="flex items-center justify-between print:hidden">
-        <Link href={`/scans/${params.id}`}>
+        <Link href={`/scans/${id}`}>
           <Button variant="ghost" className="gap-2"><ChevronLeft className="w-4 h-4" /> Back to Analytics</Button>
         </Link>
         <div className="flex gap-3">
