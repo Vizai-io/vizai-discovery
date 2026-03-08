@@ -78,34 +78,34 @@ export default function NewScanWizard() {
         organizationId: "org_default_acme"
       };
 
-      // 1. Create Records
+      // 1. Create Initial Records
       const profileRef = await addDoc(collection(db, "companyProfiles"), profileData);
       const scanRef = await addDoc(collection(db, "scans"), {
         profileId: profileRef.id,
         date: serverTimestamp(),
-        status: "pending",
+        status: "running",
         organizationId: "org_default_acme",
         reviewStatus: "draft",
-        results: { companyName: formData.companyName, industry: formData.industry }
+        results: { companyName: formData.companyName, industry: formData.industry, overallScore: 0 }
       });
       scanId = scanRef.id;
 
-      // 2. Start Execution
+      // 2. Generate Deterministic Mock Data
       const scanOutput = await ScanEngine.runScan(profileData, profileRef.id, scanId);
 
-      // 3. Complete
+      // 3. Persist Completed Results
       await updateDoc(doc(db, "scans", scanId), {
         status: "completed",
         results: scanOutput,
         queryDiscovery: scanOutput.queryDiscovery,
-        realQueryResults: scanOutput.realQueryResults || []
+        realQueryResults: []
       });
 
-      toast({ title: "Scan Completed", description: "Audit finished successfully." });
+      toast({ title: "Scan Completed", description: "Audit generated successfully." });
       router.push(`/scans/${scanId}`);
     } catch (err: any) {
-      console.error("Scan Launch Error:", err);
-      const message = err.message || "An unexpected error occurred during the scan.";
+      console.error("Scan Execution Error:", err);
+      const message = err.message || "Execution failure in minimal path.";
       setError(message);
       if (scanId) {
         await updateDoc(doc(db, "scans", scanId), { 
@@ -113,13 +113,8 @@ export default function NewScanWizard() {
           errorMessage: message 
         }).catch(console.warn);
       }
-      toast({ 
-        title: "Scan Failed", 
-        description: message,
-        variant: "destructive" 
-      });
+      toast({ title: "Scan Failed", description: message, variant: "destructive" });
     } finally {
-      setError(null);
       setLoading(false);
     }
   };
@@ -140,8 +135,8 @@ export default function NewScanWizard() {
             <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
             <div className="space-y-1">
               <p className="text-sm font-bold text-destructive">Execution Failure</p>
-              <p className="text-xs text-muted-foreground">{error}</p>
-              <Button variant="link" size="sm" className="p-0 h-auto text-destructive font-bold h-6" onClick={() => setError(null)}>Dismiss & Try Again</Button>
+              <p className="text-xs text-muted-foreground font-mono">{error}</p>
+              <Button variant="link" size="sm" className="p-0 h-auto text-destructive font-bold h-6" onClick={() => setError(null)}>Dismiss</Button>
             </div>
           </CardContent>
         </Card>
@@ -243,7 +238,7 @@ export default function NewScanWizard() {
               </div>
               <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 text-xs opacity-80">
                  <Sparkles className="w-5 h-5 text-accent" />
-                 <p>Initiating multi-vector audit. Scan will run 8 simulated discovery paths and 3 live model verification queries across global AI knowledge sets.</p>
+                 <p>Initiating minimal deterministic audit. This path guarantees completion by bypassing optional live model verification steps.</p>
               </div>
             </div>
           )}
@@ -254,7 +249,7 @@ export default function NewScanWizard() {
               <Button onClick={nextStep} className="bg-primary text-white" disabled={!formData.companyName || !formData.website}>Continue</Button>
             ) : (
               <Button onClick={handleFinish} disabled={loading} className="bg-accent text-primary font-bold shadow-lg min-w-[200px]">
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Auditing Vectors...</> : "Launch Intelligence Scan"}
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Writing Audit...</> : "Launch Guaranteed Scan"}
               </Button>
             )}
           </div>
