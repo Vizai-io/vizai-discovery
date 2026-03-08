@@ -21,7 +21,6 @@ import {
   Users, 
   Search, 
   Zap, 
-  Download, 
   Share2,
   CheckCircle2,
   AlertTriangle,
@@ -34,7 +33,8 @@ import {
   TrendingUp,
   Activity,
   ChevronRight,
-  Info
+  Info,
+  ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -42,6 +42,7 @@ import { useState, useEffect } from "react";
 import { QueryDiscoveryData, ScanResults } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 const MOCK_SCORE_BREAKDOWN = [
   { name: 'Presence', score: 78, color: '#174C80' },
@@ -107,11 +108,13 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5">
-            <Share2 className="w-4 h-4" /> Share Report
+            <Share2 className="w-4 h-4" /> Share Dashboard
           </Button>
-          <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20">
-            <Download className="w-4 h-4" /> Download PDF
-          </Button>
+          <Link href={`/scans/report/${params.id}`}>
+            <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20">
+              <ExternalLink className="w-4 h-4" /> Client Report View
+            </Button>
+          </Link>
         </div>
       </div>
 

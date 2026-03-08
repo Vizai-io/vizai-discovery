@@ -1,9 +1,10 @@
 "use client";
 
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, PanelLeft } from "lucide-react";
+import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -17,10 +18,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { title: "Scan History", icon: History, href: "/history" },
   ];
 
+  // We hide the sidebar and header during print for a clean report view
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
-        <Sidebar variant="sidebar" className="border-r">
+        <Sidebar variant="sidebar" className="border-r print:hidden">
           <SidebarHeader className="p-4 border-b">
             <Link href="/" className="flex items-center gap-2">
               <div className="bg-primary p-1.5 rounded-lg">
@@ -62,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </Sidebar>
 
         <main className="flex-1 overflow-auto">
-          <header className="h-16 border-b bg-white flex items-center px-6 sticky top-0 z-30 justify-between">
+          <header className="h-16 border-b bg-white flex items-center px-6 sticky top-0 z-30 justify-between print:hidden">
             <div className="flex items-center gap-4">
               <SidebarTrigger />
               <h1 className="text-lg font-bold font-headline text-primary capitalize">
@@ -79,7 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                </div>
             </div>
           </header>
-          <div className="p-6">
+          <div className={cn("p-6 print:p-0 print:bg-white", pathname.includes('/report/') && "print:p-0")}>
             {children}
           </div>
         </main>
