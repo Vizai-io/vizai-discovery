@@ -199,6 +199,7 @@ export interface ScanResults {
   };
   entitySignal?: EntitySignal;
   presenceSignal?: PresenceSignal;
+  simulationAccuracy?: number; // 0-100
 }
 
 export interface RankingEntry {

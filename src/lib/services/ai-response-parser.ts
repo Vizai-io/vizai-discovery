@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview AI Response Parser Service.
  * Handles the normalization of real AI responses and generates comparison metrics
@@ -47,7 +48,16 @@ export class AIResponseParser {
   }
 
   /**
-   * Summarizes a real AI response for quick report consumption.
+   * Calculates the overall simulation accuracy for a batch of comparisons.
+   */
+  static calculateAggregateAccuracy(comparisons: ValidationComparison[]): number {
+    if (comparisons.length === 0) return 0;
+    const sum = comparisons.reduce((acc, comp) => acc + comp.alignmentScore, 0);
+    return sum / comparisons.length;
+  }
+
+  /**
+   * Summarize a real AI response for quick report consumption.
    */
   static summarizeResponse(realResult: RealQueryResult): string {
     const topMention = realResult.mentions[0]?.companyName || "No entities found";
