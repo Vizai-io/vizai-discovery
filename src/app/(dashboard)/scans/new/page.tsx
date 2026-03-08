@@ -22,7 +22,8 @@ import {
   Layers, 
   MapPin, 
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Briefcase
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
@@ -38,9 +39,6 @@ const STEPS = [
   { id: 6, title: "Competitors", icon: Users },
   { id: 7, title: "Launch", icon: Target },
 ];
-
-// Fallback icons if not provided
-const Briefcase = (props: any) => <Building2 {...props} />;
 
 export default function NewScanWizard() {
   const router = useRouter();
@@ -121,6 +119,7 @@ export default function NewScanWizard() {
         variant: "destructive" 
       });
     } finally {
+      setError(null);
       setLoading(false);
     }
   };
@@ -214,7 +213,7 @@ export default function NewScanWizard() {
           )}
           {currentStep === 5 && (
             <div className="space-y-6">
-              <h3 className="text-lg font-bold text-primary flex items-center gap-2"><Layers className="w-5 h-5" /> Primary Capabilities</h3>
+              <h3 className="text-lg font-bold text-primary flex items-center gap-2"><Briefcase className="w-5 h-5" /> Primary Capabilities</h3>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Service Categories (Comma separated)</Label>
