@@ -24,49 +24,38 @@ import {
   ArrowRight,
   ShieldAlert,
   Lightbulb,
-  ArrowUpRight
+  ArrowUpRight,
+  Lock,
+  FileSearch
 } from "lucide-react";
 import Link from "next/link";
-import { QueryDiscoveryData, StrategicRecommendation } from "@/lib/types";
+import { QueryDiscoveryData, StrategicRecommendation, ScanRecord } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
 import { collection, doc, getDoc, getDocs, query, where, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 
 export default function ClientReportPage({ params }: { params: { id: string } }) {
-  const [scanData, setScanData] = useState<any>(null);
-  const [queryDiscovery, setQueryDiscovery] = useState<QueryDiscoveryData | null>(null);
+  const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchScan() {
       setLoading(true);
       try {
-        let results;
-        let discovery;
-
         if (params.id === 'latest') {
           const scansRef = collection(db, "scans");
           const q = query(scansRef, where("status", "==", "completed"), limit(1));
           const snapshot = await getDocs(q);
           if (!snapshot.empty) {
-            const data = snapshot.docs[0].data();
-            results = data.results;
-            discovery = data.queryDiscovery;
+            setScanRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ScanRecord);
           }
         } else {
           const docRef = doc(db, "scans", params.id);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            const data = docSnap.data();
-            results = data.results;
-            discovery = data.queryDiscovery;
+            setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
           }
-        }
-
-        if (results) {
-          setScanData(results);
-          setQueryDiscovery(discovery || null);
         }
       } catch (e) {
         console.error("Error loading report:", e);
@@ -77,6 +66,14 @@ export default function ClientReportPage({ params }: { params: { id: string } })
     fetchScan();
   }, [params.id]);
 
+  const results = useMemo(() => scanRecord?.results || {
+    overallScore: 72.4,
+    categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
+    priorityActions: [] as StrategicRecommendation[]
+  }, [scanRecord]);
+
+  const queryDiscovery = useMemo(() => scanRecord?.queryDiscovery || null, [scanRecord]);
+
   const opportunities = useMemo(() => {
     if (!queryDiscovery) return [];
 
@@ -85,7 +82,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
       .map(q => {
         const competitors = Array.from(new Set(
           q.results.flatMap(r => r.mentions.map(m => m.companyName))
-        )).filter(name => name !== (scanData?.companyName || "Acme Logistics"));
+        )).filter(name => name !== (results?.companyName || "Acme Logistics"));
 
         let priority: 'high' | 'medium' | 'low' = 'low';
         if (q.intentType === 'best' || q.intentType === 'comparison') priority = 'high';
@@ -104,21 +101,11 @@ export default function ClientReportPage({ params }: { params: { id: string } })
         const order = { high: 0, medium: 1, low: 2 };
         return order[a.priority] - order[b.priority];
       })
-      .slice(0, 5); // Show top 5 in report
-  }, [queryDiscovery, scanData]);
+      .slice(0, 5);
+  }, [queryDiscovery, results]);
 
   const handlePrint = () => {
     window.print();
-  };
-
-  const results = scanData || {
-    overallScore: 72.4,
-    categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
-    priorityActions: [
-      { category: "Structured Data", title: "Deploy JSON-LD Entity Schema", description: "Implement technical schema markup to clarify business entities for AI models.", priority: "high", expectedImpact: "Accuracy gain" },
-      { category: "Content / Positioning", title: "Publish AI-Ready Capabilities Page", description: "Create a dedicated landing page designed specifically for LLM ingestion.", priority: "high", expectedImpact: "Visibility gain" },
-      { category: "Entity / Citation Signals", title: "Strengthen Authoritative Mentions", description: "Acquire high-quality backlinks from industry publications to build trust.", priority: "medium", expectedImpact: "Citation strength gain" },
-    ] as StrategicRecommendation[]
   };
 
   const CATEGORY_SCORES = [
@@ -129,8 +116,9 @@ export default function ClientReportPage({ params }: { params: { id: string } })
     { label: "Market Share of Voice", score: results.categoryScores.competitorShareOfVoice, icon: Users },
   ];
 
-  const showVisibilityCTA = results.overallScore < 40;
-  const showCompetitorCTA = results.categoryScores.competitorShareOfVoice > 50;
+  if (loading) {
+    return <div className="p-20 text-center">Constructing final report...</div>;
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 print:space-y-6 print:pb-0">
@@ -141,18 +129,32 @@ export default function ClientReportPage({ params }: { params: { id: string } })
             <ChevronLeft className="w-4 h-4" /> Back to Dashboard
           </Button>
         </Link>
-        <Button onClick={handlePrint} className="gap-2 bg-primary text-white shadow-lg">
-          <Printer className="w-4 h-4" /> Export / Print Audit
-        </Printer>
+        <div className="flex gap-2">
+           {scanRecord?.reviewStatus && scanRecord.reviewStatus !== 'approved' && (
+             <Badge variant="secondary" className="bg-yellow-50 text-yellow-700 border-yellow-200 uppercase font-bold text-[9px]">
+               <FileSearch className="w-3 h-3 mr-1" /> Internal Draft
+             </Badge>
+           )}
+           <Button onClick={handlePrint} className="gap-2 bg-primary text-white shadow-lg">
+             <Printer className="w-4 h-4" /> Export / Print Audit
+           </Button>
+        </div>
       </div>
 
       {/* Report Header */}
       <header className="border-b-4 border-primary pb-8 space-y-6 print:pb-4">
         <div className="flex justify-between items-start">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
-              <FileText className="w-3 h-3 text-accent" />
-              Client Intelligence Report • Private & Confidential
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+                <FileText className="w-3 h-3 text-accent" />
+                Client Intelligence Report • Private & Confidential
+              </div>
+              {scanRecord?.reviewStatus === 'approved' && (
+                <Badge className="bg-green-50 text-green-700 border-green-200 text-[8px] uppercase font-bold tracking-[0.2em]">
+                   <Lock className="w-3 h-3 mr-1" /> Verified & Approved
+                </Badge>
+              )}
             </div>
             <h1 className="text-4xl font-headline font-bold text-primary leading-tight">AI Visibility Discovery Audit</h1>
             <p className="text-lg text-muted-foreground">Comprehensive analysis of search prominence and LLM recommendation patterns.</p>
@@ -183,52 +185,14 @@ export default function ClientReportPage({ params }: { params: { id: string } })
         </div>
       </header>
 
-      {/* Strategic Interventions - Contextual CTAs */}
-      {(showVisibilityCTA || showCompetitorCTA) && (
-        <section className="grid md:grid-cols-2 gap-4 print:hidden">
-          {showVisibilityCTA && (
-            <Card className="border-none bg-destructive/5 border-l-4 border-l-destructive shadow-sm">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-3 text-destructive">
-                  <ShieldAlert className="w-5 h-5" />
-                  <h4 className="font-bold">Critical Visibility Deficit</h4>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your business is largely invisible to AI systems. High-intent queries are failing to resolve to your brand entity.
-                </p>
-                <Button className="w-full bg-destructive hover:bg-destructive/90 text-white text-xs h-9">
-                  Request VizAI Optimization Plan
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          {showCompetitorCTA && (
-            <Card className="border-none bg-accent/5 border-l-4 border-l-accent shadow-sm">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center gap-3 text-accent">
-                  <Users className="w-5 h-5" />
-                  <h4 className="font-bold">Competitive Displacement</h4>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your competitors dominate AI discovery queries. They currently capture majority share-of-voice in your vertical.
-                </p>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white text-xs h-9">
-                  See How VizAI Improves Discoverability
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </section>
-      )}
-
       {/* Executive Summary Section */}
       <section className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end gap-6 border-b pb-6 print:pb-4">
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-primary">Executive Summary</h2>
-            <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
-              This audit details the AI Visibility Index and discoverability footprint for your organization. Current metrics indicate a baseline prominence, yet significant gaps exist in specific high-intent intents where competitors are currently capturing majority share of voice. Tactical adjustments to entity signals and capability positioning are required to regain parity.
-            </p>
+            <div className="text-sm text-muted-foreground max-w-2xl leading-relaxed whitespace-pre-wrap">
+              {results.overview || "This audit details the AI Visibility Index and discoverability footprint for your organization. Tactical adjustments to entity signals and capability positioning are required to regain parity."}
+            </div>
           </div>
           <div className="sm:ml-auto text-center p-4 bg-primary text-white rounded-2xl shadow-xl min-w-[140px] print:shadow-none print:border print:border-primary print:text-primary print:bg-white">
             <div className="text-[10px] font-bold uppercase tracking-widest opacity-80">Overall Score</div>
@@ -244,39 +208,6 @@ export default function ClientReportPage({ params }: { params: { id: string } })
               </div>
               <div className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">{cat.label}</div>
               <div className="text-2xl font-bold text-primary">{cat.score}%</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Discovery Opportunity Engine - NEW for Report */}
-      <section className="space-y-4 pt-8 print:pt-4 page-break-before-auto">
-        <div className="flex justify-between items-center border-b pb-2">
-          <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-            <Lightbulb className="w-5 h-5 text-accent" />
-            Strategic Discovery Opportunities
-          </h3>
-          <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary border-primary/20">
-            Signal Gaps identified vs Rivals
-          </Badge>
-        </div>
-        
-        <div className="space-y-3">
-          {opportunities.map((opp, i) => (
-            <div key={opp.id} className="p-4 bg-white border border-slate-100 rounded-xl flex items-center justify-between print:border-slate-200">
-               <div className="space-y-1">
-                 <div className="text-[10px] font-bold text-muted-foreground uppercase">{opp.intentType} Vector</div>
-                 <div className="text-sm font-bold text-primary italic">"{opp.query}"</div>
-                 <div className="text-[9px] text-muted-foreground">Captured by: {opp.competitors.join(", ")}</div>
-               </div>
-               <div className="text-right space-y-1">
-                  <Badge variant={opp.priority === 'high' ? 'destructive' : 'secondary'} className="text-[8px] uppercase">
-                    {opp.priority} Yield
-                  </Badge>
-                  <div className="text-[10px] font-bold text-accent flex items-center justify-end gap-1">
-                    {opp.potential} <ArrowUpRight className="w-3 h-3" />
-                  </div>
-               </div>
             </div>
           ))}
         </div>
@@ -313,17 +244,6 @@ export default function ClientReportPage({ params }: { params: { id: string } })
             </div>
           ))}
         </div>
-      </section>
-
-      {/* Consulting Footnote for Report */}
-      <section className="p-8 bg-muted/20 border-2 border-dashed rounded-[2rem] text-center space-y-4 print:hidden">
-        <h4 className="text-xl font-bold text-primary">Need an Implementation Roadmap?</h4>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          Our strategy team specializes in entity signal fortification and technical AI knowledge graph positioning.
-        </p>
-        <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-8">
-          Schedule Strategy Briefing
-        </Button>
       </section>
 
       {/* Discovery Analysis Table Section */}

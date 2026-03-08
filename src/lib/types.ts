@@ -97,8 +97,13 @@ export interface IndustryQuery {
 export interface ScanRecord {
   id: string;
   profileId: string;
+  organizationId: string;
   date: any;
   status: 'pending' | 'completed' | 'failed';
+  reviewStatus?: 'draft' | 'in-review' | 'approved' | 'shared';
+  internalNotes?: string;
+  lastReviewedBy?: string;
+  lastReviewedAt?: any;
   results: ScanResults;
   queryDiscovery?: QueryDiscoveryData;
   queryLibraryUsed?: string[];
@@ -159,6 +164,7 @@ export interface StrategicRecommendation {
 
 export interface ScanResults {
   overallScore: number;
+  overview?: string;
   categoryScores: {
     presence: number;
     descriptionAccuracy: number;
@@ -200,6 +206,8 @@ export interface ScanResults {
   entitySignal?: EntitySignal;
   presenceSignal?: PresenceSignal;
   simulationAccuracy?: number; // 0-100
+  companyName?: string;
+  industry?: string;
 }
 
 export interface RankingEntry {

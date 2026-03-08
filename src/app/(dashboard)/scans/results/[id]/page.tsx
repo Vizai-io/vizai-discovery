@@ -33,12 +33,14 @@ import {
   History,
   GitCompare,
   Check,
-  Radar
+  Radar,
+  FileSearch,
+  Lock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useState, useEffect, useMemo } from "react";
-import { QueryDiscoveryData, StrategicRecommendation, QueryRecord, RealQueryResult, ScanResults } from "@/lib/types";
+import { QueryDiscoveryData, StrategicRecommendation, QueryRecord, RealQueryResult, ScanResults, ScanRecord } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { AIResponseParser, ValidationComparison } from "@/lib/services/ai-response-parser";
 import { cn } from "@/lib/utils";
@@ -48,53 +50,26 @@ import { db } from "@/lib/firebase-config";
 import { SCORING_MODEL, calculateProjectedImprovement } from "@/lib/services/scoring-model";
 
 export default function ScanResultsPage({ params }: { params: { id: string } }) {
-  const [scanData, setScanData] = useState<ScanResults | null>(null);
-  const [queryDiscovery, setQueryDiscovery] = useState<QueryDiscoveryData | null>(null);
-  const [realQueryResults, setRealQueryResults] = useState<RealQueryResult[]>([]);
+  const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchScan() {
       setLoading(true);
       try {
-        let results;
-        let discovery;
-        let real;
-
         if (params.id === 'latest') {
           const scansRef = collection(db, "scans");
           const q = query(scansRef, where("status", "==", "completed"), orderBy("date", "desc"), limit(1));
           const snapshot = await getDocs(q);
           if (!snapshot.empty) {
-            const data = snapshot.docs[0].data();
-            results = data.results;
-            discovery = data.queryDiscovery;
-            real = data.realQueryResults;
+            setScanRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ScanRecord);
           }
         } else {
           const docRef = doc(db, "scans", params.id);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            const data = docSnap.data();
-            results = data.results;
-            discovery = data.queryDiscovery;
-            real = data.realQueryResults;
+            setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
           }
-        }
-
-        if (results) {
-          setScanData(results);
-          setQueryDiscovery(discovery || null);
-          setRealQueryResults(real || []);
-        } else {
-          // Fallback simulation for demo views
-          const simulatedDiscovery = await QueryEngine.simulateDiscovery(
-            "Acme Logistics",
-            "Third Party Logistics (3PL)",
-            "Western Europe",
-            ["FedEx", "UPS", "DHL"]
-          );
-          setQueryDiscovery(simulatedDiscovery);
         }
       } catch (e) {
         console.error("Error loading scan:", e);
@@ -105,14 +80,14 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     fetchScan();
   }, [params.id]);
 
-  const results = useMemo(() => scanData || {
+  const results = useMemo(() => scanRecord?.results || {
     overallScore: 72.4,
     categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
-    priorityActions: [
-      { category: "Structured Data", title: "Deploy JSON-LD Entity Schema", description: "Implement technical schema markup to clarify business entities for AI models.", priority: "high", expectedImpact: "Accuracy gain" },
-      { category: "Content / Positioning", title: "Publish AI-Ready Capabilities Page", description: "Create a dedicated landing page designed specifically for LLM ingestion.", priority: "high", expectedImpact: "Visibility gain" },
-    ] as StrategicRecommendation[]
-  } as ScanResults, [scanData]);
+    priorityActions: [] as StrategicRecommendation[]
+  } as ScanResults, [scanRecord]);
+
+  const queryDiscovery = useMemo(() => scanRecord?.queryDiscovery || null, [scanRecord]);
+  const realQueryResults = useMemo(() => scanRecord?.realQueryResults || [], [scanRecord]);
 
   const projection = useMemo(() => calculateProjectedImprovement(results.categoryScores), [results]);
 
@@ -172,9 +147,23 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       {/* Executive Report Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b pb-8">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
-             <FileText className="w-3 h-3 text-accent" />
-             Report Identifier: {params.id === 'latest' ? 'SCAN-LATEST' : `SCAN-${params.id.slice(0,8).toUpperCase()}`}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+               <FileText className="w-3 h-3 text-accent" />
+               Report Identifier: {params.id === 'latest' ? 'SCAN-LATEST' : `SCAN-${params.id.slice(0,8).toUpperCase()}`}
+            </div>
+            {scanRecord?.reviewStatus && (
+              <Badge 
+                variant={scanRecord.reviewStatus === 'approved' ? 'default' : 'secondary'}
+                className={cn(
+                  "text-[9px] uppercase font-bold tracking-widest h-5",
+                  scanRecord.reviewStatus === 'approved' ? "bg-green-50 text-green-700 border-green-200" : "bg-muted text-muted-foreground"
+                )}
+              >
+                {scanRecord.reviewStatus === 'approved' ? <Lock className="w-3 h-3 mr-1" /> : <FileSearch className="w-3 h-3 mr-1" />}
+                Review: {scanRecord.reviewStatus}
+              </Badge>
+            )}
           </div>
           <h2 className="text-4xl font-headline font-black text-primary tracking-tighter">Discovery Intelligence Audit</h2>
           <p className="text-muted-foreground flex items-center gap-2">
@@ -238,7 +227,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         />
       </div>
 
-      {/* Accuracy & Validation Hybrid Section */}
       <div className="grid lg:grid-cols-12 gap-6">
          {/* Simulation Accuracy Card */}
          <Card className="lg:col-span-4 border-none shadow-md bg-white overflow-hidden">
@@ -282,9 +270,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                  <p className="text-xs font-medium text-muted-foreground leading-relaxed px-4">
                    This score measures how closely VizAI&apos;s discovery simulation matches real AI responses from Gemini 1.5 Flash knowledge models.
                  </p>
-                 <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20 text-[9px] font-bold">
-                    High Confidence Alignment
-                 </Badge>
               </div>
             </CardContent>
          </Card>
@@ -325,11 +310,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                     </div>
                   </div>
                 ))}
-                {validationComparisons.length === 0 && (
-                   <div className="p-12 text-center text-muted-foreground italic text-sm">
-                      No live validation queries performed for this audit.
-                   </div>
-                )}
               </div>
             </CardContent>
          </Card>
@@ -362,52 +342,41 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {opportunities.length > 0 ? (
-                  opportunities.map((opp) => (
-                    <TableRow key={opp.id} className="hover:bg-muted/10 transition-colors group">
-                      <TableCell className="pl-8 py-5">
-                        <div className="font-bold text-primary italic text-xs leading-relaxed group-hover:text-accent transition-colors">
-                          "{opp.query}"
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {opp.competitors.map((comp, i) => (
-                            <Badge key={i} variant="outline" className="text-[8px] bg-muted/50 border-none px-1.5 h-4">
-                              {comp}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                         <span className="text-[10px] font-bold text-muted-foreground uppercase">{opp.intentType}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge 
-                          variant={opp.priority === 'high' ? 'destructive' : opp.priority === 'medium' ? 'default' : 'secondary'}
-                          className="text-[8px] uppercase px-2 py-0.5"
-                        >
-                          {opp.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right pr-8">
-                         <div className="flex items-center justify-end gap-1.5 text-[10px] font-bold text-primary">
-                            {opp.potential}
-                            <ArrowUpRight className="w-3 h-3 text-accent" />
-                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-12 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                         <CheckCircle2 className="w-10 h-10 text-green-500/20" />
-                         <p className="text-sm text-muted-foreground italic font-medium">No major signal gaps identified in recent intent simulations.</p>
+                {opportunities.map((opp) => (
+                  <TableRow key={opp.id} className="hover:bg-muted/10 transition-colors group">
+                    <TableCell className="pl-8 py-5">
+                      <div className="font-bold text-primary italic text-xs leading-relaxed group-hover:text-accent transition-colors">
+                        "{opp.query}"
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {opp.competitors.map((comp, i) => (
+                          <Badge key={i} variant="outline" className="text-[8px] bg-muted/50 border-none px-1.5 h-4">
+                            {comp}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                       <span className="text-[10px] font-bold text-muted-foreground uppercase">{opp.intentType}</span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge 
+                        variant={opp.priority === 'high' ? 'destructive' : opp.priority === 'medium' ? 'default' : 'secondary'}
+                        className="text-[8px] uppercase px-2 py-0.5"
+                      >
+                        {opp.priority}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right pr-8">
+                       <div className="flex items-center justify-end gap-1.5 text-[10px] font-bold text-primary">
+                          {opp.potential}
+                          <ArrowUpRight className="w-3 h-3 text-accent" />
+                       </div>
+                    </TableCell>
                   </TableRow>
-                )}
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -459,17 +428,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                     </div>
                   ))}
                 </div>
-              </div>
-              <div className="p-5 bg-white/5 rounded-2xl border border-white/10 flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <div className="flex gap-4 items-start">
-                  <Lightbulb className="w-6 h-6 text-accent shrink-0 mt-1" />
-                  <p className="text-xs text-white/60 leading-relaxed italic">
-                    "Implementation of technical JSON-LD entity signals and authoritative backlink acquisition is projected to drive a significant gain in Overall Index resolution."
-                  </p>
-                </div>
-                <Button className="bg-accent hover:bg-accent/90 text-primary font-bold rounded-full px-6 shadow-lg shadow-accent/20 shrink-0">
-                  Implement Strategy
-                </Button>
               </div>
             </div>
           </div>

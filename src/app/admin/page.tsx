@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,15 +9,15 @@ import {
   Users, 
   Building2, 
   Database, 
-  Plus, 
-  MoreHorizontal,
   ChevronLeft,
   Loader2,
-  CheckCircle2,
   ShieldCheck,
   RefreshCcw,
   Library,
-  Network
+  Network,
+  FileSearch,
+  ArrowRight,
+  MoreHorizontal
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -25,14 +25,16 @@ import { DemoSeeder } from "@/lib/services/demo-seeder";
 import { QueryLibraryService } from "@/lib/services/query-library-service";
 import { CompetitorService } from "@/lib/services/competitor-service";
 import { toast } from "@/hooks/use-toast";
-import { collection, getDocs, query, limit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
+import { ScanRecord } from "@/lib/types";
 
 export default function AdminPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isSeedingLibrary, setIsSeedingLibrary] = useState(false);
   const [isSeedingCompetitors, setIsSeedingCompetitors] = useState(false);
   const [stats, setStats] = useState({ orgs: 0, scans: 0 });
+  const [pendingScans, setPendingScans] = useState<ScanRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchStats = async () => {
@@ -40,6 +42,13 @@ export default function AdminPage() {
       const orgsSnap = await getDocs(collection(db, "companyProfiles"));
       const scansSnap = await getDocs(collection(db, "scans"));
       setStats({ orgs: orgsSnap.size, scans: scansSnap.size });
+
+      // Fetch scans awaiting review
+      const scansRef = collection(db, "scans");
+      const q = query(scansRef, orderBy("date", "desc"), limit(10));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord));
+      setPendingScans(data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -206,10 +215,77 @@ export default function AdminPage() {
           </Card>
         </div>
 
-        {/* Organizations Table */}
+        {/* Human Review Queue */}
         <Card className="border-none shadow-sm overflow-hidden bg-white">
+          <CardHeader className="border-b bg-primary/5 flex flex-row items-center justify-between py-4 px-8">
+            <div>
+              <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
+                <FileSearch className="w-5 h-5 text-accent" />
+                Human Review Workflow
+              </CardTitle>
+              <CardDescription className="text-xs">Audit and approve AI-generated discovery findings</CardDescription>
+            </div>
+            <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest border-primary/20">Quality Control</Badge>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow>
+                  <TableHead className="font-bold uppercase text-[10px] px-8 tracking-widest">Scan Date</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] px-6 tracking-widest">Client / Organization</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] px-6 tracking-widest text-center">Score</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] px-6 tracking-widest">Review Status</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] px-8 tracking-widest text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingScans.map((scan, i) => (
+                  <TableRow key={i} className="hover:bg-muted/30 transition-colors group">
+                    <TableCell className="px-8 py-4 text-sm font-medium">
+                      {scan.date?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </TableCell>
+                    <TableCell className="px-6 py-4 font-bold text-primary group-hover:text-accent transition-colors">
+                      {scan.results?.companyName || "Client Account"}
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-center font-black text-primary">
+                      {scan.results?.overallScore.toFixed(1)}
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
+                      <Badge 
+                        variant={scan.reviewStatus === 'approved' ? 'default' : 'secondary'} 
+                        className={cn(
+                          "capitalize text-[10px] h-5",
+                          scan.reviewStatus === 'approved' && "bg-green-50 text-green-700 border-green-200"
+                        )}
+                      >
+                        {scan.reviewStatus || 'draft'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-8 py-4 text-right">
+                      <Link href={`/admin/scans/${scan.id}/review`}>
+                        <Button variant="ghost" size="sm" className="font-bold text-primary text-xs hover:bg-primary/5 gap-1.5">
+                          Review Audit <ArrowRight className="w-3.5 h-3.5" />
+                        </Button>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {pendingScans.length === 0 && (
+                   <TableRow>
+                     <TableCell colSpan={5} className="py-12 text-center text-muted-foreground italic">
+                        No scans found in the database.
+                     </TableCell>
+                   </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Organizations Table */}
+        <Card className="border-none shadow-sm overflow-hidden bg-white opacity-50">
           <CardHeader className="border-b bg-muted/10">
-            <CardTitle className="text-lg font-bold text-primary">Organization Management</CardTitle>
+            <CardTitle className="text-lg font-bold text-primary">Organization Management (View Only)</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -228,7 +304,6 @@ export default function AdminPage() {
                   { name: "StorageMax Solutions", domain: "storagemax.io", status: "demo", type: "Warehousing" },
                   { name: "Precision Parts Corp", domain: "precisionparts.mfg", status: "demo", type: "Manufacturing" },
                   { name: "Justice & Partners", domain: "justice-partners.law", status: "demo", type: "Legal" },
-                  { name: "Globex Inc", domain: "globex.ai", status: "active", type: "Enterprise SaaS" },
                 ].map((org, i) => (
                   <TableRow key={i} className="hover:bg-muted/30 transition-colors group">
                     <TableCell className="px-8 py-5 font-bold text-primary group-hover:text-accent transition-colors">{org.name}</TableCell>
@@ -244,8 +319,7 @@ export default function AdminPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="px-8 py-5 text-right">
-                      <Button variant="ghost" size="sm" className="font-bold text-primary text-xs hover:bg-primary/5">Impersonate</Button>
-                      <Button variant="ghost" size="icon" className="ml-2 text-muted-foreground"><MoreHorizontal className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground"><MoreHorizontal className="w-4 h-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}

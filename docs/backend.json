@@ -50,38 +50,6 @@
       },
       "required": ["id", "name", "industry"]
     },
-    "PresenceSignal": {
-      "title": "Presence Signal",
-      "description": "Signals indicating the company's local and professional presence across the web.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "profileId": { "type": "string" },
-        "hasGoogleBusiness": { "type": "boolean" },
-        "hasLinkedIn": { "type": "boolean" },
-        "directoryCount": { "type": "number" },
-        "citationWeight": { "type": "number" },
-        "authorityBoost": { "type": "number" },
-        "lastVerifiedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "profileId"]
-    },
-    "EntitySignal": {
-      "title": "Entity Signal",
-      "description": "Enriched business entity data used to weight AI visibility algorithms.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "profileId": { "type": "string" },
-        "authorityWeight": { "type": "number" },
-        "serviceCoverageWeight": { "type": "number" },
-        "geographicRelevanceWeight": { "type": "number" },
-        "dataConfidence": { "type": "number" },
-        "enrichedAttributes": { "type": "object" },
-        "extractedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "profileId"]
-    },
     "ScanRecord": {
       "title": "Scan Record",
       "description": "The result of an AI visibility scan.",
@@ -89,8 +57,13 @@
       "properties": {
         "id": { "type": "string" },
         "profileId": { "type": "string" },
+        "organizationId": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "reviewStatus": { "type": "string", "enum": ["draft", "in-review", "approved", "shared"] },
+        "internalNotes": { "type": "string" },
+        "lastReviewedBy": { "type": "string" },
+        "lastReviewedAt": { "type": "string", "format": "date-time" },
         "results": { "type": "object" },
         "queryLibraryUsed": { "type": "array", "items": { "type": "string" } }
       },
@@ -127,25 +100,9 @@
       "schema": "CompanyProfile",
       "description": "Monitored company entities."
     },
-    "/entitySignals/{signalId}": {
-      "schema": "EntitySignal",
-      "description": "Technical entity enrichment data."
-    },
-    "/presenceSignals/{signalId}": {
-      "schema": "PresenceSignal",
-      "description": "Local and professional presence signals."
-    },
-    "/websiteSignals/{signalId}": {
-      "schema": "WebsiteSignal",
-      "description": "Intelligence signals extracted from company websites."
-    },
     "/scans/{scanId}": {
       "schema": "ScanRecord",
       "description": "History of AI visibility scans."
-    },
-    "/realQueryResults/{resultId}": {
-      "schema": "RealQueryResult",
-      "description": "Live AI model verification results."
     }
   }
 }
