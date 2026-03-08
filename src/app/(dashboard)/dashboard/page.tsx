@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ScoreCard } from "@/components/dashboard/score-card";
@@ -16,7 +17,11 @@ import {
   Calendar,
   Lightbulb,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Trophy,
+  Globe,
+  BarChart3,
+  TrendingDown
 } from "lucide-react";
 import Link from "next/link";
 import { 
@@ -30,9 +35,10 @@ import {
 } from 'recharts';
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, query, orderBy, limit, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
+import { ScanRecord } from "@/lib/types";
 
 const MOCK_TREND_DATA = [
   { name: 'Jan', score: 62 },
@@ -45,7 +51,7 @@ const MOCK_TREND_DATA = [
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [recentScans, setRecentScans] = useState<any[]>([]);
+  const [recentScans, setRecentScans] = useState<ScanRecord[]>([]);
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -58,7 +64,7 @@ export default function DashboardPage() {
           limit(5)
         );
         const snapshot = await getDocs(q);
-        const scans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const scans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord));
         setRecentScans(scans);
       } catch (error) {
         console.error("Dashboard error:", error);
@@ -68,6 +74,8 @@ export default function DashboardPage() {
     }
     fetchDashboardData();
   }, []);
+
+  const latestScan = useMemo(() => recentScans[0] || null, [recentScans]);
 
   if (loading) {
     return (
@@ -102,11 +110,61 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Market Benchmarking Summary */}
+      {latestScan?.results?.benchmark && (
+        <Card className="border-none shadow-md bg-gradient-to-br from-[#174C80] to-[#0d2a4a] text-white overflow-hidden">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+               <div className="space-y-1">
+                 <div className="text-[10px] font-bold text-accent uppercase tracking-[0.2em]">Market Intelligence • Benchmarking</div>
+                 <CardTitle className="text-lg font-black tracking-tight">How You Stack Up: {latestScan.results.benchmark.industry}</CardTitle>
+               </div>
+               <Badge className="bg-white/10 text-white border-white/20 text-[8px] uppercase font-bold tracking-[0.2em] px-2 py-1">
+                 Live Sector Comparison
+               </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              <div className="space-y-1 border-r border-white/10">
+                <div className="text-[10px] font-bold text-white/40 uppercase">Industry Average</div>
+                <div className="text-3xl font-black text-white/90">{latestScan.results.benchmark.industryAverage.toFixed(1)}</div>
+                <div className="text-[9px] text-white/30 font-medium italic">Sector Mean Index</div>
+              </div>
+              <div className="space-y-1 border-r border-white/10">
+                <div className="text-[10px] font-bold text-white/40 uppercase">Top Performer</div>
+                <div className="text-3xl font-black text-accent">{latestScan.results.benchmark.topScore.toFixed(1)}</div>
+                <div className="text-[9px] text-accent/50 font-medium italic">Max Achieved Signal</div>
+              </div>
+              <div className="space-y-1 border-r border-white/10">
+                <div className="text-[10px] font-bold text-white/40 uppercase">Your Score</div>
+                <div className="text-3xl font-black text-white">{latestScan.results.overallScore.toFixed(1)}</div>
+                <div className="text-[9px] text-white/30 font-medium italic">Current Visibility Index</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-[10px] font-bold text-white/40 uppercase">Percentile Position</div>
+                <div className="text-3xl font-black text-white flex items-center gap-2">
+                  {latestScan.results.benchmark.percentile}th
+                  {latestScan.results.benchmark.percentile >= 75 ? (
+                    <Trophy className="w-5 h-5 text-yellow-400" />
+                  ) : latestScan.results.benchmark.percentile >= 50 ? (
+                    <TrendingUp className="w-5 h-5 text-green-400" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-red-400" />
+                  )}
+                </div>
+                <div className="text-[9px] text-white/30 font-medium italic">Relative to {latestScan.results.benchmark.totalCompanies} rivals</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Primary Score Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <ScoreCard 
           title="Overall Visibility" 
-          score={72.4} 
+          score={latestScan?.results?.overallScore || 72.4} 
           trend={4.2} 
           icon={Search} 
           description="Avg. AI prominence"
@@ -114,7 +172,7 @@ export default function DashboardPage() {
         />
         <ScoreCard 
           title="Description Accuracy" 
-          score={88.1} 
+          score={latestScan?.results?.categoryScores?.descriptionAccuracy || 88.1} 
           trend={1.5} 
           icon={ShieldCheck} 
           description="Model alignment"
@@ -122,7 +180,7 @@ export default function DashboardPage() {
         />
         <ScoreCard 
           title="Competitor Threat" 
-          score={34.2} 
+          score={latestScan?.results?.categoryScores?.competitorShareOfVoice || 34.2} 
           trend={-2.1} 
           icon={Users} 
           description="Rival share of voice"
@@ -130,7 +188,7 @@ export default function DashboardPage() {
         />
         <ScoreCard 
           title="Citation Strength" 
-          score={65.5} 
+          score={latestScan?.results?.categoryScores?.citationStrength || 65.5} 
           trend={8.4} 
           icon={Target} 
           description="Authority sourcing"
@@ -138,7 +196,7 @@ export default function DashboardPage() {
         />
         <ScoreCard 
           title="Service Coverage" 
-          score={54.0} 
+          score={latestScan?.results?.categoryScores?.serviceCoverage || 54.0} 
           trend={0.8} 
           icon={Zap} 
           description="Category indexing"
@@ -211,7 +269,7 @@ export default function DashboardPage() {
                         key={i} 
                         className={cn(
                             "flex-1 rounded-[2px] transition-opacity hover:opacity-80", 
-                            status === 1 ? "bg-green-500/80" : "bg-red-400/80"
+                            status === 1 ? "bg-green-50/80" : "bg-red-400/80"
                         )} 
                         title={status === 1 ? "Scan Successful" : "Scan Error Detected"}
                       />
@@ -232,18 +290,18 @@ export default function DashboardPage() {
               <Lightbulb className="w-4 h-4 text-accent" />
             </CardHeader>
             <CardContent className="space-y-3">
-              {[
+              {(latestScan?.results?.priorityActions || [
                 { title: "Bridge Structured Data Gap", priority: "high", desc: "Update entity schema signals." },
                 { title: "Refine Service Taxonomy", priority: "medium", desc: "Expand capability page content." },
-              ].map((rec, i) => (
+              ]).slice(0, 2).map((rec: any, i: number) => (
                 <div key={i} className="p-3 bg-muted/50 rounded-xl space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-primary">{rec.title}</span>
+                    <span className="text-[10px] font-bold text-primary leading-tight">{rec.title || rec.action}</span>
                     <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[8px] uppercase px-1.5 h-4 leading-none">
                       {rec.priority}
                     </Badge>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">{rec.desc}</p>
+                  <p className="text-[10px] text-muted-foreground line-clamp-1">{rec.description || rec.impact}</p>
                 </div>
               ))}
             </CardContent>

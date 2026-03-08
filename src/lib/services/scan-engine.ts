@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview ScanEngine orchestrates the AI visibility analysis process.
  * Decoupled into a Provider Adapter architecture for easy future scaling.
@@ -6,10 +7,11 @@
 import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput, GenerateCompanyAIScanReportOutput } from "@/ai/flows/generate-company-ai-scan-report";
 import { provideAiScanRecommendations, ProvideAiScanRecommendationsOutput } from "@/ai/flows/provide-ai-scan-recommendations";
 import { QueryEngine } from "./query-engine";
-import { QueryDiscoveryData, QueryRecord, IndustryQuery } from "../types";
+import { QueryDiscoveryData, QueryRecord, IndustryQuery, ScanResults } from "../types";
 import { MockAdapter } from "./adapters/mock-adapter";
 import { DiscoveryContext } from "./adapters/provider-interface";
 import { QueryLibraryService } from "./query-library-service";
+import { BenchmarkService } from "./benchmark-service";
 
 export class ScanEngine {
   /**
@@ -28,7 +30,7 @@ export class ScanEngine {
   /**
    * Run a full scan for a company profile.
    */
-  static async runScan(input: GenerateCompanyAIScanReportInput): Promise<GenerateCompanyAIScanReportOutput & { queryDiscovery: QueryDiscoveryData }> {
+  static async runScan(input: GenerateCompanyAIScanReportInput): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData }> {
     // 1. Generate core report findings (Narrative Analysis)
     const report = await generateCompanyAIScanReport(input);
     
@@ -43,9 +45,20 @@ export class ScanEngine {
 
     const queryDiscovery = await this.performDiscovery(context);
 
+    // 3. Calculate Industry Benchmarking
+    const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
+    const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);
+
     return {
       ...report,
-      queryDiscovery
+      queryDiscovery,
+      benchmark: {
+        industry: benchmarkData.industry,
+        industryAverage: benchmarkData.averageScore,
+        topPerformer: benchmarkData.topScore,
+        percentile: percentile,
+        totalCompanies: benchmarkData.totalCompanies
+      }
     };
   }
 

@@ -128,6 +128,13 @@ export interface ScanResults {
     suggestedAction: string;
   }[];
   priorityActions: StrategicRecommendation[];
+  benchmark?: {
+    industry: string;
+    industryAverage: number;
+    topPerformer: number;
+    percentile: number;
+    totalCompanies: number;
+  };
 }
 
 export interface RankingEntry {
@@ -145,4 +152,12 @@ export interface RankingSnapshot {
   industry: string;
   region: string;
   entries: RankingEntry[];
+}
+
+export interface IndustryBenchmark {
+  industry: string;
+  averageScore: number;
+  topScore: number;
+  minScore: number;
+  totalCompanies: number;
 }
