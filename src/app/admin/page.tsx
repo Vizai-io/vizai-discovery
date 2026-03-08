@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,7 +18,8 @@ import {
   ArrowRight,
   MoreHorizontal,
   Briefcase,
-  Activity
+  Activity,
+  Zap
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -30,6 +30,7 @@ import { toast } from "@/hooks/use-toast";
 import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { ScanRecord } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export default function AdminPage() {
   const [isSeeding, setIsSeeding] = useState(false);
@@ -148,6 +149,12 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/scan-test">
+            <Button variant="outline" className="gap-2 border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100">
+              <Zap className="w-4 h-4" />
+              Quick Test
+            </Button>
+          </Link>
           <Link href="/admin/diagnostics">
             <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5">
               <Activity className="w-4 h-4 text-accent" />
