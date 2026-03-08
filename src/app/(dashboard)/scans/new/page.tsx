@@ -18,8 +18,6 @@ import {
   Users, 
   ChevronRight, 
   ChevronLeft, 
-  CheckCircle2, 
-  Briefcase, 
   Target, 
   Layers, 
   MapPin, 
@@ -29,7 +27,6 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
-import { cn } from "@/lib/utils";
 import { ScanEngine } from "@/lib/services/scan-engine";
 
 const STEPS = [
@@ -41,6 +38,9 @@ const STEPS = [
   { id: 6, title: "Competitors", icon: Users },
   { id: 7, title: "Launch", icon: Target },
 ];
+
+// Fallback icons if not provided
+const Briefcase = (props: any) => <Building2 {...props} />;
 
 export default function NewScanWizard() {
   const router = useRouter();
@@ -93,8 +93,6 @@ export default function NewScanWizard() {
       scanId = scanRef.id;
 
       // 2. Start Execution
-      await updateDoc(doc(db, "scans", scanId), { status: "running" });
-      
       const scanOutput = await ScanEngine.runScan(profileData, profileRef.id, scanId);
 
       // 3. Complete
@@ -216,7 +214,7 @@ export default function NewScanWizard() {
           )}
           {currentStep === 5 && (
             <div className="space-y-6">
-              <h3 className="text-lg font-bold text-primary flex items-center gap-2"><Briefcase className="w-5 h-5" /> Primary Capabilities</h3>
+              <h3 className="text-lg font-bold text-primary flex items-center gap-2"><Layers className="w-5 h-5" /> Primary Capabilities</h3>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Service Categories (Comma separated)</Label>

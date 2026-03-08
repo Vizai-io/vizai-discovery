@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { ScoreCard } from "@/components/dashboard/score-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,7 +21,9 @@ import {
   AlertCircle,
   TrendingUp,
   FileText,
-  Briefcase
+  Briefcase,
+  RefreshCcw,
+  Zap
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -32,26 +34,23 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchScan() {
-      try {
-        const docSnap = await getDoc(doc(db, "scans", params.id));
-        if (docSnap.exists()) {
-          setScan(docSnap.data());
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+    const unsubscribe = onSnapshot(doc(db, "scans", params.id), (docSnap) => {
+      if (docSnap.exists()) {
+        setScan({ id: docSnap.id, ...docSnap.data() });
       }
-    }
-    fetchScan();
+      setLoading(false);
+    }, (err) => {
+      console.error(err);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, [params.id]);
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <Loader2 className="w-12 h-12 text-primary animate-spin" />
-        <p className="text-muted-foreground font-medium">Reconstructing limited intelligence graph...</p>
+        <p className="text-muted-foreground font-medium">Reconstructing intelligence graph...</p>
       </div>
     );
   }
@@ -67,7 +66,33 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
     );
   }
 
-  const results = scan.results;
+  if (scan.status === 'running') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-6">
+        <div className="relative">
+          <RefreshCcw className="w-16 h-16 text-primary animate-spin opacity-20" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Zap className="w-6 h-6 text-accent animate-pulse" />
+          </div>
+        </div>
+        <div className="text-center space-y-4 max-w-sm">
+          <h3 className="text-2xl font-black text-primary">Audit in Progress</h3>
+          <p className="text-muted-foreground text-sm">Please wait while we simulate user discovery paths across 4 major AI providers.</p>
+          <div className="p-4 bg-muted/30 rounded-xl text-left space-y-2 border border-slate-200">
+             <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase">
+               <span>Step</span>
+               <span className="text-primary">{scan.currentStep || 'Initializing'}</span>
+             </div>
+             <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
+               <div className="h-full bg-primary animate-progress" style={{ width: '45%' }} />
+             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const results = scan.results || { overallScore: 0 };
   const firstQuery = scan.queryDiscovery?.queries[0];
 
   return (
@@ -79,12 +104,20 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
           </div>
           <span className="text-xl font-headline font-bold text-primary">VizAI</span>
         </Link>
-        <Link href="/login">
+        <Link href="/auth/sign-in">
           <Button variant="ghost">Sign In</Button>
         </Link>
       </header>
 
       <main className="flex-1 max-w-4xl mx-auto w-full p-6 space-y-8 animate-in fade-in duration-700">
+        {/* Dev Debug Panel */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="bg-yellow-50 border border-yellow-200 p-2 rounded text-[10px] font-mono flex justify-between">
+            <span>ID: {scan.id} | Status: {scan.status} | HasResults: {scan.results ? 'YES' : 'NO'}</span>
+            <Button size="xs" variant="ghost" onClick={() => window.location.reload()}>Refresh</Button>
+          </div>
+        )}
+
         {/* Teaser Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b pb-8">
           <div className="space-y-1">
@@ -94,7 +127,7 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
           </div>
           <div className="p-6 bg-primary text-white rounded-[2rem] shadow-xl text-center min-w-[140px] border border-primary/20">
             <div className="text-[10px] font-bold uppercase tracking-widest opacity-60">Visibility Score</div>
-            <div className="text-5xl font-black">{results.overallScore.toFixed(1)}</div>
+            <div className="text-5xl font-black">{results.overallScore?.toFixed(1) || "0.0"}</div>
           </div>
         </div>
 
@@ -168,7 +201,7 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
                  The teaser only shows 5% of our 24-vector audit. Create an account to see competitor deep-dives, narrative accuracy scores, and strategic uplift projections.
                </p>
              </div>
-             <Link href="/login" className="w-full max-w-xs">
+             <Link href="/auth/sign-in" className="w-full max-w-xs">
                <Button className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-black text-lg gap-2 shadow-2xl shadow-primary/30 rounded-full">
                  <Sparkles className="w-5 h-5 text-accent" /> Unlock Full Report
                </Button>
@@ -183,25 +216,6 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
                 <Card className="h-40 bg-slate-50 border-none" />
              </div>
              <Card className="h-64 bg-slate-50 border-none" />
-          </div>
-        </div>
-
-        {/* Footer Teaser */}
-        <div className="grid md:grid-cols-3 gap-6 pt-12">
-          <div className="p-6 bg-white rounded-2xl shadow-sm space-y-3">
-             <TrendingUp className="w-6 h-6 text-accent" />
-             <h5 className="font-bold text-primary">Competitive Benchmarking</h5>
-             <p className="text-xs text-muted-foreground">Compare your score against 450+ industry rivals in the global knowledge graph.</p>
-          </div>
-          <div className="p-6 bg-white rounded-2xl shadow-sm space-y-3">
-             <Target className="w-6 h-6 text-accent" />
-             <h5 className="font-bold text-primary">Optimization Scenario</h5>
-             <p className="text-xs text-muted-foreground">Projected Visibility gain after deploying entity-signal technical markup.</p>
-          </div>
-          <div className="p-6 bg-white rounded-2xl shadow-sm space-y-3">
-             <FileText className="w-6 h-6 text-accent" />
-             <h5 className="font-bold text-primary">Narrative Alignment</h5>
-             <p className="text-xs text-muted-foreground">Check how accurately ChatGPT and Gemini summarize your corporate services.</p>
           </div>
         </div>
       </main>

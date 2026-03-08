@@ -13,11 +13,9 @@ import {
   Zap, 
   Loader2, 
   Globe, 
-  Building2, 
   ChevronRight,
-  ShieldCheck,
-  Target,
-  ShieldAlert
+  ShieldAlert,
+  Target
 } from "lucide-react";
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
@@ -32,7 +30,7 @@ export default function FreeScanPage() {
   const [formData, setFormData] = useState({
     companyName: "",
     website: "",
-    industry: "",
+    industry: "logistics",
     targetGeography: "",
     email: "", 
   });
@@ -141,7 +139,6 @@ export default function FreeScanPage() {
           </CardHeader>
           <CardContent className="p-8">
             <form onSubmit={handleRunFreeScan} className="space-y-6">
-              {/* Abuse Protection: Honeypot (Hidden from humans) */}
               <div className="hidden" aria-hidden="true">
                 <input 
                   type="text" 
@@ -192,7 +189,7 @@ export default function FreeScanPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="industry">Industry Vertical</Label>
-                <Select onValueChange={(val) => setFormData({...formData, industry: val})}>
+                <Select value={formData.industry} onValueChange={(val) => setFormData({...formData, industry: val})}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select Industry" />
                   </SelectTrigger>

@@ -230,6 +230,27 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 animate-in fade-in duration-700">
+      {/* Dev Debug Panel */}
+      {process.env.NODE_ENV === 'development' && (
+        <Card className="bg-yellow-50 border-yellow-200 text-yellow-800 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <div className="bg-yellow-200 px-2 py-1 rounded">DEBUG MODE</div>
+            <span>ID: {scanRecord.id}</span>
+            <span>Status: {scanRecord.status}</span>
+            <span>Step: {scanRecord.currentStep || 'N/A'}</span>
+            <span>Results: {scanRecord.results ? 'FOUND' : 'MISSING'}</span>
+          </div>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="bg-white"
+            onClick={() => window.location.reload()}
+          >
+            Refresh Data
+          </Button>
+        </Card>
+      )}
+
       {/* Executive Report Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b pb-8">
         <div className="space-y-1">
