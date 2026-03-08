@@ -18,7 +18,8 @@ import {
   FileSearch,
   ArrowRight,
   MoreHorizontal,
-  Briefcase
+  Briefcase,
+  Activity
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -147,6 +148,12 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/diagnostics">
+            <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5">
+              <Activity className="w-4 h-4 text-accent" />
+              Diagnostics
+            </Button>
+          </Link>
           <Link href="/admin/leads">
             <Button variant="outline" className="gap-2 border-accent text-primary font-bold bg-accent/5">
               <Briefcase className="w-4 h-4 text-accent" />
