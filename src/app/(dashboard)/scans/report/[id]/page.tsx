@@ -26,7 +26,8 @@ import {
   Lightbulb,
   ArrowUpRight,
   Lock,
-  FileSearch
+  FileSearch,
+  EyeOff
 } from "lucide-react";
 import Link from "next/link";
 import { QueryDiscoveryData, StrategicRecommendation, ScanRecord } from "@/lib/types";
@@ -66,6 +67,25 @@ export default function ClientReportPage({ params }: { params: { id: string } })
     fetchScan();
   }, [params.id]);
 
+  const isCaseStudy = scanRecord?.reportType === 'case-study';
+  const anonymizeSubject = scanRecord?.anonymizeSubject;
+  const anonymizeRivals = scanRecord?.anonymizeCompetitors;
+
+  const displayIdentity = useMemo(() => {
+    if (!scanRecord) return "Client Account";
+    if (isCaseStudy && anonymizeSubject) {
+      return scanRecord.caseStudyTitle || "Industry Leader";
+    }
+    return scanRecord.results.companyName || "Client Account";
+  }, [scanRecord, isCaseStudy, anonymizeSubject]);
+
+  const getDisplayCompetitor = (name: string, index: number) => {
+    if (anonymizeRivals) {
+      return `Rival ${String.fromCharCode(65 + index)}`;
+    }
+    return name;
+  };
+
   const results = useMemo(() => scanRecord?.results || {
     overallScore: 72.4,
     categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
@@ -73,36 +93,6 @@ export default function ClientReportPage({ params }: { params: { id: string } })
   }, [scanRecord]);
 
   const queryDiscovery = useMemo(() => scanRecord?.queryDiscovery || null, [scanRecord]);
-
-  const opportunities = useMemo(() => {
-    if (!queryDiscovery) return [];
-
-    return queryDiscovery.queries
-      .filter(q => !q.results.some(r => r.isTargetCompanyMentioned))
-      .map(q => {
-        const competitors = Array.from(new Set(
-          q.results.flatMap(r => r.mentions.map(m => m.companyName))
-        )).filter(name => name !== (results?.companyName || "Acme Logistics"));
-
-        let priority: 'high' | 'medium' | 'low' = 'low';
-        if (q.intentType === 'best' || q.intentType === 'comparison') priority = 'high';
-        else if (q.intentType === 'capability') priority = 'medium';
-
-        return {
-          id: q.id,
-          query: q.text,
-          competitors,
-          intentType: q.intentType || 'Generic',
-          priority,
-          potential: priority === 'high' ? 'Significant Visibility Uplift' : 'Incremental Authority'
-        };
-      })
-      .sort((a, b) => {
-        const order = { high: 0, medium: 1, low: 2 };
-        return order[a.priority] - order[b.priority];
-      })
-      .slice(0, 5);
-  }, [queryDiscovery, results]);
 
   const handlePrint = () => {
     window.print();
@@ -129,7 +119,12 @@ export default function ClientReportPage({ params }: { params: { id: string } })
             <ChevronLeft className="w-4 h-4" /> Back to Dashboard
           </Button>
         </Link>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+           {(anonymizeSubject || anonymizeRivals) && (
+             <Badge variant="outline" className="bg-accent/10 text-primary border-accent/20 uppercase font-bold text-[9px]">
+               <EyeOff className="w-3 h-3 mr-1" /> Anonymization Active
+             </Badge>
+           )}
            {scanRecord?.reviewStatus && scanRecord.reviewStatus !== 'approved' && (
              <Badge variant="secondary" className="bg-yellow-50 text-yellow-700 border-yellow-200 uppercase font-bold text-[9px]">
                <FileSearch className="w-3 h-3 mr-1" /> Internal Draft
@@ -148,7 +143,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
                 <FileText className="w-3 h-3 text-accent" />
-                Client Intelligence Report • Private & Confidential
+                {isCaseStudy ? 'Intelligence Case Study • Public Release' : 'Client Intelligence Report • Private & Confidential'}
               </div>
               {scanRecord?.reviewStatus === 'approved' && (
                 <Badge className="bg-green-50 text-green-700 border-green-200 text-[8px] uppercase font-bold tracking-[0.2em]">
@@ -168,15 +163,15 @@ export default function ClientReportPage({ params }: { params: { id: string } })
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-muted/30 p-6 rounded-2xl border print:p-4 print:bg-white print:border-slate-200">
           <div className="space-y-1">
             <div className="text-[10px] font-bold text-muted-foreground uppercase">Target Organization</div>
-            <div className="text-sm font-bold text-primary">{results.companyName || "Client Account"}</div>
+            <div className="text-sm font-bold text-primary truncate">{displayIdentity}</div>
           </div>
           <div className="space-y-1">
             <div className="text-[10px] font-bold text-muted-foreground uppercase">Analysis Scale</div>
             <div className="text-sm font-bold text-primary">Multi-Vector</div>
           </div>
           <div className="space-y-1">
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Geography</div>
-            <div className="text-sm font-bold text-primary">Global Context</div>
+            <div className="text-[10px] font-bold text-muted-foreground uppercase">Tier</div>
+            <div className="text-sm font-bold text-primary capitalize">{scanRecord?.reportType || 'Internal'}</div>
           </div>
           <div className="space-y-1">
             <div className="text-[10px] font-bold text-muted-foreground uppercase">Audit Date</div>
@@ -286,7 +281,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
                       </div>
                     </td>
                     <td className="px-6 py-4 text-[10px] text-muted-foreground font-medium">
-                      {q.results[0].mentions.slice(0, 3).map(m => m.companyName).join(", ")}
+                      {q.results[0].mentions.slice(0, 3).map((m, idx) => getDisplayCompetitor(m.companyName, idx)).join(", ")}
                     </td>
                   </tr>
                 );

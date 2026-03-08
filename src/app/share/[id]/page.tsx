@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { doc, getDoc, updateDoc, increment, serverTimestamp } from "firebase/firestore";
-import { db } from "@/firebase/config";
+import { db } from "@/lib/firebase-config";
 import { ScanRecord, StrategicRecommendation } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +65,21 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
     fetchSharedScan();
   }, [params.id]);
 
+  const displayIdentity = useMemo(() => {
+    if (!scan) return "";
+    if (scan.reportType === 'case-study' && scan.anonymizeSubject) {
+      return scan.caseStudyTitle || "Leading Industry Provider";
+    }
+    return scan.results.companyName || "Verified Client";
+  }, [scan]);
+
+  const getDisplayCompetitor = (name: string, index: number) => {
+    if (scan?.anonymizeCompetitors) {
+      return `Rival ${String.fromCharCode(65 + index)}`;
+    }
+    return name;
+  };
+
   const CATEGORY_SCORES = useMemo(() => {
     if (!scan) return [];
     const r = scan.results;
@@ -113,8 +128,8 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] font-black text-primary uppercase tracking-widest">{scan.results.companyName}</div>
-            <div className="text-[8px] text-muted-foreground uppercase font-medium">Verified Client Audit</div>
+            <div className="text-[10px] font-black text-primary uppercase tracking-widest">{displayIdentity}</div>
+            <div className="text-[8px] text-muted-foreground uppercase font-medium">Verified {scan.reportType === 'case-study' ? 'Case Study' : 'Client Audit'}</div>
           </div>
           <div className="w-px h-8 bg-slate-200" />
           <Badge className="bg-green-50 text-green-700 border-green-200 text-[9px] uppercase font-bold tracking-widest">
@@ -131,7 +146,7 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
           </div>
           <h1 className="text-5xl font-black text-primary tracking-tighter leading-none">AI Visibility Discovery Audit</h1>
           <p className="text-xl text-muted-foreground font-medium max-w-2xl leading-relaxed">
-            Detailed analysis of search prominence and LLM recommendation patterns for <span className="text-primary font-bold">{scan.results.companyName}</span>.
+            Detailed analysis of search prominence and LLM recommendation patterns for <span className="text-primary font-bold">{displayIdentity}</span>.
           </p>
           <div className="flex flex-wrap gap-6 pt-4">
              <div className="space-y-1">
@@ -233,7 +248,7 @@ export default function PublicSharePage({ params }: { params: { id: string } }) 
              </div>
           </div>
           <div className="text-[9px] text-muted-foreground uppercase tracking-[0.4em] font-bold">
-            &copy; {new Date().getFullYear()} VizAI Consulting Group • Confidential Client Audit • Ref: {scan.id}
+            &copy; {new Date().getFullYear()} VizAI Consulting Group • Confidential {scan.reportType === 'case-study' ? 'Anonymized Analysis' : 'Client Audit'} • Ref: {scan.id}
           </div>
         </footer>
       </main>

@@ -4,8 +4,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/firebase/config";
-import { ScanRecord, StrategicRecommendation, ServicePackageType } from "@/lib/types";
+import { db } from "@/lib/firebase-config";
+import { ScanRecord, StrategicRecommendation, ServicePackageType, ReportType } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,9 @@ import {
   Briefcase,
   Boxes,
   Zap,
-  Info
+  Info,
+  Shield,
+  UserCheck
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -53,6 +55,12 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
   const [reviewStatus, setReviewStatus] = useState<ScanRecord['reviewStatus']>('draft');
   const [recommendations, setRecommendations] = useState<StrategicRecommendation[]>([]);
   const [shareEnabled, setShareEnabled] = useState(false);
+  
+  // New: White Label & Anonymization
+  const [reportType, setReportType] = useState<ReportType>('internal');
+  const [anonymizeSubject, setAnonymizeSubject] = useState(false);
+  const [anonymizeCompetitors, setAnonymizeCompetitors] = useState(false);
+  const [caseStudyTitle, setCaseStudyTitle] = useState("");
 
   useEffect(() => {
     async function fetchScan() {
@@ -68,6 +76,11 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
           setReviewStatus(data.reviewStatus || 'draft');
           setRecommendations(data.results.priorityActions || []);
           setShareEnabled(data.shareEnabled || false);
+          
+          setReportType(data.reportType || 'internal');
+          setAnonymizeSubject(data.anonymizeSubject || false);
+          setAnonymizeCompetitors(data.anonymizeCompetitors || false);
+          setCaseStudyTitle(data.caseStudyTitle || "");
         }
       } catch (e) {
         console.error("Error fetching scan for review:", e);
@@ -98,6 +111,10 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
         lastReviewedBy: "System Admin",
         lastReviewedAt: serverTimestamp(),
         shareEnabled,
+        reportType,
+        anonymizeSubject,
+        anonymizeCompetitors,
+        caseStudyTitle,
         results: {
           ...scan!.results,
           overview,
@@ -206,6 +223,62 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
 
       <main className="max-w-5xl mx-auto p-8 grid lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
+          {/* Presentation & Privacy Control Center */}
+          <Card className="border-none shadow-sm overflow-hidden bg-white border-l-4 border-l-accent">
+            <CardHeader className="bg-accent/5 border-b">
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Shield className="w-4 h-4 text-accent" />
+                Presentation & Privacy Settings
+              </CardTitle>
+              <CardDescription className="text-xs">Control report visibility and anonymization for sharing.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="grid sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Report Tier</Label>
+                  <Select value={reportType} onValueChange={(val) => setReportType(val as ReportType)}>
+                    <SelectTrigger className="bg-muted/30 border-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="internal">Internal Analysis</SelectItem>
+                      <SelectItem value="client-facing">Client Deliverable</SelectItem>
+                      <SelectItem value="case-study">Anonymized Case Study</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {reportType === 'case-study' && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Case Study Placeholder Title</Label>
+                    <Input 
+                      placeholder="e.g. Global 3PL Giant" 
+                      value={caseStudyTitle}
+                      onChange={(e) => setCaseStudyTitle(e.target.value)}
+                      className="bg-muted/30 border-none"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-8 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs font-bold">Anonymize Subject</Label>
+                    <p className="text-[10px] text-muted-foreground">Hide actual company name in report</p>
+                  </div>
+                  <Switch checked={anonymizeSubject} onCheckedChange={setAnonymizeSubject} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs font-bold">Anonymize Rivals</Label>
+                    <p className="text-[10px] text-muted-foreground">Mask competitor names (e.g. Rival A)</p>
+                  </div>
+                  <Switch checked={anonymizeCompetitors} onCheckedChange={setAnonymizeCompetitors} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Executive Summary Editor */}
           <Card className="border-none shadow-sm overflow-hidden bg-white">
             <CardHeader className="border-b bg-muted/10">
@@ -296,7 +369,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
 
         {/* Sidebar: Internal Context & Intelligence */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Package Intelligence - NEW */}
+          {/* Package Intelligence */}
           <Card className="border-none shadow-sm overflow-hidden bg-primary text-white">
             <CardHeader className="bg-white/10 pb-4">
               <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
@@ -331,7 +404,7 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
             </CardContent>
           </Card>
 
-          {/* Share Management */}
+          {/* Share Management Center */}
           <Card className={cn(
             "border-none shadow-sm overflow-hidden bg-white",
             !isApproved && "opacity-60 grayscale pointer-events-none"
@@ -339,14 +412,14 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
             <CardHeader className="border-b bg-accent/5">
               <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2 text-primary">
                 <Share2 className="w-3 h-3 text-accent" />
-                Share Management
+                Share Management center
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-[10px] font-bold uppercase">Public Share Link</Label>
-                  <p className="text-[9px] text-muted-foreground">Enable view-only access</p>
+                  <p className="text-[9px] text-muted-foreground">Enable external presentation access</p>
                 </div>
                 <Switch 
                   checked={shareEnabled} 
@@ -367,6 +440,23 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
                       <Copy className="w-3.5 h-3.5" />
                     </Button>
                   </div>
+                  
+                  <div className="p-3 bg-muted/30 rounded-xl space-y-2">
+                    <div className="flex items-center gap-2 text-[9px] font-black text-primary uppercase">
+                      <UserCheck className="w-3 h-3" /> External Presentation Profile
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                       <div className="space-y-0.5">
+                          <div className="text-[8px] font-bold text-muted-foreground uppercase">Identity</div>
+                          <div className="text-[10px] font-bold truncate">{anonymizeSubject ? (caseStudyTitle || 'Anonymized') : scan.results.companyName}</div>
+                       </div>
+                       <div className="space-y-0.5">
+                          <div className="text-[8px] font-bold text-muted-foreground uppercase">Rivals</div>
+                          <div className="text-[10px] font-bold">{anonymizeCompetitors ? 'Masked' : 'Transparent'}</div>
+                       </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2">
                     <div className="p-3 bg-muted/30 rounded-xl space-y-1">
                       <div className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">

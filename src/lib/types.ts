@@ -16,6 +16,7 @@ export interface Organization {
 }
 
 export type ServicePackageType = 'Snapshot' | 'Foundation' | 'Growth' | 'Monitoring';
+export type ReportType = 'internal' | 'client-facing' | 'case-study';
 
 export interface CompanyProfile {
   id: string;
@@ -134,6 +135,11 @@ export interface ScanRecord {
   lastViewedAt?: any;
   // Proposal Mode
   proposal?: ProposalData;
+  // White Label & Case Study
+  reportType?: ReportType;
+  anonymizeSubject?: boolean;
+  anonymizeCompetitors?: boolean;
+  caseStudyTitle?: string;
 }
 
 export interface RealQueryResult {
