@@ -72,6 +72,8 @@ export interface QueryRecord {
   id: string;
   text: string;
   results: QueryResult[];
+  intentType?: 'best' | 'local' | 'comparison' | 'capability';
+  category?: string;
 }
 
 export interface QueryResult {

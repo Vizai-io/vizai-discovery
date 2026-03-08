@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,9 @@ import {
   FileCode,
   Layers,
   ArrowRight,
-  ShieldAlert
+  ShieldAlert,
+  Lightbulb,
+  ArrowUpRight
 } from "lucide-react";
 import Link from "next/link";
 import { QueryDiscoveryData, StrategicRecommendation } from "@/lib/types";
@@ -74,6 +77,36 @@ export default function ClientReportPage({ params }: { params: { id: string } })
     fetchScan();
   }, [params.id]);
 
+  const opportunities = useMemo(() => {
+    if (!queryDiscovery) return [];
+
+    return queryDiscovery.queries
+      .filter(q => !q.results.some(r => r.isTargetCompanyMentioned))
+      .map(q => {
+        const competitors = Array.from(new Set(
+          q.results.flatMap(r => r.mentions.map(m => m.companyName))
+        )).filter(name => name !== (scanData?.companyName || "Acme Logistics"));
+
+        let priority: 'high' | 'medium' | 'low' = 'low';
+        if (q.intentType === 'best' || q.intentType === 'comparison') priority = 'high';
+        else if (q.intentType === 'capability') priority = 'medium';
+
+        return {
+          id: q.id,
+          query: q.text,
+          competitors,
+          intentType: q.intentType || 'Generic',
+          priority,
+          potential: priority === 'high' ? 'Significant Visibility Uplift' : 'Incremental Authority'
+        };
+      })
+      .sort((a, b) => {
+        const order = { high: 0, medium: 1, low: 2 };
+        return order[a.priority] - order[b.priority];
+      })
+      .slice(0, 5); // Show top 5 in report
+  }, [queryDiscovery, scanData]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -110,7 +143,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
         </Link>
         <Button onClick={handlePrint} className="gap-2 bg-primary text-white shadow-lg">
           <Printer className="w-4 h-4" /> Export / Print Audit
-        </Button>
+        </Printer>
       </div>
 
       {/* Report Header */}
@@ -211,6 +244,39 @@ export default function ClientReportPage({ params }: { params: { id: string } })
               </div>
               <div className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">{cat.label}</div>
               <div className="text-2xl font-bold text-primary">{cat.score}%</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Discovery Opportunity Engine - NEW for Report */}
+      <section className="space-y-4 pt-8 print:pt-4 page-break-before-auto">
+        <div className="flex justify-between items-center border-b pb-2">
+          <h3 className="text-xl font-bold text-primary flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-accent" />
+            Strategic Discovery Opportunities
+          </h3>
+          <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary border-primary/20">
+            Signal Gaps identified vs Rivals
+          </Badge>
+        </div>
+        
+        <div className="space-y-3">
+          {opportunities.map((opp, i) => (
+            <div key={opp.id} className="p-4 bg-white border border-slate-100 rounded-xl flex items-center justify-between print:border-slate-200">
+               <div className="space-y-1">
+                 <div className="text-[10px] font-bold text-muted-foreground uppercase">{opp.intentType} Vector</div>
+                 <div className="text-sm font-bold text-primary italic">"{opp.query}"</div>
+                 <div className="text-[9px] text-muted-foreground">Captured by: {opp.competitors.join(", ")}</div>
+               </div>
+               <div className="text-right space-y-1">
+                  <Badge variant={opp.priority === 'high' ? 'destructive' : 'secondary'} className="text-[8px] uppercase">
+                    {opp.priority} Yield
+                  </Badge>
+                  <div className="text-[10px] font-bold text-accent flex items-center justify-end gap-1">
+                    {opp.potential} <ArrowUpRight className="w-3 h-3" />
+                  </div>
+               </div>
             </div>
           ))}
         </div>

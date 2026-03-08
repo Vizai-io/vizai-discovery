@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ScoreCard } from "@/components/dashboard/score-card";
@@ -26,12 +27,15 @@ import {
   Sparkles,
   Loader2,
   ArrowRight,
-  ShieldAlert
+  ShieldAlert,
+  ArrowUpRight,
+  ChevronRight,
+  TrendingDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useState, useEffect, useMemo } from "react";
-import { QueryDiscoveryData, StrategicRecommendation } from "@/lib/types";
+import { QueryDiscoveryData, StrategicRecommendation, QueryRecord } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -101,6 +105,39 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
   }, [scanData]);
 
   const projection = useMemo(() => calculateProjectedImprovement(results.categoryScores), [results]);
+
+  // Query Opportunity Engine Logic
+  const opportunities = useMemo(() => {
+    if (!queryDiscovery) return [];
+
+    return queryDiscovery.queries
+      .filter(q => !q.results.some(r => r.isTargetCompanyMentioned))
+      .map(q => {
+        // Find competitors appearing in these missed results
+        const competitors = Array.from(new Set(
+          q.results.flatMap(r => r.mentions.map(m => m.companyName))
+        )).filter(name => name !== (scanData?.companyName || "Acme Logistics"));
+
+        // Determine priority based on intent
+        let priority: 'high' | 'medium' | 'low' = 'low';
+        if (q.intentType === 'best' || q.intentType === 'comparison') priority = 'high';
+        else if (q.intentType === 'capability') priority = 'medium';
+
+        return {
+          id: q.id,
+          query: q.text,
+          competitors,
+          category: q.category || 'Discovery Intent',
+          intentType: q.intentType || 'Generic',
+          priority,
+          potential: priority === 'high' ? 'Significant Visibility Uplift' : priority === 'medium' ? 'Targeted Share of Voice' : 'Niche Authority'
+        };
+      })
+      .sort((a, b) => {
+        const order = { high: 0, medium: 1, low: 2 };
+        return order[a.priority] - order[b.priority];
+      });
+  }, [queryDiscovery, scanData]);
 
   if (loading) {
     return (
@@ -226,6 +263,85 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           )}
         </div>
       )}
+
+      {/* Discovery Opportunity Engine */}
+      <Card className="border-none shadow-sm overflow-hidden bg-white">
+        <CardHeader className="flex flex-row items-center justify-between border-b bg-primary/5 py-4 px-8">
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-black text-primary flex items-center gap-2 tracking-tight">
+              <Lightbulb className="w-5 h-5 text-accent" />
+              AI Discovery Opportunities
+            </CardTitle>
+            <CardDescription className="text-xs font-bold uppercase tracking-widest opacity-60">High-potential vectors captured by competitors</CardDescription>
+          </div>
+          <Badge className="bg-accent text-primary font-black px-3 py-1 text-[10px] uppercase tracking-widest border-none">
+            {opportunities.length} Vectors Identified
+          </Badge>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow>
+                  <TableHead className="pl-8 font-bold uppercase text-[10px] tracking-widest">Discovery Intent Vector</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-widest">Captured By Rivals</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-widest text-center">Category</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-widest text-center">Priority</TableHead>
+                  <TableHead className="pr-8 font-bold uppercase text-[10px] tracking-widest text-right">Yield Potential</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {opportunities.length > 0 ? (
+                  opportunities.map((opp) => (
+                    <TableRow key={opp.id} className="hover:bg-muted/10 transition-colors group">
+                      <TableCell className="pl-8 py-5">
+                        <div className="font-bold text-primary italic text-xs leading-relaxed group-hover:text-accent transition-colors">
+                          "{opp.query}"
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {opp.competitors.map((comp, i) => (
+                            <Badge key={i} variant="outline" className="text-[8px] bg-muted/50 border-none px-1.5 h-4">
+                              {comp}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                         <span className="text-[10px] font-bold text-muted-foreground uppercase">{opp.intentType}</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge 
+                          variant={opp.priority === 'high' ? 'destructive' : opp.priority === 'medium' ? 'default' : 'secondary'}
+                          className="text-[8px] uppercase px-2 py-0.5"
+                        >
+                          {opp.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right pr-8">
+                         <div className="flex items-center justify-end gap-1.5 text-[10px] font-bold text-primary">
+                            {opp.potential}
+                            <ArrowUpRight className="w-3 h-3 text-accent" />
+                         </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-12 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                         <CheckCircle2 className="w-10 h-10 text-green-500/20" />
+                         <p className="text-sm text-muted-foreground italic font-medium">No major signal gaps identified in recent intent simulations.</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Projected Improvement: Optimization Scenario */}
       <Card className="border-none shadow-2xl bg-gradient-to-br from-[#174C80] via-[#0d2a4a] to-black text-white overflow-hidden relative group">

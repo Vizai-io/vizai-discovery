@@ -106,7 +106,9 @@ export class ScanEngine {
       queryRecords.push({
         id: Math.random().toString(36).substr(2, 9),
         text: libQuery.text,
-        results
+        results,
+        intentType: libQuery.intentType,
+        category: libQuery.category
       });
     }
 
@@ -162,7 +164,9 @@ export class ScanEngine {
       queryRecords.push({
         id: Math.random().toString(36).substr(2, 9),
         text: libQuery.text,
-        results
+        results,
+        intentType: libQuery.intentType,
+        category: libQuery.category
       });
     }
 
