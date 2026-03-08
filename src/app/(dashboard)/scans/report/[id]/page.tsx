@@ -19,7 +19,9 @@ import {
   Briefcase,
   TrendingUp,
   FileCode,
-  Layers
+  Layers,
+  ArrowRight,
+  ShieldAlert
 } from "lucide-react";
 import Link from "next/link";
 import { QueryDiscoveryData, StrategicRecommendation } from "@/lib/types";
@@ -94,6 +96,9 @@ export default function ClientReportPage({ params }: { params: { id: string } })
     { label: "Market Share of Voice", score: results.categoryScores.competitorShareOfVoice, icon: Users },
   ];
 
+  const showVisibilityCTA = results.overallScore < 40;
+  const showCompetitorCTA = results.categoryScores.competitorShareOfVoice > 50;
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 print:space-y-6 print:pb-0">
       {/* Report Controls - Hidden on Print */}
@@ -128,7 +133,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-muted/30 p-6 rounded-2xl border print:p-4 print:bg-white print:border-slate-200">
           <div className="space-y-1">
             <div className="text-[10px] font-bold text-muted-foreground uppercase">Target Organization</div>
-            <div className="text-sm font-bold text-primary">Client Account</div>
+            <div className="text-sm font-bold text-primary">{results.companyName || "Client Account"}</div>
           </div>
           <div className="space-y-1">
             <div className="text-[10px] font-bold text-muted-foreground uppercase">Analysis Scale</div>
@@ -144,6 +149,44 @@ export default function ClientReportPage({ params }: { params: { id: string } })
           </div>
         </div>
       </header>
+
+      {/* Strategic Interventions - Contextual CTAs */}
+      {(showVisibilityCTA || showCompetitorCTA) && (
+        <section className="grid md:grid-cols-2 gap-4 print:hidden">
+          {showVisibilityCTA && (
+            <Card className="border-none bg-destructive/5 border-l-4 border-l-destructive shadow-sm">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-3 text-destructive">
+                  <ShieldAlert className="w-5 h-5" />
+                  <h4 className="font-bold">Critical Visibility Deficit</h4>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your business is largely invisible to AI systems. High-intent queries are failing to resolve to your brand entity.
+                </p>
+                <Button className="w-full bg-destructive hover:bg-destructive/90 text-white text-xs h-9">
+                  Request VizAI Optimization Plan
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {showCompetitorCTA && (
+            <Card className="border-none bg-accent/5 border-l-4 border-l-accent shadow-sm">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-3 text-accent">
+                  <Users className="w-5 h-5" />
+                  <h4 className="font-bold">Competitive Displacement</h4>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your competitors dominate AI discovery queries. They currently capture majority share-of-voice in your vertical.
+                </p>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white text-xs h-9">
+                  See How VizAI Improves Discoverability
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      )}
 
       {/* Executive Summary Section */}
       <section className="space-y-6">
@@ -204,6 +247,17 @@ export default function ClientReportPage({ params }: { params: { id: string } })
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Consulting Footnote for Report */}
+      <section className="p-8 bg-muted/20 border-2 border-dashed rounded-[2rem] text-center space-y-4 print:hidden">
+        <h4 className="text-xl font-bold text-primary">Need an Implementation Roadmap?</h4>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          Our strategy team specializes in entity signal fortification and technical AI knowledge graph positioning.
+        </p>
+        <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-8">
+          Schedule Strategy Briefing
+        </Button>
       </section>
 
       {/* Discovery Analysis Table Section */}

@@ -24,7 +24,9 @@ import {
   Info,
   Scale,
   Sparkles,
-  Loader2
+  Loader2,
+  ArrowRight,
+  ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -72,7 +74,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           setScanData(results);
           setQueryDiscovery(discovery || null);
         } else {
-          // Simulation fallback for empty states
           const simulatedDiscovery = await QueryEngine.simulateDiscovery(
             "Acme Logistics",
             "Third Party Logistics (3PL)",
@@ -109,6 +110,9 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       </div>
     );
   }
+
+  const showVisibilityCTA = results.overallScore < 40;
+  const showCompetitorCTA = results.categoryScores.competitorShareOfVoice > 50;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 animate-in fade-in duration-700">
@@ -181,6 +185,48 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         />
       </div>
 
+      {/* Contextual CTAs */}
+      {(showVisibilityCTA || showCompetitorCTA) && (
+        <div className="grid md:grid-cols-2 gap-4">
+          {showVisibilityCTA && (
+            <Card className="border-none bg-destructive/5 border-l-4 border-l-destructive shadow-sm">
+              <CardContent className="p-6 flex items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-destructive/10 rounded-full text-destructive">
+                    <ShieldAlert className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-primary">Your business is largely invisible to AI systems.</h4>
+                    <p className="text-sm text-muted-foreground">High-intent query vectors currently fail to resolve to your entity.</p>
+                  </div>
+                </div>
+                <Button className="bg-destructive hover:bg-destructive/90 text-white gap-2 shrink-0">
+                  Request VizAI Optimization Plan <ArrowRight className="w-4 h-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {showCompetitorCTA && (
+            <Card className="border-none bg-accent/5 border-l-4 border-l-accent shadow-sm">
+              <CardContent className="p-6 flex items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-accent/10 rounded-full text-accent">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-primary">Your competitors dominate AI discovery queries.</h4>
+                    <p className="text-sm text-muted-foreground">Competitors are capturing 80%+ of recommended share-of-voice.</p>
+                  </div>
+                </div>
+                <Button className="bg-primary hover:bg-primary/90 text-white gap-2 shrink-0">
+                  See How VizAI Improves Discoverability <ArrowRight className="w-4 h-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* Projected Improvement: Optimization Scenario */}
       <Card className="border-none shadow-2xl bg-gradient-to-br from-[#174C80] via-[#0d2a4a] to-black text-white overflow-hidden relative group">
         <div className="absolute top-0 right-0 w-96 h-96 bg-accent/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 transition-all duration-700 group-hover:scale-110" />
@@ -227,11 +273,16 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                   ))}
                 </div>
               </div>
-              <div className="p-5 bg-white/5 rounded-2xl border border-white/10 flex gap-4 items-start">
-                <Lightbulb className="w-6 h-6 text-accent shrink-0 mt-1" />
-                <p className="text-xs text-white/60 leading-relaxed italic">
-                  "Implementation of technical JSON-LD entity signals and authoritative backlink acquisition for key capability pages is projected to drive a significant gain in Citation Strength and Overall Index resolution."
-                </p>
+              <div className="p-5 bg-white/5 rounded-2xl border border-white/10 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div className="flex gap-4 items-start">
+                  <Lightbulb className="w-6 h-6 text-accent shrink-0 mt-1" />
+                  <p className="text-xs text-white/60 leading-relaxed italic">
+                    "Implementation of technical JSON-LD entity signals and authoritative backlink acquisition is projected to drive a significant gain in Overall Index resolution."
+                  </p>
+                </div>
+                <Button className="bg-accent hover:bg-accent/90 text-primary font-bold rounded-full px-6 shadow-lg shadow-accent/20 shrink-0">
+                  Implement Strategy
+                </Button>
               </div>
             </div>
           </div>
@@ -321,22 +372,21 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           </CardHeader>
           <CardContent className="space-y-6 relative z-10">
             <p className="text-sm leading-relaxed opacity-80 font-medium italic">
-              "Our engine performs multi-vector discovery simulations to analyze brand-entity association patterns. We weight AI Visibility (30%) as the primary k-factor for market leadership."
+              "Our engine performs multi-vector discovery simulations to analyze brand-entity association patterns."
             </p>
             <div className="space-y-4">
                <div className="flex items-start gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
                   <TrendingUp className="w-5 h-5 text-accent shrink-0" />
                   <div>
                     <h5 className="text-sm font-bold">Leader Benchmark</h5>
-                    <p className="text-xs opacity-60 font-medium">Scores exceeding 85.0 indicate authoritative status in LLM knowledge layers.</p>
+                    <p className="text-xs opacity-60 font-medium">Scores exceeding 85.0 indicate authoritative status.</p>
                   </div>
                </div>
-               <div className="flex items-start gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <Scale className="w-5 h-5 text-accent shrink-0" />
-                  <div>
-                    <h5 className="text-sm font-bold">Dynamic Weights</h5>
-                    <p className="text-xs opacity-60 font-medium">Model weights are automatically tuned based on industry-specific intent classification.</p>
-                  </div>
+               <div className="p-4 bg-accent/20 rounded-2xl border border-accent/40 text-center">
+                  <h5 className="text-xs font-bold text-accent uppercase tracking-widest mb-2">Strategy Consultation</h5>
+                  <Button variant="outline" className="w-full text-[10px] h-8 border-accent/30 text-white hover:bg-accent/10">
+                    Review with Consultant
+                  </Button>
                </div>
             </div>
           </CardContent>
