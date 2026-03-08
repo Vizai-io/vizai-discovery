@@ -30,10 +30,12 @@ import {
   Copy,
   ExternalLink,
   Eye,
-  Calendar
+  Calendar,
+  Briefcase
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export default function ScanReviewPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -178,6 +180,12 @@ export default function ScanReviewPage({ params }: { params: { id: string } }) {
           </div>
         </div>
         <div className="flex gap-3">
+          <Link href={`/admin/scans/${params.id}/proposal`}>
+            <Button variant="outline" className="gap-2 border-accent text-primary font-bold">
+              <Briefcase className="w-4 h-4 text-accent" />
+              Build Proposal
+            </Button>
+          </Link>
           <Button variant="outline" className="gap-2" onClick={() => handleSave(false)} disabled={saving}>
             <Save className="w-4 h-4" /> Save Draft
           </Button>

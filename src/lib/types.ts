@@ -94,6 +94,16 @@ export interface IndustryQuery {
   intentType: 'best' | 'local' | 'comparison' | 'capability';
 }
 
+export interface ProposalData {
+  summary: string;
+  gaps: string[];
+  workstreams: { title: string; description: string }[];
+  projections: string;
+  monitoringPlan: string;
+  estimatedInvestment?: string;
+  updatedAt?: any;
+}
+
 export interface ScanRecord {
   id: string;
   profileId: string;
@@ -113,6 +123,8 @@ export interface ScanRecord {
   shareCreatedAt?: any;
   viewCount?: number;
   lastViewedAt?: any;
+  // Proposal Mode
+  proposal?: ProposalData;
 }
 
 export interface RealQueryResult {
