@@ -1,5 +1,7 @@
 import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput, GenerateCompanyAIScanReportOutput } from "@/ai/flows/generate-company-ai-scan-report";
 import { provideAiScanRecommendations, ProvideAiScanRecommendationsOutput } from "@/ai/flows/provide-ai-scan-recommendations";
+import { QueryEngine } from "./query-engine";
+import { QueryDiscoveryData } from "../types";
 
 /**
  * ScanEngine orchestrates the AI visibility analysis process.
@@ -10,11 +12,22 @@ export class ScanEngine {
   /**
    * Run a full scan for a company profile.
    */
-  static async runScan(input: GenerateCompanyAIScanReportInput): Promise<GenerateCompanyAIScanReportOutput> {
+  static async runScan(input: GenerateCompanyAIScanReportInput): Promise<GenerateCompanyAIScanReportOutput & { queryDiscovery: QueryDiscoveryData }> {
     // In v0.1, we call our AI flow directly which generates realistic mock data.
-    // This flow is configured to return deterministic-feeling results based on input.
     const report = await generateCompanyAIScanReport(input);
-    return report;
+    
+    // New Query Discovery simulation
+    const queryDiscovery = await QueryEngine.simulateDiscovery(
+      input.companyName,
+      input.industry,
+      input.targetGeography,
+      input.competitors
+    );
+
+    return {
+      ...report,
+      queryDiscovery
+    };
   }
 
   /**

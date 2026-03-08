@@ -32,6 +32,35 @@ export interface ScanRecord {
   date: any;
   status: 'pending' | 'completed' | 'failed';
   results: ScanResults;
+  queryDiscovery?: QueryDiscoveryData;
+}
+
+export interface QueryDiscoveryData {
+  queries: QueryRecord[];
+  summary: {
+    totalQueries: number;
+    companyMentionCount: number;
+    coveragePercentage: number;
+  };
+}
+
+export interface QueryRecord {
+  id: string;
+  text: string;
+  results: QueryResult[];
+}
+
+export interface QueryResult {
+  provider: 'OpenAI' | 'Anthropic' | 'Perplexity' | 'Gemini';
+  mentions: CompanyMention[];
+  isTargetCompanyMentioned: boolean;
+}
+
+export interface CompanyMention {
+  companyName: string;
+  position: number;
+  description: string;
+  confidenceScore: number;
 }
 
 export interface ScanResults {
