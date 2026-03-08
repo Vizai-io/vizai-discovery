@@ -1,7 +1,7 @@
-
 /**
  * @fileOverview Deterministic Mock Adapter for VizAI.
- * Now enhanced with Competitor Knowledge Profiles to model weighted AI responses.
+ * Enhanced with weighted discovery logic that simulates service/geography matching
+ * and provider-specific model biases.
  */
 
 import { AIProviderAdapter, DiscoveryContext } from "./provider-interface";
@@ -22,12 +22,12 @@ export class MockAdapter implements AIProviderAdapter {
     ];
   }
 
-  async executeDiscovery(query: string, context: DiscoveryContext): Promise<QueryResult> {
+  async executeDiscovery(queryText: string, context: DiscoveryContext): Promise<QueryResult> {
     // 1. Fetch relevant competitor profiles
-    const profiles = await CompetitorService.getProfilesByNames(context.competitors);
+    const competitorProfiles = await CompetitorService.getProfilesByNames(context.competitors);
     
-    // 2. Calculate weighted mentions
-    const mentions = this.parseResponse(profiles, context);
+    // 2. Calculate weighted mentions based on query relevance and knowledge profiles
+    const mentions = this.parseResponse(competitorProfiles, context, queryText);
     
     const isTargetCompanyMentioned = mentions.some(
       m => m.companyName.toLowerCase() === context.targetCompany.toLowerCase()
@@ -40,37 +40,73 @@ export class MockAdapter implements AIProviderAdapter {
     };
   }
 
-  parseResponse(competitorProfiles: CompetitorProfile[], context: DiscoveryContext): CompanyMention[] {
-    // Determine target company "knowledge weight" (simulating a mid-tier authority for v0.1)
-    const targetWeight = 75;
+  /**
+   * Simulates AI response generation with weighted logic.
+   * This is a "private" implementation detail for the MockAdapter.
+   */
+  parseResponse(competitorProfiles: CompetitorProfile[], context: DiscoveryContext, queryText: string = ''): CompanyMention[] {
+    const query = queryText.toLowerCase();
     
-    const candidates = [
-      { name: context.targetCompany, weight: targetWeight },
-      ...competitorProfiles.map(p => ({
-        name: p.name,
-        weight: (p.authorityScore * 0.4) + (p.serviceCoverageScore * 0.4) + (p.citationStrengthScore * 0.2)
-      }))
-    ];
+    // Create a mock knowledge profile for the target company based on input context
+    const targetProfile: Omit<CompetitorProfile, 'id'> = {
+      name: context.targetCompany,
+      industry: context.industry,
+      services: context.serviceCategories,
+      geography: [context.geography],
+      authorityScore: 75, // Mid-tier baseline for target company in demo
+      citationStrengthScore: 70,
+      serviceCoverageScore: 80
+    };
 
-    // Presence check: Higher weight candidates appear more often
-    // We filter candidates based on a deterministic threshold + provider-specific jitter
-    const providerJitter = this.id.length * 5;
-    const finalSelection = candidates
-      .filter(c => {
-        // High authority companies (90+) almost always appear
-        if (c.weight > 90) return true;
-        // Target company and others have a probability-based selection
-        const threshold = 60 + providerJitter;
-        return c.weight + (Math.random() * 20) > threshold;
-      })
-      .sort((a, b) => b.weight - a.weight) // Rank by signal strength
+    const candidates = [targetProfile, ...competitorProfiles];
+
+    // Score each candidate based on query relevance and their knowledge profile
+    const scoredCandidates = candidates.map(c => {
+      let score = (c.authorityScore * 0.4) + (c.serviceCoverageScore * 0.3) + (c.citationStrengthScore * 0.3);
+      
+      // 1. Service Matching: Boost if query contains keywords from the company's services
+      const serviceMatch = c.services.some(s => query.includes(s.toLowerCase()));
+      if (serviceMatch) score += 15;
+
+      // 2. Geographic Matching: Boost if query contains keywords from the company's geography
+      const geoMatch = c.geography.some(g => query.includes(g.toLowerCase()) || g.toLowerCase() === 'global');
+      if (geoMatch) score += 10;
+
+      // 3. Provider Bias (Deterministic Jitter): 
+      // Simulates how different models (OpenAI vs Gemini) might favor different sources
+      const nameHash = c.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const providerHash = this.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const jitter = ( (nameHash + providerHash) % 20 ) - 10; // -10 to +10
+      score += jitter;
+
+      // 4. Intent Type Boosting:
+      if (query.includes('best') || query.includes('top')) {
+        score += (c.authorityScore / 10);
+      }
+      if (query.includes('compare')) {
+        // Increase diversity for comparison queries by adding a "positional" jitter
+        score += Math.random() * 5;
+      }
+
+      return { ...c, finalScore: score };
+    });
+
+    // Sort by final relevance score and take top 4
+    const finalSelection = scoredCandidates
+      .sort((a, b) => b.finalScore - a.finalScore)
       .slice(0, 4);
 
-    return finalSelection.map((c, index) => ({
-      companyName: c.name,
-      position: index + 1,
-      description: `Recognized authority in ${context.industry}, frequently cited for ${context.geography} operations.`,
-      confidenceScore: Math.floor(c.weight + (Math.random() * 5))
-    }));
+    return finalSelection.map((c, index) => {
+      // Generate a realistic AI snippet
+      const matchedService = c.services.find(s => query.includes(s.toLowerCase())) || c.services[0];
+      const description = `${c.name} is a leading entity in the ${c.industry} sector, frequently recognized for its ${matchedService} solutions across ${c.geography[0]} markets.`;
+      
+      return {
+        companyName: c.name,
+        position: index + 1,
+        description,
+        confidenceScore: Math.min(99, Math.floor(c.finalScore))
+      };
+    });
   }
 }

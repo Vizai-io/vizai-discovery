@@ -1,3 +1,7 @@
+/**
+ * @fileOverview ScanEngine orchestrates the AI visibility analysis process.
+ * Decoupled into a Provider Adapter architecture for easy future scaling.
+ */
 
 import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput, GenerateCompanyAIScanReportOutput } from "@/ai/flows/generate-company-ai-scan-report";
 import { provideAiScanRecommendations, ProvideAiScanRecommendationsOutput } from "@/ai/flows/provide-ai-scan-recommendations";
@@ -7,10 +11,6 @@ import { MockAdapter } from "./adapters/mock-adapter";
 import { DiscoveryContext } from "./adapters/provider-interface";
 import { QueryLibraryService } from "./query-library-service";
 
-/**
- * ScanEngine orchestrates the AI visibility analysis process.
- * Decoupled into a Provider Adapter architecture for easy future scaling.
- */
 export class ScanEngine {
   /**
    * List of active adapters. In future, real adapters (OpenAI, Perplexity) 
@@ -37,6 +37,7 @@ export class ScanEngine {
       targetCompany: input.companyName,
       industry: input.industry,
       geography: input.targetGeography,
+      serviceCategories: input.serviceCategories,
       competitors: input.competitors
     };
 

@@ -10,6 +10,7 @@ export interface DiscoveryContext {
   targetCompany: string;
   industry: string;
   geography: string;
+  serviceCategories: string[];
   competitors: string[];
 }
 
