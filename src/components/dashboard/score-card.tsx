@@ -15,29 +15,49 @@ export function ScoreCard({ title, score, trend, icon: Icon, description, classN
   const isPositive = trend && trend > 0;
 
   return (
-    <Card className={cn("overflow-hidden border-none shadow-sm bg-white", className)}>
+    <Card className={cn("overflow-hidden border-none shadow-sm bg-white hover:shadow-md transition-all group", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        <CardTitle className={cn(
+          "text-[10px] font-bold uppercase tracking-widest",
+          className?.includes('bg-primary') ? "text-white/70" : "text-muted-foreground"
+        )}>
           {title}
         </CardTitle>
-        <div className="p-2 rounded-lg bg-primary/5 text-primary">
+        <div className={cn(
+          "p-2 rounded-lg transition-colors",
+          className?.includes('bg-primary') ? "bg-white/10 text-white" : "bg-primary/5 text-primary group-hover:bg-primary group-hover:text-white"
+        )}>
             <Icon className="w-4 h-4" />
         </div>
       </CardHeader>
       <CardContent>
         <div className="flex items-end gap-2">
-          <div className="text-3xl font-bold text-primary">{score.toFixed(1)}</div>
+          <div className={cn(
+            "text-3xl font-headline font-bold",
+            className?.includes('bg-primary') ? "text-white" : "text-primary"
+          )}>
+            {score.toFixed(1)}
+          </div>
           {trend !== undefined && (
             <div className={cn(
-              "text-xs font-bold flex items-center mb-1",
-              isPositive ? "text-green-600" : "text-red-600"
+              "text-[10px] font-bold flex items-center mb-1.5 px-1.5 py-0.5 rounded-full",
+              isPositive 
+                ? (className?.includes('bg-primary') ? "bg-white/20 text-white" : "bg-green-50 text-green-600") 
+                : (className?.includes('bg-primary') ? "bg-white/20 text-white" : "bg-red-50 text-red-600")
             )}>
-              {isPositive ? <ArrowUpRight className="w-3 h-3 mr-0.5" /> : <ArrowDownRight className="w-3 h-3 mr-0.5" />}
+              {isPositive ? <ArrowUpRight className="w-2.5 h-2.5 mr-0.5" /> : <ArrowDownRight className="w-2.5 h-2.5 mr-0.5" />}
               {Math.abs(trend)}%
             </div>
           )}
         </div>
-        {description && <p className="text-xs text-muted-foreground mt-2">{description}</p>}
+        {description && (
+          <p className={cn(
+            "text-[10px] mt-2 font-medium",
+            className?.includes('bg-primary') ? "text-white/60" : "text-muted-foreground"
+          )}>
+            {description}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
