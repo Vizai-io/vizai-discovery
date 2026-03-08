@@ -14,8 +14,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileText,
-  Eye,
-  EyeOff,
   Lightbulb,
   TrendingUp,
   Activity,
@@ -32,13 +30,16 @@ import {
   ChevronRight,
   TrendingDown,
   Cpu,
-  History
+  History,
+  GitCompare,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useState, useEffect, useMemo } from "react";
 import { QueryDiscoveryData, StrategicRecommendation, QueryRecord, RealQueryResult } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
+import { AIResponseParser, ValidationComparison } from "@/lib/services/ai-response-parser";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from "firebase/firestore";
@@ -114,6 +115,14 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
 
   const projection = useMemo(() => calculateProjectedImprovement(results.categoryScores), [results]);
 
+  const validationComparisons = useMemo(() => {
+    if (!realQueryResults || !queryDiscovery) return [];
+    return realQueryResults.map(real => {
+      const simulated = queryDiscovery.queries.find(q => q.text === real.query);
+      return AIResponseParser.generateComparison(real, simulated);
+    });
+  }, [realQueryResults, queryDiscovery]);
+
   const opportunities = useMemo(() => {
     if (!queryDiscovery) return [];
 
@@ -152,9 +161,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       </div>
     );
   }
-
-  const showVisibilityCTA = results.overallScore < 40;
-  const showCompetitorCTA = results.categoryScores.competitorShareOfVoice > 50;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 animate-in fade-in duration-700">
@@ -227,66 +233,81 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         />
       </div>
 
-      {/* Live Model Verification Section (NEW) */}
-      {realQueryResults.length > 0 && (
+      {/* Real AI Validation Section (NEW Comparison UI) */}
+      {validationComparisons.length > 0 && (
         <Card className="border-none shadow-md bg-white overflow-hidden border-l-4 border-l-accent">
           <CardHeader className="flex flex-row items-center justify-between bg-accent/5 py-4 px-8">
             <div className="space-y-1">
               <CardTitle className="text-lg font-black text-primary flex items-center gap-2 tracking-tight">
-                <Cpu className="w-5 h-5 text-accent" />
-                Live Model Verification
+                <GitCompare className="w-5 h-5 text-accent" />
+                Real AI Validation
               </CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Direct knowledge-base auditing from Gemini 1.5 Pro</CardDescription>
+              <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cross-referencing Simulation vs. Live Ground Truth</CardDescription>
             </div>
-            <Badge className="bg-primary text-white text-[9px] uppercase tracking-[0.2em] px-2 py-1">Ground Truth Signal</Badge>
+            <Badge className="bg-primary text-white text-[9px] uppercase tracking-[0.2em] px-2 py-1">Model Accuracy Audit</Badge>
           </CardHeader>
           <CardContent className="p-0">
             <div className="grid divide-y">
-              {realQueryResults.map((qr, i) => {
-                const isTargetFound = qr.mentions.some(m => m.companyName.toLowerCase().includes(results.companyName?.toLowerCase() || ""));
-                return (
-                  <div key={i} className="p-6 grid md:grid-cols-12 gap-6 hover:bg-muted/5 transition-colors">
-                    <div className="md:col-span-4 space-y-2">
-                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                        <History className="w-3 h-3" /> Vector Query
-                      </div>
-                      <div className="text-sm font-bold text-primary italic leading-relaxed">"{qr.query}"</div>
-                      <div className="pt-2">
-                        {isTargetFound ? (
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100 text-[9px] font-black uppercase">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Signal Verified
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100 text-[9px] font-black uppercase">
-                            <AlertTriangle className="w-3.5 h-3.5" /> Discovery Gap
-                          </div>
-                        )}
-                      </div>
+              {validationComparisons.map((comp, i) => (
+                <div key={i} className="p-8 grid md:grid-cols-12 gap-8 hover:bg-muted/5 transition-colors">
+                  <div className="md:col-span-4 space-y-4">
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Target Vector</div>
+                      <div className="text-sm font-bold text-primary italic leading-relaxed">"{comp.query}"</div>
                     </div>
-                    <div className="md:col-span-8">
-                       <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Model-Cited Entities</div>
-                       <div className="flex flex-wrap gap-2">
-                         {qr.mentions.map((mention, j) => (
-                           <div key={j} className={cn(
-                             "p-3 rounded-xl border text-xs flex flex-col gap-1 transition-all",
-                             mention.companyName.toLowerCase().includes(results.companyName?.toLowerCase() || "") 
-                               ? "bg-primary/5 border-primary/20 shadow-sm" 
-                               : "bg-muted/30 border-transparent opacity-60"
-                           )}>
-                              <div className="font-bold text-primary flex items-center justify-between gap-4">
-                                <span>{mention.companyName}</span>
-                                {mention.position && <span className="text-[9px] opacity-40">#{mention.position}</span>}
-                              </div>
-                              <p className="text-[10px] text-muted-foreground leading-tight max-w-[200px] line-clamp-2 italic">
-                                {mention.description}
-                              </p>
-                           </div>
-                         ))}
-                       </div>
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Alignment Confidence</div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full transition-all",
+                              comp.alignmentScore > 70 ? "bg-green-500" : comp.alignmentScore > 40 ? "bg-yellow-500" : "bg-red-500"
+                            )} 
+                            style={{ width: `${comp.alignmentScore}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-black text-primary">{comp.alignmentScore.toFixed(0)}%</span>
+                      </div>
                     </div>
                   </div>
-                );
-              })}
+                  
+                  <div className="md:col-span-4 space-y-3">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                      <Layers className="w-3 h-3" /> Simulated Result
+                    </div>
+                    <div className="space-y-2">
+                      {comp.simulatedMentions.slice(0, 4).map((name, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                          <span className="w-4 text-primary/40">{idx + 1}.</span>
+                          {name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-4 space-y-3">
+                    <div className="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                      <Cpu className="w-3 h-3 text-accent" /> Real AI Result
+                    </div>
+                    <div className="space-y-2">
+                      {comp.realMentions.slice(0, 4).map((name, idx) => {
+                        const isMatch = comp.simulatedMentions.includes(name);
+                        return (
+                          <div key={idx} className={cn(
+                            "flex items-center gap-2 text-xs font-bold",
+                            isMatch ? "text-primary" : "text-accent"
+                          )}>
+                            <span className="w-4 opacity-40">{idx + 1}.</span>
+                            {name}
+                            {isMatch && <Check className="w-3 h-3 text-green-500" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
