@@ -102,6 +102,21 @@ export interface ScanRecord {
   results: ScanResults;
   queryDiscovery?: QueryDiscoveryData;
   queryLibraryUsed?: string[];
+  realQueryResults?: RealQueryResult[];
+}
+
+export interface RealQueryResult {
+  id: string;
+  scanId: string;
+  query: string;
+  model: string;
+  mentions: {
+    companyName: string;
+    description: string;
+    position?: number;
+  }[];
+  responseExcerpt: string;
+  timestamp: any;
 }
 
 export interface QueryDiscoveryData {

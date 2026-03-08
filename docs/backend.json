@@ -95,6 +95,20 @@
         "queryLibraryUsed": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["id", "profileId", "status"]
+    },
+    "RealQueryResult": {
+      "title": "Real Query Result",
+      "description": "Actual response data from a live AI model for verification.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "scanId": { "type": "string" },
+        "query": { "type": "string" },
+        "model": { "type": "string" },
+        "mentions": { "type": "array", "items": { "type": "object" } },
+        "responseExcerpt": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -128,6 +142,10 @@
     "/scans/{scanId}": {
       "schema": "ScanRecord",
       "description": "History of AI visibility scans."
+    },
+    "/realQueryResults/{resultId}": {
+      "schema": "RealQueryResult",
+      "description": "Live AI model verification results."
     }
   }
 }

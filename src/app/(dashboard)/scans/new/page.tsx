@@ -31,10 +31,11 @@ import {
   Layers,
   Linkedin,
   MapPin,
-  Library
+  Library,
+  Sparkles
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { cn } from "@/lib/utils";
 import { ScanEngine } from "@/lib/services/scan-engine";
@@ -86,7 +87,7 @@ export default function NewScanWizard() {
   const handleFinish = async () => {
     setLoading(true);
     try {
-      // 1. Prepare Data
+      // 1. Save Profile first to get ID
       const profileData = {
         ...formData,
         foundingYear: parseInt(formData.foundingYear),
@@ -94,36 +95,41 @@ export default function NewScanWizard() {
         competitors: formData.competitors.split(",").map(c => c.trim()),
         directoryListings: formData.directoryListings ? formData.directoryListings.split(",").map(d => d.trim()) : [],
         createdAt: serverTimestamp(),
-        organizationId: "org_default_acme" // Mock org for v0.1
+        organizationId: "org_default_acme"
       };
 
       const profileRef = await addDoc(collection(db, "companyProfiles"), profileData);
-
-      // 2. Run the Scan Engine (Includes Website Intel, Entity Enrichment, & Presence Signal)
-      const scanOutput = await ScanEngine.runScan(profileData, profileRef.id);
-
-      // 3. Save Scan to Firestore
+      
+      // 2. Create scan record in pending state
       const scanRef = await addDoc(collection(db, "scans"), {
         profileId: profileRef.id,
         date: serverTimestamp(),
+        status: "pending",
+        organizationId: "org_default_acme"
+      });
+
+      // 3. Run the Scan Engine (Includes verification)
+      const scanOutput = await ScanEngine.runScan(profileData, profileRef.id, scanRef.id);
+
+      // 4. Update Scan with results
+      await updateDoc(doc(db, "scans", scanRef.id), {
         status: "completed",
         results: scanOutput,
         queryDiscovery: scanOutput.queryDiscovery,
-        organizationId: "org_default_acme"
+        realQueryResults: scanOutput.realQueryResults || []
       });
 
       toast({
         title: "Scan Completed",
-        description: "Your AI visibility report has been generated with entity and presence enrichment.",
+        description: "Audit finished. Real-world AI model verification included.",
       });
 
-      // 4. Navigate to results
       router.push(`/scans/results/${scanRef.id}`);
     } catch (error) {
       console.error("Scan error:", error);
       toast({
         title: "Scan Failed",
-        description: "There was an error analyzing the entity footprint.",
+        description: "Error executing intelligence audit.",
         variant: "destructive",
       });
     } finally {
@@ -383,8 +389,14 @@ export default function NewScanWizard() {
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Engine</span>
-                  <div className="text-sm font-bold text-accent italic">VizAI Multi-Vector v1.2</div>
+                  <div className="text-sm font-bold text-accent italic">VizAI Hybrid Multi-Vector v1.4</div>
                 </div>
+              </div>
+              <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-start gap-3">
+                 <Sparkles className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                 <p className="text-[11px] leading-relaxed opacity-80">
+                   <strong>Hybrid Verification Mode</strong>: This scan will run 8 simulated vector paths and 3 live model verification queries to Gemini 1.5 Flash for high-fidelity auditing.
+                 </p>
               </div>
             </div>
           )}
@@ -415,7 +427,7 @@ export default function NewScanWizard() {
                 className="bg-accent hover:bg-accent/90 text-primary font-bold gap-2 px-8 shadow-lg shadow-accent/20"
               >
                 {loading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Presence...</>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Verifying Models...</>
                 ) : (
                   <>Launch Intelligence Scan <Zap className="w-4 h-4 fill-current" /></>
                 )}

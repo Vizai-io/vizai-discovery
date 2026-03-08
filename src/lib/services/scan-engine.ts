@@ -6,7 +6,7 @@
 
 import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput } from "@/ai/flows/generate-company-ai-scan-report";
 import { provideAiScanRecommendations, ProvideAiScanRecommendationsOutput } from "@/ai/flows/provide-ai-scan-recommendations";
-import { QueryDiscoveryData, QueryRecord, ScanResults, WebsiteSignal, EntitySignal, PresenceSignal } from "../types";
+import { QueryDiscoveryData, QueryRecord, ScanResults, WebsiteSignal, EntitySignal, PresenceSignal, RealQueryResult } from "../types";
 import { MockAdapter } from "./adapters/mock-adapter";
 import { DiscoveryContext } from "./adapters/provider-interface";
 import { QueryLibraryService } from "./query-library-service";
@@ -14,6 +14,7 @@ import { BenchmarkService } from "./benchmark-service";
 import { WebsiteExtractor } from "./website-extractor";
 import { EntityEnrichment } from "./entity-enrichment";
 import { PresenceEnrichment } from "./presence-enrichment";
+import { RealQueryEngine } from "./real-query-engine";
 import { db } from "@/lib/firebase-config";
 import { doc, setDoc } from "firebase/firestore";
 
@@ -30,7 +31,7 @@ export class ScanEngine {
   /**
    * Run a full scan for a company profile.
    */
-  static async runScan(input: any, profileId: string = "demo_id"): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData }> {
+  static async runScan(input: any, profileId: string = "demo_id", scanIdPlaceholder?: string): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData, realQueryResults?: RealQueryResult[] }> {
     // 1. Extract Website Intelligence
     const websiteSignals = await WebsiteExtractor.extractSignals(input.website, profileId);
     if (websiteSignals) {
@@ -41,12 +42,11 @@ export class ScanEngine {
     const entitySignal = await EntityEnrichment.enrich(input, websiteSignals);
     await setDoc(doc(db, "entitySignals", entitySignal.id), entitySignal);
 
-    // 3. Local Presence Signal Analysis (NEW)
+    // 3. Local Presence Signal Analysis
     const presenceSignal = await PresenceEnrichment.analyzePresence(input);
     await setDoc(doc(db, "presenceSignals", presenceSignal.id), presenceSignal);
 
     // 4. Generate core report findings (Narrative Analysis)
-    // Pass signals to the AI flow to influence scores
     const report = await generateCompanyAIScanReport({
       ...input,
       websiteSignals: websiteSignals || undefined,
@@ -74,9 +74,16 @@ export class ScanEngine {
     const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
     const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);
 
+    // 7. Optional Real Query Verification (Gemini)
+    let realResults: RealQueryResult[] = [];
+    if (profileId !== "demo_id" && scanIdPlaceholder) {
+      realResults = await RealQueryEngine.runVerification(input as any, scanIdPlaceholder);
+    }
+
     return {
       ...report,
       queryDiscovery,
+      realQueryResults: realResults,
       entitySignal,
       presenceSignal,
       benchmark: {
