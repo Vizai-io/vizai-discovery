@@ -252,3 +252,18 @@ export interface DiscoveryDataEntry {
   intentType?: string;
   timestamp: any;
 }
+
+export type LeadStatus = 'new' | 'qualified' | 'proposal sent' | 'won' | 'lost';
+
+export interface ConsultationRequest {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  website?: string;
+  serviceInterest: string;
+  notes?: string;
+  status: LeadStatus;
+  sourceScanId?: string;
+  createdAt: any;
+}

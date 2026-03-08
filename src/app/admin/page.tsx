@@ -17,7 +17,8 @@ import {
   Network,
   FileSearch,
   ArrowRight,
-  MoreHorizontal
+  MoreHorizontal,
+  Briefcase
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -25,7 +26,7 @@ import { DemoSeeder } from "@/lib/services/demo-seeder";
 import { QueryLibraryService } from "@/lib/services/query-library-service";
 import { CompetitorService } from "@/lib/services/competitor-service";
 import { toast } from "@/hooks/use-toast";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { ScanRecord } from "@/lib/types";
 
@@ -33,7 +34,7 @@ export default function AdminPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isSeedingLibrary, setIsSeedingLibrary] = useState(false);
   const [isSeedingCompetitors, setIsSeedingCompetitors] = useState(false);
-  const [stats, setStats] = useState({ orgs: 0, scans: 0 });
+  const [stats, setStats] = useState({ orgs: 0, scans: 0, newLeads: 0 });
   const [pendingScans, setPendingScans] = useState<ScanRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +42,15 @@ export default function AdminPage() {
     try {
       const orgsSnap = await getDocs(collection(db, "companyProfiles"));
       const scansSnap = await getDocs(collection(db, "scans"));
-      setStats({ orgs: orgsSnap.size, scans: scansSnap.size });
+      
+      // Fetch new lead count
+      const leadsSnap = await getDocs(query(collection(db, "consultationRequests"), where("status", "==", "new")));
+      
+      setStats({ 
+        orgs: orgsSnap.size, 
+        scans: scansSnap.size,
+        newLeads: leadsSnap.size
+      });
 
       // Fetch scans awaiting review
       const scansRef = collection(db, "scans");
@@ -138,6 +147,12 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/leads">
+            <Button variant="outline" className="gap-2 border-accent text-primary font-bold bg-accent/5">
+              <Briefcase className="w-4 h-4 text-accent" />
+              Manage Pipeline ({stats.newLeads})
+            </Button>
+          </Link>
           <Button 
             variant="outline" 
             className="gap-2 border-primary/20"
@@ -182,7 +197,7 @@ export default function AdminPage() {
 
       <main className="p-8 space-y-8 max-w-7xl mx-auto">
         {/* Stats Row */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-4 gap-6">
           <Card className="border-none shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">System Users</CardTitle>
@@ -211,6 +226,18 @@ export default function AdminPage() {
             <CardContent>
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <div className="text-3xl font-black text-primary">{stats.scans}</div>}
               <p className="text-[10px] text-muted-foreground font-bold mt-1">Multi-Vector Vector Analysis</p>
+            </CardContent>
+          </Card>
+          <Card className="border-none shadow-sm bg-primary text-white">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Active Leads</CardTitle>
+              <Briefcase className="w-4 h-4 text-accent" />
+            </CardHeader>
+            <CardContent>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <div className="text-3xl font-black">{stats.newLeads}</div>}
+              <Link href="/admin/leads" className="text-[10px] font-bold text-accent hover:underline mt-1 flex items-center gap-1">
+                View Pipeline <ArrowRight className="w-3 h-3" />
+              </Link>
             </CardContent>
           </Card>
         </div>

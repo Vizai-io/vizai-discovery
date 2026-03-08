@@ -36,7 +36,8 @@ import {
   Radar,
   FileSearch,
   Lock,
-  Copy
+  Copy,
+  Briefcase
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -58,6 +59,7 @@ import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from "
 import { db } from "@/lib/firebase-config";
 import { SCORING_MODEL, calculateProjectedImprovement } from "@/lib/services/scoring-model";
 import { toast } from "@/hooks/use-toast";
+import { ConsultationRequestDialog } from "@/components/consultation/consultation-request-dialog";
 
 export default function ScanResultsPage({ params }: { params: { id: string } }) {
   const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
@@ -161,6 +163,9 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     );
   }
 
+  const isLowVisibility = results.overallScore < 40;
+  const isHighCompetitorThreat = results.categoryScores.competitorShareOfVoice > 50;
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 animate-in fade-in duration-700">
       {/* Executive Report Header */}
@@ -235,6 +240,56 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           </Link>
         </div>
       </div>
+
+      {/* Critical CTA Interventions */}
+      {isLowVisibility && (
+        <Card className="border-none shadow-lg bg-destructive/5 border-l-4 border-l-destructive overflow-hidden">
+          <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <CardTitle className="text-lg font-bold text-destructive">Critical Visibility Deficit Detected</CardTitle>
+                <p className="text-sm text-muted-foreground font-medium">Your organization is largely invisible to primary AI discovery vectors. Strategic optimization is required.</p>
+              </div>
+            </div>
+            <ConsultationRequestDialog 
+              sourceScanId={scanRecord?.id} 
+              trigger={
+                <Button className="bg-destructive hover:bg-destructive/90 text-white font-bold px-8 rounded-full h-12 shadow-lg shadow-destructive/20 gap-2">
+                  Request Emergency Optimization Plan <ArrowRight className="w-4 h-4" />
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {isHighCompetitorThreat && !isLowVisibility && (
+        <Card className="border-none shadow-lg bg-primary/5 border-l-4 border-l-accent overflow-hidden">
+          <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-accent/10 text-primary flex items-center justify-center shrink-0">
+                <Users className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <CardTitle className="text-lg font-bold text-primary">High Competitor Intrusion Risk</CardTitle>
+                <p className="text-sm text-muted-foreground font-medium">Rivals are capturing 50%+ of your target intent vectors. Reclaiming share-of-voice is prioritized.</p>
+              </div>
+            </div>
+            <ConsultationRequestDialog 
+              sourceScanId={scanRecord?.id} 
+              defaultValues={{ serviceInterest: "Competitor Displacement" }}
+              trigger={
+                <Button className="bg-primary hover:bg-primary/90 text-white font-bold px-8 rounded-full h-12 shadow-lg shadow-primary/20 gap-2">
+                  See Displacement Strategy <ArrowRight className="w-4 h-4" />
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Primary KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -379,9 +434,20 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
             </CardTitle>
             <CardDescription className="text-xs font-bold uppercase tracking-widest opacity-60">High-potential vectors captured by competitors</CardDescription>
           </div>
-          <Badge className="bg-accent text-primary font-black px-3 py-1 text-[10px] uppercase tracking-widest border-none">
-            {opportunities.length} Vectors Identified
-          </Badge>
+          <div className="flex items-center gap-4">
+            <Badge className="bg-accent text-primary font-black px-3 py-1 text-[10px] uppercase tracking-widest border-none">
+              {opportunities.length} Vectors Identified
+            </Badge>
+            <ConsultationRequestDialog 
+              sourceScanId={scanRecord?.id} 
+              defaultValues={{ serviceInterest: "Competitor Displacement" }}
+              trigger={
+                <Button variant="ghost" size="sm" className="text-primary font-bold text-[10px] uppercase gap-1.5 h-8">
+                  Export Strategy Brief <ExternalLink className="w-3.5 h-3.5" />
+                </Button>
+              }
+            />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -448,7 +514,14 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
             </CardTitle>
             <CardDescription className="text-white/60 text-base">Projected visibility uplift following strategic implementations</CardDescription>
           </div>
-          <Badge className="bg-accent text-primary font-black px-4 py-1.5 text-[10px] uppercase tracking-[0.2em] border-none">Consultant Projection</Badge>
+          <ConsultationRequestDialog 
+            sourceScanId={scanRecord?.id}
+            trigger={
+              <Button className="bg-accent hover:bg-accent/90 text-primary font-black px-6 py-1.5 text-[10px] uppercase tracking-[0.2em] border-none rounded-full h-10 shadow-xl shadow-accent/20">
+                Implement Strategy <Zap className="w-3.5 h-3.5 ml-2 fill-current" />
+              </Button>
+            }
+          />
         </CardHeader>
         <CardContent className="pt-8 relative z-10">
           <div className="grid lg:grid-cols-12 gap-10 items-center">

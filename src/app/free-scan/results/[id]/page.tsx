@@ -20,10 +20,12 @@ import {
   Loader2,
   AlertCircle,
   TrendingUp,
-  FileText
+  FileText,
+  Briefcase
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { ConsultationRequestDialog } from "@/components/consultation/consultation-request-dialog";
 
 export default function FreeScanTeaserPage({ params }: { params: { id: string } }) {
   const [scan, setScan] = useState<any>(null);
@@ -95,6 +97,30 @@ export default function FreeScanTeaserPage({ params }: { params: { id: string } 
             <div className="text-5xl font-black">{results.overallScore.toFixed(1)}</div>
           </div>
         </div>
+
+        {/* Strategic CTA for leads */}
+        <Card className="border-none shadow-lg bg-primary text-white overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-accent/20 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
+          <CardContent className="p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+            <div className="space-y-2">
+              <CardTitle className="text-2xl font-black tracking-tight">Need a professional roadmap?</CardTitle>
+              <p className="text-sm text-white/70 max-w-md leading-relaxed">Unlock custom optimization strategies and technical implementation guides with a free expert consultation.</p>
+            </div>
+            <ConsultationRequestDialog 
+              sourceScanId={params.id}
+              defaultValues={{ 
+                company: scan.companyName, 
+                website: scan.website,
+                serviceInterest: "Full Visibility Audit"
+              }}
+              trigger={
+                <Button className="bg-accent hover:bg-accent/90 text-primary font-black h-12 px-8 rounded-full shadow-xl shadow-accent/20 gap-2 shrink-0">
+                  <Briefcase className="w-4 h-4" /> Request Strategic Consultation
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
 
         {/* Discovery Sample */}
         <div className="space-y-4">
