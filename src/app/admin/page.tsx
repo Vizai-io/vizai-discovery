@@ -16,12 +16,14 @@ import {
   CheckCircle2,
   ShieldCheck,
   RefreshCcw,
-  Library
+  Library,
+  Network
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { DemoSeeder } from "@/lib/services/demo-seeder";
 import { QueryLibraryService } from "@/lib/services/query-library-service";
+import { CompetitorService } from "@/lib/services/competitor-service";
 import { toast } from "@/hooks/use-toast";
 import { collection, getDocs, query, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
@@ -29,6 +31,7 @@ import { db } from "@/lib/firebase-config";
 export default function AdminPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isSeedingLibrary, setIsSeedingLibrary] = useState(false);
+  const [isSeedingCompetitors, setIsSeedingCompetitors] = useState(false);
   const [stats, setStats] = useState({ orgs: 0, scans: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -94,6 +97,25 @@ export default function AdminPage() {
     }
   };
 
+  const handleSeedCompetitors = async () => {
+    setIsSeedingCompetitors(true);
+    try {
+      await CompetitorService.seedCompetitors();
+      toast({
+        title: "Competitors Initialized",
+        description: "Competitor Knowledge Profiles have been seeded.",
+      });
+    } catch (error) {
+      toast({
+        title: "Seeding Error",
+        description: "Failed to seed competitor profiles.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSeedingCompetitors(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background animate-in fade-in duration-500">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-50">
@@ -118,7 +140,20 @@ export default function AdminPage() {
             ) : (
               <Library className="w-4 h-4" />
             )}
-            Seed Query Library
+            Seed Library
+          </Button>
+          <Button 
+            variant="outline" 
+            className="gap-2 border-primary/20"
+            onClick={handleSeedCompetitors}
+            disabled={isSeedingCompetitors}
+          >
+            {isSeedingCompetitors ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Network className="w-4 h-4" />
+            )}
+            Seed Competitors
           </Button>
           <Button 
             variant="outline" 
@@ -132,9 +167,6 @@ export default function AdminPage() {
               <Database className="w-4 h-4" />
             )}
             Seed Demo Data
-          </Button>
-          <Button className="bg-primary hover:bg-primary/90 text-white gap-2 shadow-lg shadow-primary/20">
-            <Plus className="w-4 h-4" /> New Client
           </Button>
         </div>
       </header>

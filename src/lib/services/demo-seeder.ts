@@ -3,6 +3,7 @@ import { db } from "@/lib/firebase-config";
 import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { ScanEngine } from "./scan-engine";
 import { QueryLibraryService } from "./query-library-service";
+import { CompetitorService } from "./competitor-service";
 
 /**
  * DemoSeeder provides utilities to populate the system with realistic demo data.
@@ -52,8 +53,11 @@ export class DemoSeeder {
     const profile = DEMO_PROFILES[industryKey];
     const orgId = `demo_org_${industryKey}`;
 
-    // 0. Ensure Query Library is seeded
-    await QueryLibraryService.seedLibrary();
+    // 0. Ensure Query Library and Competitor Profiles are seeded
+    await Promise.all([
+      QueryLibraryService.seedLibrary(),
+      CompetitorService.seedCompetitors()
+    ]);
 
     // 1. Save Company Profile
     const profileRef = await addDoc(collection(db, "companyProfiles"), {

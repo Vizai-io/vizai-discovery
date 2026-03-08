@@ -30,6 +30,17 @@ export interface CompanyProfile {
   lastScanAt?: any;
 }
 
+export interface CompetitorProfile {
+  id: string;
+  name: string;
+  industry: string;
+  services: string[];
+  geography: string[];
+  authorityScore: number;
+  citationStrengthScore: number;
+  serviceCoverageScore: number;
+}
+
 export interface IndustryQuery {
   id?: string;
   text: string;

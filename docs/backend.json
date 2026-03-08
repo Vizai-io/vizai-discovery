@@ -44,6 +44,22 @@
       },
       "required": ["id", "name", "industry"]
     },
+    "CompetitorProfile": {
+      "title": "Competitor Profile",
+      "description": "A detailed profile of a competitor in the AI knowledge layer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "industry": { "type": "string" },
+        "services": { "type": "array", "items": { "type": "string" } },
+        "geography": { "type": "array", "items": { "type": "string" } },
+        "authorityScore": { "type": "number" },
+        "citationStrengthScore": { "type": "number" },
+        "serviceCoverageScore": { "type": "number" }
+      },
+      "required": ["id", "name", "industry"]
+    },
     "ScanRecord": {
       "title": "Scan Record",
       "description": "The result of an AI visibility scan.",
@@ -102,6 +118,10 @@
     "/companyProfiles/{profileId}": {
       "schema": "CompanyProfile",
       "description": "Monitored company entities."
+    },
+    "/competitorProfiles/{compId}": {
+      "schema": "CompetitorProfile",
+      "description": "Modeled knowledge profiles of competitors."
     },
     "/scans/{scanId}": {
       "schema": "ScanRecord",
