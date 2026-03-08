@@ -1,4 +1,3 @@
-
 "use client";
 
 import { ScoreCard } from "@/components/dashboard/score-card";
@@ -15,7 +14,9 @@ import {
   TrendingUp,
   History,
   Calendar,
-  Lightbulb
+  Lightbulb,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { 
@@ -29,6 +30,9 @@ import {
 } from 'recharts';
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { collection, query, orderBy, limit, getDocs, where } from "firebase/firestore";
+import { db } from "@/lib/firebase-config";
 
 const MOCK_TREND_DATA = [
   { name: 'Jan', score: 62 },
@@ -40,13 +44,47 @@ const MOCK_TREND_DATA = [
 ];
 
 export default function DashboardPage() {
+  const [loading, setLoading] = useState(true);
+  const [recentScans, setRecentScans] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function fetchDashboardData() {
+      setLoading(true);
+      try {
+        const q = query(
+          collection(db, "scans"), 
+          where("status", "==", "completed"),
+          orderBy("date", "desc"), 
+          limit(5)
+        );
+        const snapshot = await getDocs(q);
+        const scans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setRecentScans(scans);
+      } catch (error) {
+        console.error("Dashboard error:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+        <p className="text-muted-foreground font-medium">Aggregating intelligence metrics...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-primary">Welcome back, Administrator</h2>
-          <p className="text-muted-foreground">Here's an overview of your AI visibility profile.</p>
+          <h2 className="text-2xl font-bold text-primary">Intelligence Command Center</h2>
+          <p className="text-muted-foreground">Strategic overview of your organization's AI discoverability footprint.</p>
         </div>
         <div className="flex gap-3">
           <Link href="/monitoring">
@@ -56,9 +94,9 @@ export default function DashboardPage() {
             </Button>
           </Link>
           <Link href="/scans/new">
-            <Button className="bg-primary hover:bg-primary/90 text-white gap-2">
+            <Button className="bg-primary hover:bg-primary/90 text-white gap-2 shadow-lg shadow-primary/20">
               <Zap className="w-4 h-4" />
-              Launch New Scan
+              New Scan
             </Button>
           </Link>
         </div>
@@ -71,14 +109,16 @@ export default function DashboardPage() {
           score={72.4} 
           trend={4.2} 
           icon={Search} 
-          description="Avg. search ranking"
+          description="Avg. AI prominence"
+          tooltip="Consolidated score based on weighted discovery vectors."
         />
         <ScoreCard 
           title="Description Accuracy" 
           score={88.1} 
           trend={1.5} 
           icon={ShieldCheck} 
-          description="Profile match rate"
+          description="Model alignment"
+          tooltip="Accuracy of AI-generated business summaries."
         />
         <ScoreCard 
           title="Competitor Threat" 
@@ -86,6 +126,7 @@ export default function DashboardPage() {
           trend={-2.1} 
           icon={Users} 
           description="Rival share of voice"
+          tooltip="Aggressiveness of competitor recommendations."
         />
         <ScoreCard 
           title="Citation Strength" 
@@ -93,6 +134,7 @@ export default function DashboardPage() {
           trend={8.4} 
           icon={Target} 
           description="Authority sourcing"
+          tooltip="Quality of sources cited by AI models."
         />
         <ScoreCard 
           title="Service Coverage" 
@@ -100,16 +142,17 @@ export default function DashboardPage() {
           trend={0.8} 
           icon={Zap} 
           description="Category indexing"
+          tooltip="Depth of service taxonomy discovery."
         />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Trend Chart */}
-        <Card className="lg:col-span-2 border-none shadow-sm">
+        <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden bg-white">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg font-bold text-primary">Visibility Trend</CardTitle>
-              <CardDescription>Overall AI Visibility score over last 6 months</CardDescription>
+              <CardDescription>Overall AI Index over last 6 months</CardDescription>
             </div>
             <TrendingUp className="w-5 h-5 text-muted-foreground" />
           </CardHeader>
@@ -126,8 +169,8 @@ export default function DashboardPage() {
                 <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} domain={[0, 100]} />
                 <Tooltip 
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  labelStyle={{ fontWeight: 'bold' }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}
+                  labelStyle={{ fontWeight: 'bold', color: '#174C80' }}
                 />
                 <Area type="monotone" dataKey="score" stroke="#174C80" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
               </AreaChart>
@@ -185,18 +228,18 @@ export default function DashboardPage() {
 
           <Card className="border-none shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-bold text-primary">Top Actions</CardTitle>
+              <CardTitle className="text-sm font-bold text-primary">Top Recommendations</CardTitle>
               <Lightbulb className="w-4 h-4 text-accent" />
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { title: "Improve Structured Data", priority: "high", desc: "Update JSON-LD schemas." },
-                { title: "Add Capabilities Content", priority: "medium", desc: "Publish whitepapers." },
+                { title: "Bridge Structured Data Gap", priority: "high", desc: "Update entity schema signals." },
+                { title: "Refine Service Taxonomy", priority: "medium", desc: "Expand capability page content." },
               ].map((rec, i) => (
                 <div key={i} className="p-3 bg-muted/50 rounded-xl space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-primary">{rec.title}</span>
-                    <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[10px]">
+                    <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[8px] uppercase px-1.5 h-4 leading-none">
                       {rec.priority}
                     </Badge>
                   </div>
@@ -209,51 +252,65 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Scans Table */}
-      <Card className="border-none shadow-sm overflow-hidden">
+      <Card className="border-none shadow-sm overflow-hidden bg-white">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-lg font-bold text-primary">Recent Scans</CardTitle>
-            <CardDescription>History of your latest AI analyses</CardDescription>
+            <CardTitle className="text-lg font-bold text-primary">Recent Intelligence Audits</CardTitle>
+            <CardDescription>Chronological history of your latest AI analyses</CardDescription>
           </div>
           <History className="w-5 h-5 text-muted-foreground" />
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-muted/50 text-muted-foreground font-bold uppercase text-[10px] tracking-widest">
-                <tr>
-                  <th className="px-6 py-3">Date</th>
-                  <th className="px-6 py-3">Industry</th>
-                  <th className="px-6 py-3">Scan Type</th>
-                  <th className="px-6 py-3 text-right">Visibility Score</th>
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {[
-                  { date: "Oct 24, 2023", industry: "SaaS Logistics", type: "Full Ecosystem", score: 72.4, status: "completed" },
-                  { date: "Sep 12, 2023", industry: "SaaS Logistics", type: "Quick Scan", score: 68.1, status: "completed" },
-                  { date: "Aug 05, 2023", industry: "SaaS Logistics", type: "Full Ecosystem", score: 64.0, status: "completed" },
-                ].map((scan, i) => (
-                  <tr key={i} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-medium text-primary">{scan.date}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{scan.industry}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{scan.type}</td>
-                    <td className="px-6 py-4 text-right font-bold text-primary">{scan.score}</td>
-                    <td className="px-6 py-4">
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 capitalize">
-                        {scan.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/5">View Report</Button>
-                    </td>
+          {recentScans.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-muted/50 text-muted-foreground font-bold uppercase text-[10px] tracking-widest">
+                  <tr>
+                    <th className="px-6 py-3">Audit Date</th>
+                    <th className="px-6 py-3">Organization Context</th>
+                    <th className="px-6 py-3 text-right">Visibility Index</th>
+                    <th className="px-6 py-3">Status</th>
+                    <th className="px-6 py-3"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y">
+                  {recentScans.map((scan, i) => (
+                    <tr key={i} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-6 py-4 font-medium text-primary">
+                        {scan.date?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground font-medium">
+                        {scan.results?.companyName || "Client Account"}
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold text-primary">
+                        {(scan.results?.overallScore || 0).toFixed(1)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 capitalize text-[10px] h-5">
+                          {scan.status}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Link href={`/scans/results/${scan.id}`}>
+                          <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/5 text-xs font-bold">View Data</Button>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-12 text-center space-y-4">
+              <div className="flex justify-center">
+                <AlertCircle className="w-12 h-12 text-muted-foreground/20" />
+              </div>
+              <p className="text-muted-foreground italic">No historical audits found. Launch a new scan to begin.</p>
+              <Link href="/scans/new">
+                <Button variant="outline" size="sm">Initiate First Audit</Button>
+              </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

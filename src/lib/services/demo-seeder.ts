@@ -1,9 +1,10 @@
 import { db } from "@/lib/firebase-config";
-import { collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { ScanEngine } from "./scan-engine";
 
 /**
  * DemoSeeder provides utilities to populate the system with realistic demo data.
+ * Updated to include believable scan histories for a richer demo experience.
  */
 export const DEMO_PROFILES = {
   logistics: {
@@ -42,59 +43,55 @@ export const DEMO_PROFILES = {
 
 export class DemoSeeder {
   /**
-   * Seeds the system with a demo organization and its first scan results.
+   * Seeds the system with a demo organization and a multi-scan history.
    */
   static async seedDemoForIndustry(industryKey: keyof typeof DEMO_PROFILES) {
     const profile = DEMO_PROFILES[industryKey];
     const orgId = `demo_org_${industryKey}`;
 
-    // 1. Check if demo already exists (optional, but good for clean seeding)
-    // For simplicity in v0.1, we just add new ones.
-
-    // 2. Save Company Profile
+    // 1. Save Company Profile with monitoring enabled by default for demo
     const profileRef = await addDoc(collection(db, "companyProfiles"), {
       ...profile,
       organizationId: orgId,
       createdAt: serverTimestamp(),
+      monitoringFrequency: 'weekly',
+      nextScanAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+      lastScanAt: serverTimestamp(),
     });
 
-    // 3. Run Scan
-    const scanResults = await ScanEngine.runScan(profile);
+    // 2. Generate Scan History (Latest + 2 Historical)
+    // Historical Scan 1 (30 days ago)
+    await this.createMockScan(profileRef.id, orgId, profile, 30, -8);
+    // Historical Scan 2 (15 days ago)
+    await this.createMockScan(profileRef.id, orgId, profile, 15, -3);
+    // Latest Scan (Now)
+    const latestScanId = await this.createMockScan(profileRef.id, orgId, profile, 0, 0);
 
-    // 4. Save Scan Record
+    return { profileId: profileRef.id, scanId: latestScanId };
+  }
+
+  private static async createMockScan(profileId: string, orgId: string, profile: any, daysAgo: number, scoreOffset: number) {
+    const scanResults = await ScanEngine.runScan(profile);
+    
+    // Apply deterministic offset for historical realism
+    const historicalDate = new Date();
+    historicalDate.setDate(historicalDate.getDate() - daysAgo);
+
     const scanRef = await addDoc(collection(db, "scans"), {
-      profileId: profileRef.id,
+      profileId,
       organizationId: orgId,
-      date: serverTimestamp(),
+      date: Timestamp.fromDate(historicalDate),
       status: "completed",
       results: {
-        overallScore: scanResults.overallScore,
-        categoryScores: scanResults.categoryScores,
-        competitorComparison: scanResults.competitorComparison,
-        aiDescriptionAccuracy: scanResults.aiDescriptionAccuracy,
-        knowledgeGaps: scanResults.knowledgeGaps,
-        missedDiscoveryOpportunities: scanResults.missedDiscoveryOpportunities,
-        priorityActions: scanResults.priorityActions,
+        ...scanResults,
+        overallScore: Math.max(0, scanResults.overallScore + scoreOffset),
+        categoryScores: Object.fromEntries(
+          Object.entries(scanResults.categoryScores).map(([k, v]) => [k, Math.max(0, v + scoreOffset)])
+        ),
       },
       queryDiscovery: scanResults.queryDiscovery,
     });
 
-    return { profileId: profileRef.id, scanId: scanRef.id };
-  }
-
-  /**
-   * Seeds administrative snapshots for the rankings page.
-   */
-  static async seedSystemRankings() {
-    const industries = ["Logistics", "Manufacturing", "Legal Services", "Retail"];
-    const regions = ["North America", "Western Europe", "Asia Pacific"];
-
-    for (const industry of industries) {
-      for (const region of regions) {
-        // We'll rely on the RankingService.getLatestRankings fallback to simulate them for now,
-        // but this could write real snapshots to Firestore if needed.
-        console.log(`System ready for ${industry} in ${region}`);
-      }
-    }
+    return scanRef.id;
   }
 }

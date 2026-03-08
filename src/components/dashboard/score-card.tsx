@@ -22,25 +22,27 @@ export function ScoreCard({ title, score, trend, icon: Icon, description, toolti
   const isPositive = trend && trend > 0;
 
   return (
-    <Card className={cn("overflow-hidden border-none shadow-sm bg-white hover:shadow-md transition-all group", className)}>
+    <Card className={cn("overflow-hidden border-none shadow-sm bg-white hover:shadow-xl transition-all duration-300 group", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="flex items-center gap-1.5">
           <CardTitle className={cn(
-            "text-[10px] font-bold uppercase tracking-widest",
+            "text-[10px] font-bold uppercase tracking-[0.15em]",
             className?.includes('bg-primary') ? "text-white/70" : "text-muted-foreground"
           )}>
             {title}
           </CardTitle>
           {tooltip && (
-            <TooltipProvider>
+            <TooltipProvider delayDuration={100}>
               <Tooltip>
-                <TooltipTrigger>
-                  <Info className={cn(
-                    "w-3 h-3 opacity-50 hover:opacity-100 transition-opacity",
-                    className?.includes('bg-primary') ? "text-white" : "text-primary"
-                  )} />
+                <TooltipTrigger asChild>
+                  <button className="focus:outline-none">
+                    <Info className={cn(
+                      "w-3 h-3 opacity-40 hover:opacity-100 transition-opacity",
+                      className?.includes('bg-primary') ? "text-white" : "text-primary"
+                    )} />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent className="max-w-[200px] text-[10px] leading-relaxed">
+                <TooltipContent className="max-w-[220px] text-[10px] leading-relaxed p-3 rounded-xl shadow-xl">
                   {tooltip}
                 </TooltipContent>
               </Tooltip>
@@ -48,7 +50,7 @@ export function ScoreCard({ title, score, trend, icon: Icon, description, toolti
           )}
         </div>
         <div className={cn(
-          "p-2 rounded-lg transition-colors",
+          "p-2 rounded-xl transition-all duration-300 group-hover:scale-110",
           className?.includes('bg-primary') ? "bg-white/10 text-white" : "bg-primary/5 text-primary group-hover:bg-primary group-hover:text-white"
         )}>
             <Icon className="w-4 h-4" />
@@ -57,14 +59,14 @@ export function ScoreCard({ title, score, trend, icon: Icon, description, toolti
       <CardContent>
         <div className="flex items-end gap-2">
           <div className={cn(
-            "text-3xl font-headline font-bold",
+            "text-3xl font-headline font-black tracking-tighter",
             className?.includes('bg-primary') ? "text-white" : "text-primary"
           )}>
             {score.toFixed(1)}
           </div>
           {trend !== undefined && (
             <div className={cn(
-              "text-[10px] font-bold flex items-center mb-1.5 px-1.5 py-0.5 rounded-full",
+              "text-[10px] font-bold flex items-center mb-1.5 px-2 py-0.5 rounded-full",
               isPositive 
                 ? (className?.includes('bg-primary') ? "bg-white/20 text-white" : "bg-green-50 text-green-600") 
                 : (className?.includes('bg-primary') ? "bg-white/20 text-white" : "bg-red-50 text-red-600")
@@ -76,8 +78,8 @@ export function ScoreCard({ title, score, trend, icon: Icon, description, toolti
         </div>
         {description && (
           <p className={cn(
-            "text-[10px] mt-2 font-medium",
-            className?.includes('bg-primary') ? "text-white/60" : "text-muted-foreground"
+            "text-[10px] mt-2 font-bold uppercase tracking-widest opacity-60",
+            className?.includes('bg-primary') ? "text-white" : "text-muted-foreground"
           )}>
             {description}
           </p>

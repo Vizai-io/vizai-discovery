@@ -1,4 +1,3 @@
-
 "use client";
 
 import { ScoreCard } from "@/components/dashboard/score-card";
@@ -21,14 +20,11 @@ import {
   Activity,
   ExternalLink,
   Layers,
-  FileCode,
   Globe,
   Info,
   Scale,
-  ArrowUpRight,
-  ChevronRight,
-  TrendingDown,
-  Sparkles
+  Sparkles,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -37,9 +33,9 @@ import { QueryDiscoveryData, StrategicRecommendation } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { collection, doc, getDoc, getDocs, query, where, limit } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
-import { SCORING_MODEL, calculateWeightedScore, calculateProjectedImprovement } from "@/lib/services/scoring-model";
+import { SCORING_MODEL, calculateProjectedImprovement } from "@/lib/services/scoring-model";
 
 export default function ScanResultsPage({ params }: { params: { id: string } }) {
   const [scanData, setScanData] = useState<any>(null);
@@ -55,7 +51,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
 
         if (params.id === 'latest') {
           const scansRef = collection(db, "scans");
-          const q = query(scansRef, where("status", "==", "completed"), limit(1));
+          const q = query(scansRef, where("status", "==", "completed"), orderBy("date", "desc"), limit(1));
           const snapshot = await getDocs(q);
           if (!snapshot.empty) {
             const data = snapshot.docs[0].data();
@@ -76,7 +72,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           setScanData(results);
           setQueryDiscovery(discovery || null);
         } else {
-          // Fallback if no specific scan is found
+          // Simulation fallback for empty states
           const simulatedDiscovery = await QueryEngine.simulateDiscovery(
             "Acme Logistics",
             "Third Party Logistics (3PL)",
@@ -100,7 +96,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     priorityActions: [
       { category: "Structured Data", title: "Deploy JSON-LD Entity Schema", description: "Implement technical schema markup to clarify business entities for AI models.", priority: "high", expectedImpact: "Accuracy gain" },
       { category: "Content / Positioning", title: "Publish AI-Ready Capabilities Page", description: "Create a dedicated landing page designed specifically for LLM ingestion.", priority: "high", expectedImpact: "Visibility gain" },
-      { category: "Entity / Citation Signals", title: "Strengthen Authoritative Mentions", description: "Acquire high-quality backlinks from industry publications to build trust.", priority: "medium", expectedImpact: "Citation strength gain" },
     ] as StrategicRecommendation[]
   }, [scanData]);
 
@@ -109,46 +104,33 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Activity className="w-12 h-12 text-primary animate-pulse" />
-        <p className="text-muted-foreground font-medium">Analyzing intelligence vectors...</p>
+        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+        <p className="text-muted-foreground font-medium">Reconstructing intelligence knowledge graph...</p>
       </div>
     );
   }
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'Structured Data': return FileCode;
-      case 'Content / Positioning': return FileText;
-      case 'Entity / Citation Signals': return Target;
-      case 'Competitive Visibility': return Users;
-      default: return Zap;
-    }
-  };
-
-  // Helper to find category info from the model
-  const getModelCategory = (id: string) => SCORING_MODEL.find(m => m.id === id);
-
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-12">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12 animate-in fade-in duration-700">
       {/* Executive Report Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b pb-8">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
              <FileText className="w-3 h-3 text-accent" />
-             Report ID: {params.id === 'latest' ? 'SCAN-LATEST' : params.id} • Private & Confidential
+             Report Identifier: {params.id === 'latest' ? 'SCAN-LATEST' : `SCAN-${params.id.slice(0,8).toUpperCase()}`}
           </div>
-          <h2 className="text-4xl font-headline font-bold text-primary tracking-tight">Intelligence Discovery Audit</h2>
+          <h2 className="text-4xl font-headline font-black text-primary tracking-tighter">Discovery Intelligence Audit</h2>
           <p className="text-muted-foreground flex items-center gap-2">
-            Analysis for <strong className="text-primary font-bold">Client Organization</strong> • Global Market • {new Date().toLocaleDateString()}
+            Subject: <strong className="text-primary font-black">{results.companyName || "Client Account"}</strong> • {results.industry || "Global Market"} • {new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}
           </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5">
+          <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 rounded-full">
             <Share2 className="w-4 h-4" /> Share Access
           </Button>
           <Link href={`/scans/report/${params.id}`}>
-            <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20">
-              <ExternalLink className="w-4 h-4" /> Client Report View
+            <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 rounded-full px-6">
+              <ExternalLink className="w-4 h-4" /> Client Presentation View
             </Button>
           </Link>
         </div>
@@ -163,7 +145,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           icon={Search} 
           className="bg-primary text-white" 
           description="Avg. AI prominence"
-          tooltip="Consolidated score based on a weighted average of all discovery vectors across the knowledge layer."
+          tooltip="Consolidated Index based on multi-vector intent resolution."
         />
         <ScoreCard 
           title="Description Accuracy" 
@@ -171,7 +153,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           trend={1.5} 
           icon={ShieldCheck} 
           description="Model alignment"
-          tooltip={getModelCategory('descriptionAccuracy')?.description}
+          tooltip="Accuracy of AI summaries vs official brand data."
         />
         <ScoreCard 
           title="Citation Strength" 
@@ -179,7 +161,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           trend={8.4} 
           icon={Target} 
           description="Authority sourcing"
-          tooltip={getModelCategory('citationStrength')?.description}
+          tooltip="Quality and volume of authoritative external citations."
         />
         <ScoreCard 
           title="Service Coverage" 
@@ -187,75 +169,69 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           trend={-0.8} 
           icon={Zap} 
           description="Indexing depth"
-          tooltip={getModelCategory('serviceCoverage')?.description}
+          tooltip="Breath of service taxonomy resolution across models."
         />
         <ScoreCard 
           title="Competitor Threat" 
           score={results.categoryScores.competitorShareOfVoice} 
           trend={-2.1} 
           icon={Users} 
-          description="Rival share of voice"
-          tooltip={getModelCategory('competitorShareOfVoice')?.description}
+          description="Rival prominence"
+          tooltip="Aggressiveness of rival recommendations in similar queries."
         />
       </div>
 
       {/* Projected Improvement: Optimization Scenario */}
-      <Card className="border-none shadow-2xl bg-gradient-to-br from-[#174C80] via-[#0d2a4a] to-black text-white overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+      <Card className="border-none shadow-2xl bg-gradient-to-br from-[#174C80] via-[#0d2a4a] to-black text-white overflow-hidden relative group">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-accent/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 transition-all duration-700 group-hover:scale-110" />
         <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
           <div className="space-y-1">
-            <CardTitle className="text-2xl font-bold flex items-center gap-2">
+            <CardTitle className="text-2xl font-black flex items-center gap-2 tracking-tight">
               <Sparkles className="w-7 h-7 text-accent animate-pulse" />
-              Projected Improvement
+              Optimization Scenario
             </CardTitle>
-            <CardDescription className="text-white/60 text-base">Strategic visibility uplift following implementation of prioritized actions</CardDescription>
+            <CardDescription className="text-white/60 text-base">Projected visibility uplift following strategic implementations</CardDescription>
           </div>
-          <Badge className="bg-accent text-primary font-bold px-4 py-1.5 text-xs uppercase tracking-widest">Executive Projection</Badge>
+          <Badge className="bg-accent text-primary font-black px-4 py-1.5 text-[10px] uppercase tracking-[0.2em] border-none">Consultant Projection</Badge>
         </CardHeader>
         <CardContent className="pt-8 relative z-10">
           <div className="grid lg:grid-cols-12 gap-10 items-center">
-            {/* Score Comparison */}
             <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-              <div className="p-8 bg-white/5 rounded-3xl border border-white/10 text-center space-y-2 backdrop-blur-sm">
+              <div className="p-8 bg-white/5 rounded-[2rem] border border-white/10 text-center space-y-2 backdrop-blur-md">
                 <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">Current Index</div>
                 <div className="text-5xl font-black">{results.overallScore.toFixed(1)}</div>
-                <div className="text-[10px] text-white/60 font-medium">Industry Average: 64.2</div>
+                <div className="text-[10px] text-white/60 font-bold uppercase tracking-tighter">Market Baseline: 64.2</div>
               </div>
-              <div className="p-8 bg-accent/10 rounded-3xl border border-accent/30 text-center space-y-2 relative overflow-hidden backdrop-blur-sm">
-                <div className="absolute top-0 left-0 w-full h-1 bg-accent/50" />
+              <div className="p-8 bg-accent/10 rounded-[2rem] border border-accent/30 text-center space-y-2 relative overflow-hidden backdrop-blur-md group/proj">
+                <div className="absolute top-0 left-0 w-full h-1 bg-accent/50 animate-pulse" />
                 <div className="text-[10px] font-bold text-accent uppercase tracking-[0.2em]">Projected Index</div>
                 <div className="text-5xl font-black text-accent">{projection.projectedOverall.toFixed(1)}</div>
-                <div className="text-[10px] text-accent/80 font-bold uppercase">+{projection.totalGain.toFixed(1)} Gain</div>
+                <div className="text-[10px] text-accent/80 font-black uppercase">+{projection.totalGain.toFixed(1)} Yield</div>
               </div>
             </div>
 
-            {/* Growth Driver Explanation */}
             <div className="lg:col-span-7 space-y-6">
               <div className="space-y-4">
-                <div className="text-xs font-bold text-white/50 uppercase tracking-[0.2em] flex items-center gap-2">
-                   <Layers className="w-4 h-4" /> Growth Vectors by Category
+                <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <Layers className="w-4 h-4" /> Yield Vectors by Category
                 </div>
                 <div className="grid sm:grid-cols-2 gap-3">
                   {projection.improvements.map((imp, i) => (
-                    <div key={i} className="flex items-center justify-between p-3.5 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-colors">
+                    <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 group/v hover:bg-white/10 transition-colors">
                       <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-accent shadow-[0_0_8px_rgba(0,210,255,0.8)]" />
-                        <span className="text-sm font-medium opacity-90">{imp.label}</span>
+                        <div className="w-2 h-2 rounded-full bg-accent shadow-[0_0_12px_rgba(0,210,255,1)]" />
+                        <span className="text-sm font-bold opacity-80">{imp.label}</span>
                       </div>
-                      <span className="text-sm font-bold text-accent">+{imp.gain}%</span>
+                      <span className="text-sm font-black text-accent">+{imp.gain}%</span>
                     </div>
                   ))}
                 </div>
               </div>
-
-              <div className="p-5 bg-primary/20 rounded-2xl border border-white/5 flex gap-4 items-start">
+              <div className="p-5 bg-white/5 rounded-2xl border border-white/10 flex gap-4 items-start">
                 <Lightbulb className="w-6 h-6 text-accent shrink-0 mt-1" />
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold">Primary Improvement Drivers</h4>
-                  <p className="text-xs text-white/60 leading-relaxed">
-                    This uplift is primarily driven by the deployment of <strong>JSON-LD technical entity signals</strong> and the refinement of <strong>service taxonomy content</strong>. By clarifying these vectors, LLMs can resolve identity ambiguity, leading to higher citation strength and definitive discovery for high-intent queries.
-                  </p>
-                </div>
+                <p className="text-xs text-white/60 leading-relaxed italic">
+                  "Implementation of technical JSON-LD entity signals and authoritative backlink acquisition for key capability pages is projected to drive a significant gain in Citation Strength and Overall Index resolution."
+                </p>
               </div>
             </div>
           </div>
@@ -265,17 +241,17 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       {/* Why this score? */}
       <div className="grid lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 border-none shadow-sm bg-white overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20 py-4 px-6">
+          <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20 py-4 px-8">
             <div>
-              <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
-                <Scale className="w-5 h-5 text-primary" />
-                Why this score?
+              <CardTitle className="text-lg font-black text-primary flex items-center gap-2 tracking-tight">
+                <Scale className="w-5 h-5 text-primary opacity-40" />
+                Audit Scoring Logic
               </CardTitle>
-              <CardDescription className="text-xs">Transparent weighted scoring framework breakdown</CardDescription>
+              <CardDescription className="text-xs font-medium uppercase tracking-widest opacity-60">Weighted transparency framework</CardDescription>
             </div>
             <div className="text-right">
-              <div className="text-[10px] font-bold text-muted-foreground uppercase">Overall Visibility</div>
-              <div className="text-2xl font-bold text-primary">{results.overallScore.toFixed(1)}</div>
+              <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Visibility Index</div>
+              <div className="text-3xl font-black text-primary">{results.overallScore.toFixed(1)}</div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -283,41 +259,41 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
               <Table>
                 <TableHeader className="bg-muted/10">
                   <TableRow>
-                    <TableHead className="pl-6 font-bold uppercase text-[10px]">Vector</TableHead>
-                    <TableHead className="font-bold uppercase text-[10px] text-center">Weight</TableHead>
-                    <TableHead className="font-bold uppercase text-[10px] text-center">Score</TableHead>
-                    <TableHead className="font-bold uppercase text-[10px]">Drivers</TableHead>
+                    <TableHead className="pl-8 font-bold uppercase text-[10px] tracking-widest">Audit Vector</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] tracking-widest text-center">Weight</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] tracking-widest text-center">Score</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] tracking-widest pr-8">Positive/Negative Drivers</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {SCORING_MODEL.map((cat) => {
                     const score = results.categoryScores[cat.id as keyof typeof results.categoryScores] || 0;
                     return (
-                      <TableRow key={cat.id}>
-                        <TableCell className="pl-6 py-4">
+                      <TableRow key={cat.id} className="hover:bg-muted/10 transition-colors">
+                        <TableCell className="pl-8 py-5">
                           <div className="font-bold text-sm text-primary">{cat.label}</div>
-                          <p className="text-[10px] text-muted-foreground max-w-[150px] leading-tight mt-1">{cat.description}</p>
+                          <p className="text-[10px] text-muted-foreground max-w-[160px] leading-tight mt-1 font-medium">{cat.description}</p>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/20 text-primary">
+                          <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/20 text-primary font-bold">
                             {(cat.weight * 100).toFixed(0)}%
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-center font-bold text-primary">
+                        <TableCell className="text-center font-black text-primary text-lg">
                           {score}%
                         </TableCell>
-                        <TableCell className="py-4">
-                          <div className="space-y-1.5">
+                        <TableCell className="py-5 pr-8">
+                          <div className="space-y-2">
                             <div className="flex flex-wrap gap-1">
-                              {cat.positiveDrivers.map((d, i) => (
-                                <span key={i} className="text-[8px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded-sm border border-green-100 flex items-center gap-1">
+                              {cat.positiveDrivers.slice(0, 2).map((d, i) => (
+                                <span key={i} className="text-[8px] font-bold bg-green-50 text-green-700 px-2 py-0.5 rounded-sm border border-green-100 flex items-center gap-1">
                                   <CheckCircle2 className="w-2 h-2" /> {d}
                                 </span>
                               ))}
                             </div>
                             <div className="flex flex-wrap gap-1">
-                              {cat.negativeDrivers.map((d, i) => (
-                                <span key={i} className="text-[8px] bg-red-50 text-red-700 px-1.5 py-0.5 rounded-sm border border-red-100 flex items-center gap-1">
+                              {cat.negativeDrivers.slice(0, 2).map((d, i) => (
+                                <span key={i} className="text-[8px] font-bold bg-red-50 text-red-700 px-2 py-0.5 rounded-sm border border-red-100 flex items-center gap-1">
                                   <AlertTriangle className="w-2 h-2" /> {d}
                                 </span>
                               ))}
@@ -334,118 +310,34 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         </Card>
 
         {/* Methodology Card */}
-        <Card className="border-none shadow-sm bg-primary text-white overflow-hidden">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
+        <Card className="border-none shadow-sm bg-primary text-white overflow-hidden relative group">
+          <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <CardHeader className="relative z-10">
+            <CardTitle className="text-lg font-black flex items-center gap-2 tracking-tight">
               <Info className="w-5 h-5 text-accent" />
               Scoring Methodology
             </CardTitle>
-            <CardDescription className="text-white/70 text-xs">How we derive your intelligence metrics</CardDescription>
+            <CardDescription className="text-white/70 text-xs font-bold uppercase tracking-widest">System Architecture v1.2</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <p className="text-sm leading-relaxed opacity-90">
-              Your score is calculated using a proprietary weighted average across five critical discovery vectors. We prioritize <strong>AI Visibility (30%)</strong> as the primary indicator of search dominance.
+          <CardContent className="space-y-6 relative z-10">
+            <p className="text-sm leading-relaxed opacity-80 font-medium italic">
+              "Our engine performs multi-vector discovery simulations to analyze brand-entity association patterns. We weight AI Visibility (30%) as the primary k-factor for market leadership."
             </p>
             <div className="space-y-4">
-               <div className="flex items-start gap-3">
-                  <div className="p-1.5 rounded-lg bg-white/10 shrink-0">
-                    <TrendingUp className="w-4 h-4 text-accent" />
-                  </div>
+               <div className="flex items-start gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <TrendingUp className="w-5 h-5 text-accent shrink-0" />
                   <div>
-                    <h5 className="text-sm font-bold">Primary Benchmark</h5>
-                    <p className="text-xs opacity-70">A score above 85.0 indicates "Leader" status in the AI knowledge layer.</p>
+                    <h5 className="text-sm font-bold">Leader Benchmark</h5>
+                    <p className="text-xs opacity-60 font-medium">Scores exceeding 85.0 indicate authoritative status in LLM knowledge layers.</p>
                   </div>
                </div>
-               <div className="flex items-start gap-3">
-                  <div className="p-1.5 rounded-lg bg-white/10 shrink-0">
-                    <Scale className="w-4 h-4 text-accent" />
-                  </div>
+               <div className="flex items-start gap-3 p-4 bg-white/5 rounded-2xl border border-white/5">
+                  <Scale className="w-5 h-5 text-accent shrink-0" />
                   <div>
-                    <h5 className="text-sm font-bold">Dynamic Weighting</h5>
-                    <p className="text-xs opacity-70">Weights are tuned based on industry vertical norms and intent classification.</p>
+                    <h5 className="text-sm font-bold">Dynamic Weights</h5>
+                    <p className="text-xs opacity-60 font-medium">Model weights are automatically tuned based on industry-specific intent classification.</p>
                   </div>
                </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recommendations & Gaps Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Strategic Next Steps */}
-        <Card className="lg:col-span-2 border-none shadow-sm bg-white overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between border-b bg-primary/5 py-4 px-6">
-            <div>
-              <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-accent" />
-                Strategic Next Steps
-              </CardTitle>
-              <CardDescription className="text-xs">Prioritized sequence for optimization based on core weaknesses</CardDescription>
-            </div>
-            <Layers className="w-5 h-5 text-primary opacity-20" />
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              {results.priorityActions.map((rec: StrategicRecommendation, i: number) => {
-                const CategoryIcon = getCategoryIcon(rec.category);
-                return (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-muted/20 rounded-xl border border-transparent hover:border-accent/20 transition-all group gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-primary shadow-sm group-hover:bg-accent group-hover:text-white transition-colors shrink-0">
-                        <CategoryIcon className="w-5 h-5" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                           <span className="text-[10px] font-bold text-accent uppercase tracking-widest">{rec.category}</span>
-                           <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[8px] h-4 uppercase px-1">
-                             {rec.priority}
-                           </Badge>
-                        </div>
-                        <h4 className="text-sm font-bold text-primary">{rec.title}</h4>
-                        <p className="text-xs text-muted-foreground leading-relaxed max-w-md">{rec.description}</p>
-                      </div>
-                    </div>
-                    <div className="text-right sm:shrink-0">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/5 text-primary border border-primary/10 text-[10px] font-bold uppercase">
-                        <TrendingUp className="w-3 h-3 text-accent" />
-                        {rec.expectedImpact}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Missed Opportunities */}
-        <Card className="border-none shadow-sm bg-white overflow-hidden">
-          <CardHeader className="border-b bg-red-50/30">
-            <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
-              <EyeOff className="w-5 h-5 text-red-500" />
-              Critical Visibility Gaps
-            </CardTitle>
-            <CardDescription className="text-xs">Identified zones where competitors are currently dominant</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {queryDiscovery?.queries.filter(q => !q.results.some(r => r.isTargetCompanyMentioned)).slice(0, 4).map((q, i) => (
-                <div key={i} className="p-5 space-y-3 hover:bg-red-50/10 transition-colors">
-                  <div className="text-xs font-bold text-primary italic leading-tight">"{q.text}"</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[10px] text-muted-foreground font-medium mr-1 uppercase">Top Mentions:</span>
-                    {q.results[0].mentions.slice(0, 3).map((m, idx) => (
-                      <Badge key={idx} variant="outline" className="text-[8px] bg-white text-muted-foreground border-slate-200">
-                        {m.companyName}
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 uppercase tracking-tighter">
-                    <AlertTriangle className="w-3 h-3" />
-                    Visibility Deficit Identified
-                  </div>
-                </div>
-              ))}
             </div>
           </CardContent>
         </Card>
@@ -455,21 +347,21 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       <Card className="border-none shadow-sm overflow-hidden bg-white">
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b py-6 px-8">
           <div className="space-y-1">
-            <CardTitle className="text-xl font-bold text-primary flex items-center gap-2">
+            <CardTitle className="text-xl font-black text-primary flex items-center gap-2 tracking-tighter">
               <Globe className="w-5 h-5 text-accent" />
-              Intelligence Signal Coverage
+              Discovery Signal Coverage
             </CardTitle>
-            <CardDescription>Real-time performance benchmark across multiple discovery intents</CardDescription>
+            <CardDescription className="font-medium">Audit of real-time performance across simulated intent vectors</CardDescription>
           </div>
           <div className="flex items-center gap-8 pr-4">
             <div className="text-center">
-              <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Total Signals</div>
-              <div className="text-2xl font-bold text-primary">{queryDiscovery?.summary.totalQueries || 0}</div>
+              <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Total Signals</div>
+              <div className="text-3xl font-black text-primary">{queryDiscovery?.summary.totalQueries || 0}</div>
             </div>
-            <div className="w-px h-10 bg-border hidden sm:block" />
+            <div className="w-px h-12 bg-border hidden sm:block" />
             <div className="text-center">
-              <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Signal Health</div>
-              <div className="text-2xl font-bold text-accent">{(queryDiscovery?.summary.coveragePercentage || 0).toFixed(0)}%</div>
+              <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Signal Health</div>
+              <div className="text-3xl font-black text-accent">{(queryDiscovery?.summary.coveragePercentage || 0).toFixed(0)}%</div>
             </div>
           </div>
         </CardHeader>
@@ -478,10 +370,10 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-[40%] pl-8 font-bold uppercase text-[10px] tracking-widest text-muted-foreground">User Intent Vector</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Provider Distribution</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Market Mention Set</TableHead>
-                  <TableHead className="text-right pr-8 font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Signal Status</TableHead>
+                  <TableHead className="w-[45%] pl-8 font-bold uppercase text-[10px] tracking-[0.2em]">User Intent Vector</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-[0.2em] text-center">Model Resolution</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-[0.2em]">Market Mentions</TableHead>
+                  <TableHead className="text-right pr-8 font-bold uppercase text-[10px] tracking-[0.2em]">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -492,20 +384,20 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                    return (
                     <TableRow key={q.id} className="hover:bg-muted/10 transition-colors group">
                       <TableCell className="pl-8 py-5">
-                        <div className="font-medium text-primary italic leading-relaxed group-hover:text-accent transition-colors">
+                        <div className="font-bold text-primary italic leading-relaxed group-hover:text-accent transition-colors text-xs">
                           "{q.text}"
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex -space-x-1.5">
+                        <div className="flex justify-center -space-x-2">
                           {q.results.map((r, i) => (
                             <div 
                               key={i} 
                               className={cn(
-                                "w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] font-bold text-white shadow-sm ring-1 ring-black/5",
+                                "w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] font-black text-white shadow-sm ring-1 ring-black/5",
                                 r.isTargetCompanyMentioned ? 'bg-accent' : 'bg-slate-300'
                               )}
-                              title={`${r.provider}: ${r.isTargetCompanyMentioned ? 'Mentioned' : 'Not Mentioned'}`}
+                              title={`${r.provider}: ${r.isTargetCompanyMentioned ? 'Resolved' : 'No Signal'}`}
                             >
                               {r.provider[0]}
                             </div>
@@ -513,18 +405,18 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="text-[11px] text-muted-foreground font-medium leading-relaxed">
+                        <div className="text-[11px] text-muted-foreground font-bold tracking-tight">
                           {topMentions}
                         </div>
                       </TableCell>
                       <TableCell className="text-right pr-8">
                         {isMentioned ? (
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100 text-[10px] font-bold uppercase">
-                            <Eye className="w-3 h-3" /> Prominent
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100 text-[9px] font-black uppercase tracking-widest">
+                            <Eye className="w-3.5 h-3.5" /> Prominent
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100 text-[10px] font-bold uppercase">
-                            <EyeOff className="w-3 h-3" /> Deficit
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100 text-[9px] font-black uppercase tracking-widest">
+                            <EyeOff className="w-3.5 h-3.5" /> Signal Gap
                           </div>
                         )}
                       </TableCell>
