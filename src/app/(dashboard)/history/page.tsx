@@ -20,7 +20,8 @@ import {
   ShieldCheck,
   Zap,
   Activity,
-  Filter
+  Filter,
+  ChevronRight
 } from "lucide-react";
 import Link from "next/link";
 import { 
