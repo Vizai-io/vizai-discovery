@@ -25,7 +25,10 @@ import {
   FileSearch,
   Lock,
   Copy,
-  Briefcase
+  Briefcase,
+  AlertCircle,
+  RefreshCcw,
+  Info
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -42,7 +45,7 @@ import { StrategicRecommendation, ScanResults, ScanRecord } from "@/lib/types";
 import { AIResponseParser } from "@/lib/services/ai-response-parser";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { doc, getDoc, getDocs, collection, query, where, limit, orderBy } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, query, where, limit, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { calculateProjectedImprovement } from "@/lib/services/scoring-model";
 import { toast } from "@/hooks/use-toast";
@@ -53,35 +56,32 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchScan() {
-      setLoading(true);
-      try {
-        if (params.id === 'latest') {
-          const scansRef = collection(db, "scans");
-          const q = query(scansRef, where("status", "==", "completed"), orderBy("date", "desc"), limit(1));
-          const snapshot = await getDocs(q);
-          if (!snapshot.empty) {
-            setScanRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ScanRecord);
-          }
-        } else {
-          const docRef = doc(db, "scans", params.id);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
-          }
+    if (params.id === 'latest') {
+      const q = query(collection(db, "scans"), where("status", "==", "completed"), orderBy("date", "desc"), limit(1));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          setScanRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ScanRecord);
         }
-      } catch (e) {
-        console.error("Error loading scan:", e);
-      } finally {
         setLoading(false);
-      }
+      });
+      return () => unsubscribe();
+    } else {
+      const unsubscribe = onSnapshot(doc(db, "scans", params.id), (docSnap) => {
+        if (docSnap.exists()) {
+          setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
+        }
+        setLoading(false);
+      }, (err) => {
+        console.error("Scan listener error:", err);
+        setLoading(false);
+      });
+      return () => unsubscribe();
     }
-    fetchScan();
   }, [params.id]);
 
   const results = useMemo(() => scanRecord?.results || {
-    overallScore: 72.4,
-    categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
+    overallScore: 0,
+    categoryScores: { presence: 0, descriptionAccuracy: 0, citationStrength: 0, serviceCoverage: 0, competitorShareOfVoice: 0 },
     priorityActions: [] as StrategicRecommendation[]
   } as ScanResults, [scanRecord]);
 
@@ -145,7 +145,82 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="w-12 h-12 text-primary animate-spin" />
-        <p className="text-muted-foreground font-medium">Reconstructing intelligence knowledge graph...</p>
+        <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs">Reconstructing intelligence knowledge graph...</p>
+      </div>
+    );
+  }
+
+  if (!scanRecord) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center">
+        <div className="p-6 bg-red-50 rounded-full text-red-500">
+          <AlertCircle className="w-12 h-12" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-xl font-bold text-primary">Audit Not Found</h3>
+          <p className="text-muted-foreground max-w-xs">The requested audit identifier does not exist in our historical knowledge set.</p>
+        </div>
+        <Link href="/scans/new">
+          <Button className="rounded-full px-8">Run New Audit</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (scanRecord.status === 'running') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 py-20 animate-in fade-in duration-700">
+        <div className="relative">
+          <RefreshCcw className="w-16 h-16 text-primary animate-spin opacity-20" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Zap className="w-6 h-6 text-accent animate-pulse" />
+          </div>
+        </div>
+        <div className="text-center space-y-4">
+          <div className="space-y-1">
+            <h3 className="text-2xl font-black text-primary tracking-tight">Audit in Progress</h3>
+            <p className="text-muted-foreground font-medium">Currently analyzing multi-vector intent signals...</p>
+          </div>
+          <div className="bg-muted/30 p-4 rounded-2xl border text-left max-w-sm mx-auto space-y-2">
+            <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              <span>Diagnostic Ref</span>
+              <span>{scanRecord.id.slice(0, 8)}</span>
+            </div>
+            <div className="flex justify-between text-[10px] font-bold text-primary uppercase">
+              <span>Current Step</span>
+              <span className="text-accent">{scanRecord.currentStep || "Initializing Pipeline"}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (scanRecord.status === 'failed') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 py-20">
+        <div className="p-6 bg-destructive/10 rounded-full text-destructive">
+          <ShieldAlert className="w-12 h-12" />
+        </div>
+        <div className="text-center space-y-4 max-w-md">
+          <div className="space-y-1">
+            <h3 className="text-2xl font-black text-primary tracking-tight">Audit Execution Failed</h3>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              We encountered a critical model exception during the discovery phase. This is often caused by temporary rate limits on live AI knowledge providers.
+            </p>
+          </div>
+          {scanRecord.errorMessage && (
+            <div className="p-4 bg-muted/50 rounded-xl border text-xs font-mono text-muted-foreground text-left break-words">
+              Error: {scanRecord.errorMessage}
+            </div>
+          )}
+          <div className="flex gap-3 justify-center">
+            <Link href="/scans/new">
+              <Button className="rounded-full px-8 bg-primary text-white">Retry Analysis</Button>
+            </Link>
+            <Button variant="outline" className="rounded-full" onClick={() => window.location.reload()}>Refresh Page</Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -161,7 +236,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
                <FileText className="w-3 h-3 text-accent" />
-               Audit Identifier: SCAN-{params.id.slice(0,8).toUpperCase()}
+               Audit Identifier: SCAN-{scanRecord.id.slice(0,8).toUpperCase()}
             </div>
             {scanRecord?.reviewStatus && (
               <Badge 
@@ -178,7 +253,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           </div>
           <h2 className="text-4xl font-headline font-black text-primary tracking-tighter">Discovery Intelligence Audit</h2>
           <p className="text-muted-foreground flex items-center gap-2">
-            Subject: <strong className="text-primary font-black">{results.companyName || "Client Account"}</strong> • {results.industry || "Global Market"} • {new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}
+            Subject: <strong className="text-primary font-black">{results.companyName || "Client Account"}</strong> • {results.industry || "Global Market"} • {scanRecord.date?.toDate().toLocaleDateString(undefined, { dateStyle: 'long' })}
           </p>
         </div>
         <div className="flex gap-3">
@@ -216,7 +291,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
               <Lock className="w-4 h-4" /> Share Access
             </Button>
           )}
-          <Link href={`/scans/${params.id}/report`}>
+          <Link href={`/scans/${scanRecord.id}/report`}>
             <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 rounded-full px-6">
               <ExternalLink className="w-4 h-4" /> Presentation View
             </Button>
@@ -252,7 +327,29 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                   <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Fidelity Score</span>
                 </div>
               </div>
-              <p className="text-xs font-medium text-muted-foreground px-4 leading-relaxed">Matches real AI responses from Gemini 1.5 Flash knowledge models.</p>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground px-4 leading-relaxed">Matches real AI responses from Gemini 1.5 Flash knowledge models.</p>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <button className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1 mx-auto">
+                      <Info className="w-3 h-3" /> Fidelity Methodology
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Simulation Accuracy Methodology</DialogTitle>
+                      <DialogDescription className="pt-4 space-y-4">
+                        <p>Fidelity Score represents the weighted alignment between VizAI's simulated discovery environment and live responses from Frontier LLMs (Gemini 1.5 Flash).</p>
+                        <ul className="list-disc pl-4 space-y-2 text-sm">
+                          <li><strong>Entity Overlap:</strong> Cross-referencing mentioned company names.</li>
+                          <li><strong>Rank Order:</strong> Comparison of prioritization in recommended lists.</li>
+                          <li><strong>Intent Context:</strong> Alignment of descriptive reasoning for entity selection.</li>
+                        </ul>
+                      </DialogDescription>
+                    </DialogHeader>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </CardContent>
          </Card>
 

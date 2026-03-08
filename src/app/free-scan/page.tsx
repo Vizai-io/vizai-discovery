@@ -19,7 +19,7 @@ import {
   Target,
   ShieldAlert
 } from "lucide-react";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { ScanEngine } from "@/lib/services/scan-engine";
 import { toast } from "@/hooks/use-toast";
@@ -34,15 +34,19 @@ export default function FreeScanPage() {
     website: "",
     industry: "",
     targetGeography: "",
-    email: "", // Added email for rate limiting
+    email: "", 
   });
-  const [hp, setHp] = useState(""); // Honeypot state
+  const [hp, setHp] = useState(""); 
 
   const handleRunFreeScan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.companyName || !formData.website || !formData.industry || !formData.email) return;
+    if (!formData.companyName || !formData.website || !formData.industry || !formData.email) {
+      toast({ title: "Validation Error", description: "All fields are required.", variant: "destructive" });
+      return;
+    }
 
     setLoading(true);
+    let scanId = "";
     try {
       // 1. Rate Limit & Abuse Check (Server Side)
       const validation = await validateFreeScanRequest(formData.email, hp);
@@ -57,15 +61,23 @@ export default function FreeScanPage() {
         return;
       }
 
-      // 2. Run the limited scan logic
-      const scanResults = await ScanEngine.runFreeScan(formData);
-
-      // 3. Save partial scan to Firestore
+      // 2. Initialize Scan Record
       const scanRef = await addDoc(collection(db, "scans"), {
         ...formData,
         date: serverTimestamp(),
-        status: "completed",
+        status: "pending",
         isPartial: true,
+        results: { companyName: formData.companyName, overallScore: 0 }
+      });
+      scanId = scanRef.id;
+
+      // 3. Start Analysis
+      await updateDoc(doc(db, "scans", scanId), { status: "running" });
+      const scanResults = await ScanEngine.runFreeScan(formData);
+
+      // 4. Update Result
+      await updateDoc(doc(db, "scans", scanId), {
+        status: "completed",
         results: scanResults,
         queryDiscovery: scanResults.queryDiscovery,
       });
@@ -75,12 +87,19 @@ export default function FreeScanPage() {
         description: "Your teaser visibility report is ready.",
       });
 
-      router.push(`/free-scan/results/${scanRef.id}`);
-    } catch (error) {
+      router.push(`/free-scan/results/${scanId}`);
+    } catch (error: any) {
       console.error("Free scan error:", error);
+      const message = error.message || "We couldn't initialize your free audit.";
+      if (scanId) {
+        await updateDoc(doc(db, "scans", scanId), { 
+          status: "failed", 
+          errorMessage: message 
+        }).catch(console.warn);
+      }
       toast({
         title: "Scan Failed",
-        description: "We couldn't initialize your free audit. Please try again.",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -97,7 +116,7 @@ export default function FreeScanPage() {
           </div>
           <span className="text-xl font-headline font-bold text-primary">VizAI</span>
         </Link>
-        <Link href="/login">
+        <Link href="/auth/sign-in">
           <Button variant="ghost">Sign In</Button>
         </Link>
       </header>

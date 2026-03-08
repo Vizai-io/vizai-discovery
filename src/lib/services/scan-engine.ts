@@ -2,10 +2,11 @@
 /**
  * @fileOverview ScanEngine orchestrates the AI visibility analysis process.
  * Decoupled into a Provider Adapter architecture for easy future scaling.
+ * 
+ * Audit Update: Added robust error handling and step-by-step status fallbacks.
  */
 
-import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput } from "@/ai/flows/generate-company-ai-scan-report";
-import { provideAiScanRecommendations, ProvideAiScanRecommendationsOutput } from "@/ai/flows/provide-ai-scan-recommendations";
+import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput, GenerateCompanyAIScanReportOutput } from "@/ai/flows/generate-company-ai-scan-report";
 import { QueryDiscoveryData, QueryRecord, ScanResults, WebsiteSignal, EntitySignal, PresenceSignal, RealQueryResult } from "../types";
 import { MockAdapter } from "./adapters/mock-adapter";
 import { DiscoveryContext } from "./adapters/provider-interface";
@@ -17,7 +18,7 @@ import { analyzePresence } from "./presence-enrichment";
 import { RealQueryEngine } from "./real-query-engine";
 import { DiscoveryDataService } from "./discovery-data-service";
 import { db } from "@/lib/firebase-config";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 
 export class ScanEngine {
   private static getActiveAdapters() {
@@ -31,28 +32,74 @@ export class ScanEngine {
 
   /**
    * Run a full scan for a company profile.
+   * Ensures that failure in optional sub-tasks does not halt the entire process.
    */
-  static async runScan(input: any, profileId: string = "demo_id", scanIdPlaceholder?: string): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData, realQueryResults?: RealQueryResult[] }> {
+  static async runScan(input: any, profileId: string = "demo_id", scanId?: string): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData, realQueryResults?: RealQueryResult[] }> {
+    const updateStatus = async (status: string, notes?: string) => {
+      if (scanId) {
+        await updateDoc(doc(db, "scans", scanId), { 
+          status: "running",
+          currentStep: status,
+          internalNotes: notes || "" 
+        }).catch(console.warn);
+      }
+    };
+
     // 1. Extract Website Intelligence
-    const websiteSignals = await extractWebsiteSignals(input.website, profileId);
-    if (websiteSignals) {
-      await setDoc(doc(db, "websiteSignals", websiteSignals.id), websiteSignals);
+    await updateStatus("Extracting Website Signals");
+    let websiteSignals: WebsiteSignal | null = null;
+    try {
+      websiteSignals = await extractWebsiteSignals(input.website, profileId);
+      if (websiteSignals) {
+        await setDoc(doc(db, "websiteSignals", websiteSignals.id), websiteSignals);
+      }
+    } catch (e) {
+      console.warn("Website extraction failed, continuing with fallback.", e);
     }
 
     // 2. Business Entity Enrichment
-    const entitySignal = await enrichEntity(input, websiteSignals);
-    await setDoc(doc(db, "entitySignals", entitySignal.id), entitySignal);
+    await updateStatus("Enriching Entity Data");
+    let entitySignal: EntitySignal;
+    try {
+      entitySignal = await enrichEntity(input, websiteSignals);
+      await setDoc(doc(db, "entitySignals", entitySignal.id), entitySignal);
+    } catch (e) {
+      console.warn("Entity enrichment failed, using default baseline.");
+      entitySignal = {
+        id: `ent_fallback_${Date.now()}`,
+        profileId,
+        authorityWeight: 50,
+        serviceCoverageWeight: 50,
+        geographicRelevanceWeight: 50,
+        dataConfidence: 30,
+        enrichedAttributes: { operatingRegions: [], industriesServed: [] },
+        extractedAt: new Date().toISOString()
+      };
+    }
 
     // 3. Local Presence Signal Analysis
-    const presenceSignal = await analyzePresence(input);
-    await setDoc(doc(db, "presenceSignals", presenceSignal.id), presenceSignal);
+    await updateStatus("Analyzing Local Presence");
+    let presenceSignal: PresenceSignal | null = null;
+    try {
+      presenceSignal = await analyzePresence(input);
+      await setDoc(doc(db, "presenceSignals", presenceSignal.id), presenceSignal);
+    } catch (e) {
+      console.warn("Presence analysis failed.", e);
+    }
 
     // 4. Generate core report findings (Narrative Analysis)
-    const report = await generateCompanyAIScanReport({
-      ...input,
-      websiteSignals: websiteSignals || undefined,
-      entitySignal: entitySignal || undefined
-    } as any);
+    await updateStatus("Generating Narrative Analysis");
+    let report: GenerateCompanyAIScanReportOutput;
+    try {
+      report = await generateCompanyAIScanReport({
+        ...input,
+        websiteSignals: websiteSignals || undefined,
+        entitySignal: entitySignal || undefined
+      } as any);
+    } catch (e) {
+      console.error("AI Report Generation failed!", e);
+      throw new Error("Critical Analysis Error: The AI model failed to generate the visibility narrative.");
+    }
     
     // Adjust report scores based on Presence Signals
     if (presenceSignal) {
@@ -61,6 +108,7 @@ export class ScanEngine {
     }
 
     // 5. Execute Multi-Vector Discovery (Signal Analysis)
+    await updateStatus("Executing Multi-Vector Discovery");
     const context: DiscoveryContext = {
       targetCompany: input.companyName,
       industry: input.industry,
@@ -72,25 +120,35 @@ export class ScanEngine {
     const queryDiscovery = await this.performDiscovery(context);
 
     // 6. Calculate Industry Benchmarking
+    await updateStatus("Calculating Sector Benchmarks");
     const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
     const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);
 
     // 7. Optional Real Query Verification (Gemini)
+    await updateStatus("Validating against Live Models");
     let realResults: RealQueryResult[] = [];
-    if (profileId !== "demo_id" && scanIdPlaceholder) {
-      realResults = await RealQueryEngine.runVerification(input as any, scanIdPlaceholder);
+    if (profileId !== "demo_id" && scanId) {
+      try {
+        realResults = await RealQueryEngine.runVerification(input as any, scanId);
+      } catch (e) {
+        console.warn("Real query verification failed, skipping verification step.", e);
+      }
     }
 
     // 8. Record Discovery Events to Dataset
-    if (scanIdPlaceholder) {
-      DiscoveryDataService.recordDiscoveryEvents(
-        scanIdPlaceholder,
-        input.industry,
-        input.targetGeography,
-        queryDiscovery,
-        input.competitors,
-        input.companyName
-      );
+    if (scanId) {
+      try {
+        DiscoveryDataService.recordDiscoveryEvents(
+          scanId,
+          input.industry,
+          input.targetGeography,
+          queryDiscovery,
+          input.competitors,
+          input.companyName
+        );
+      } catch (e) {
+        console.warn("Failed to record discovery events to dataset.", e);
+      }
     }
 
     return {
@@ -124,7 +182,12 @@ export class ScanEngine {
       competitors: ["Industry Leader A", "Industry Leader B"],
     };
 
-    const report = await generateCompanyAIScanReport(fullInput);
+    let report: GenerateCompanyAIScanReportOutput;
+    try {
+      report = await generateCompanyAIScanReport(fullInput);
+    } catch (e) {
+      throw new Error("Free scan model error.");
+    }
     
     const context: DiscoveryContext = {
       targetCompany: input.companyName,
@@ -163,16 +226,6 @@ export class ScanEngine {
         coveragePercentage: (companyMentionCount / libraryQueries.length) * 100
       }
     };
-
-    // Record events for the free scan as well
-    DiscoveryDataService.recordDiscoveryEvents(
-      "free_scan_" + Math.random().toString(36).substr(2, 5),
-      input.industry,
-      input.targetGeography,
-      queryDiscovery,
-      fullInput.competitors,
-      input.companyName
-    );
 
     const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
     const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);
