@@ -38,41 +38,27 @@
         "serviceCategories": { "type": "array", "items": { "type": "string" } },
         "targetGeography": { "type": "string" },
         "competitors": { "type": "array", "items": { "type": "string" } },
+        "foundingYear": { "type": "number" },
+        "employeeSize": { "type": "string" },
+        "operatingRegions": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" },
         "monitoringFrequency": { "type": "string", "enum": ["off", "weekly", "biweekly", "monthly"] },
         "nextScanAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "industry"]
     },
-    "CompetitorProfile": {
-      "title": "Competitor Profile",
-      "description": "A detailed profile of a competitor in the AI knowledge layer.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "industry": { "type": "string" },
-        "services": { "type": "array", "items": { "type": "string" } },
-        "geography": { "type": "array", "items": { "type": "string" } },
-        "authorityScore": { "type": "number" },
-        "citationStrengthScore": { "type": "number" },
-        "serviceCoverageScore": { "type": "number" }
-      },
-      "required": ["id", "name", "industry"]
-    },
-    "WebsiteSignal": {
-      "title": "Website Signal",
-      "description": "Extracted intelligence from a company's website.",
+    "EntitySignal": {
+      "title": "Entity Signal",
+      "description": "Enriched business entity data used to weight AI visibility algorithms.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "profileId": { "type": "string" },
-        "title": { "type": "string" },
-        "metaDescription": { "type": "string" },
-        "h1": { "type": "array", "items": { "type": "string" } },
-        "jsonLdDetected": { "type": "boolean" },
-        "serviceKeywords": { "type": "array", "items": { "type": "string" } },
-        "locationReferences": { "type": "array", "items": { "type": "string" } },
+        "authorityWeight": { "type": "number" },
+        "serviceCoverageWeight": { "type": "number" },
+        "geographicRelevanceWeight": { "type": "number" },
+        "dataConfidence": { "type": "number" },
+        "enrichedAttributes": { "type": "object" },
         "extractedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "profileId"]
@@ -108,9 +94,9 @@
       "schema": "CompanyProfile",
       "description": "Monitored company entities."
     },
-    "/competitorProfiles/{compId}": {
-      "schema": "CompetitorProfile",
-      "description": "Modeled knowledge profiles of competitors."
+    "/entitySignals/{signalId}": {
+      "schema": "EntitySignal",
+      "description": "Technical entity enrichment data."
     },
     "/websiteSignals/{signalId}": {
       "schema": "WebsiteSignal",

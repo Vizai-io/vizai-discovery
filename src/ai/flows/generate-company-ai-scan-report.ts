@@ -26,6 +26,18 @@ const GenerateCompanyAIScanReportInputSchema = z.object({
     serviceKeywords: z.array(z.string()),
     locationReferences: z.array(z.string()),
   }).optional().describe('Technical SEO signals extracted from the company website.'),
+  entitySignal: z.object({
+    authorityWeight: z.number(),
+    serviceCoverageWeight: z.number(),
+    geographicRelevanceWeight: z.number(),
+    dataConfidence: z.number(),
+    enrichedAttributes: z.object({
+      foundingYear: z.number().optional(),
+      employeeSize: z.string().optional(),
+      operatingRegions: z.array(z.string()),
+      industriesServed: z.array(z.string()),
+    }),
+  }).optional().describe('Enriched business entity data.'),
 });
 export type GenerateCompanyAIScanReportInput = z.infer<typeof GenerateCompanyAIScanReportInputSchema>;
 
@@ -88,7 +100,7 @@ const scanReportPrompt = ai.definePrompt({
   output: { schema: GenerateCompanyAIScanReportOutputSchema },
   prompt: `You are the VizAI Discovery Scanner, an expert AI visibility analyst. Your task is to generate a detailed, comprehensive AI scan report for a company.
 
-For v0.1, simulate results based on the inputs and provided technical website signals.
+For v0.1, simulate results based on inputs, technical website signals, and enriched entity data.
 
 {{#if websiteSignals}}
 TECHNICAL WEBSITE SIGNALS:
@@ -99,6 +111,16 @@ TECHNICAL WEBSITE SIGNALS:
 - Detected Geographies: {{#each websiteSignals.locationReferences}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 {{/if}}
 
+{{#if entitySignal}}
+ENRICHED ENTITY DATA:
+- Authority Weight: {{{entitySignal.authorityWeight}}}
+- Service Coverage Weight: {{{entitySignal.serviceCoverageWeight}}}
+- Geographic Relevance Weight: {{{entitySignal.geographicRelevanceWeight}}}
+- Data Confidence: {{{entitySignal.dataConfidence}}}
+- Founding Year: {{{entitySignal.enrichedAttributes.foundingYear}}}
+- Size: {{{entitySignal.enrichedAttributes.employeeSize}}}
+{{/if}}
+
 Company Details:
 Name: {{{companyName}}}
 Website: {{{website}}}
@@ -107,9 +129,9 @@ Service Categories: {{#each serviceCategories}}{{{this}}}{{#unless @last}}, {{/u
 Target Geography: {{{targetGeography}}}
 Competitors: {{#each competitors}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 
-If JSON-LD is missing, decrease 'citationStrength' and 'descriptionAccuracy' scores.
-If serviceKeywords match serviceCategories, increase 'serviceCoverage' score.
-If locationReferences match targetGeography, increase 'presence' score.
+If entitySignal.authorityWeight is high (> 70), increase 'presence' and 'citationStrength' scores.
+If entitySignal.geographicRelevanceWeight is high (> 70), increase 'presence' in target markets.
+If dataConfidence is low (< 50), decrease 'descriptionAccuracy' and identify 'entity' knowledge gaps.
 
 Generate a detailed AI scan report in JSON format.`,
 });

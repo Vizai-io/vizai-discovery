@@ -10,6 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { 
   Zap, 
   Loader2, 
   Building2, 
@@ -19,7 +26,9 @@ import {
   ChevronLeft,
   CheckCircle2,
   Briefcase,
-  Target
+  Target,
+  Calendar,
+  Layers
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -28,11 +37,12 @@ import { cn } from "@/lib/utils";
 import { ScanEngine } from "@/lib/services/scan-engine";
 
 const STEPS = [
-  { id: 1, title: "Company", icon: Building2 },
+  { id: 1, title: "Identity", icon: Building2 },
   { id: 2, title: "Market", icon: Globe },
-  { id: 3, title: "Capabilities", icon: Briefcase },
-  { id: 4, title: "Competitors", icon: Users },
-  { id: 5, title: "Review", icon: Target },
+  { id: 3, title: "Entity Details", icon: Layers },
+  { id: 4, title: "Capabilities", icon: Briefcase },
+  { id: 5, title: "Competitors", icon: Users },
+  { id: 6, title: "Review", icon: Target },
 ];
 
 export default function NewScanWizard() {
@@ -46,6 +56,8 @@ export default function NewScanWizard() {
     targetGeography: "",
     serviceCategories: "",
     competitors: "",
+    foundingYear: "",
+    employeeSize: "",
   });
 
   const progress = (currentStep / STEPS.length) * 100;
@@ -57,8 +69,9 @@ export default function NewScanWizard() {
     switch (currentStep) {
       case 1: return formData.companyName && formData.website;
       case 2: return formData.industry && formData.targetGeography;
-      case 3: return formData.serviceCategories;
-      case 4: return formData.competitors;
+      case 3: return formData.foundingYear && formData.employeeSize;
+      case 4: return formData.serviceCategories;
+      case 5: return formData.competitors;
       default: return true;
     }
   };
@@ -66,9 +79,10 @@ export default function NewScanWizard() {
   const handleFinish = async () => {
     setLoading(true);
     try {
-      // 1. Save Company Profile to Firestore
+      // 1. Prepare Data
       const profileData = {
         ...formData,
+        foundingYear: parseInt(formData.foundingYear),
         serviceCategories: formData.serviceCategories.split(",").map(s => s.trim()),
         competitors: formData.competitors.split(",").map(c => c.trim()),
         createdAt: serverTimestamp(),
@@ -77,15 +91,8 @@ export default function NewScanWizard() {
 
       const profileRef = await addDoc(collection(db, "companyProfiles"), profileData);
 
-      // 2. Run the Scan Engine (Includes Website Intelligence Extraction)
-      const scanOutput = await ScanEngine.runScan({
-        companyName: profileData.companyName,
-        website: profileData.website,
-        industry: profileData.industry,
-        serviceCategories: profileData.serviceCategories,
-        targetGeography: profileData.targetGeography,
-        competitors: profileData.competitors,
-      }, profileRef.id);
+      // 2. Run the Scan Engine (Includes Website Intelligence & Entity Enrichment)
+      const scanOutput = await ScanEngine.runScan(profileData, profileRef.id);
 
       // 3. Save Scan to Firestore
       const scanRef = await addDoc(collection(db, "scans"), {
@@ -99,7 +106,7 @@ export default function NewScanWizard() {
 
       toast({
         title: "Scan Completed",
-        description: "Your AI visibility report has been generated with website intelligence.",
+        description: "Your AI visibility report has been generated with entity enrichment.",
       });
 
       // 4. Navigate to results
@@ -108,7 +115,7 @@ export default function NewScanWizard() {
       console.error("Scan error:", error);
       toast({
         title: "Scan Failed",
-        description: "There was an error analyzing the company footprint.",
+        description: "There was an error analyzing the entity footprint.",
         variant: "destructive",
       });
     } finally {
@@ -184,9 +191,6 @@ export default function NewScanWizard() {
                     value={formData.website}
                     onChange={(e) => setFormData({...formData, website: e.target.value})}
                   />
-                  <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-accent" /> Our engine will extract intelligence signals directly from this URL.
-                  </p>
                 </div>
               </div>
             </div>
@@ -224,6 +228,46 @@ export default function NewScanWizard() {
           {currentStep === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
+                <h3 className="text-lg font-bold text-primary">Entity Enrichment</h3>
+                <p className="text-sm text-muted-foreground">Provide details to help AI systems verify your authority.</p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="foundingYear">Founding Year</Label>
+                  <Input 
+                    id="foundingYear" 
+                    type="number"
+                    placeholder="e.g. 1998" 
+                    value={formData.foundingYear}
+                    onChange={(e) => setFormData({...formData, foundingYear: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="employeeSize">Employee Size</Label>
+                  <Select 
+                    onValueChange={(val) => setFormData({...formData, employeeSize: val})}
+                    value={formData.employeeSize}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1-10">1-10</SelectItem>
+                      <SelectItem value="11-50">11-50</SelectItem>
+                      <SelectItem value="51-200">51-200</SelectItem>
+                      <SelectItem value="201-500">201-500</SelectItem>
+                      <SelectItem value="501-1000">501-1000</SelectItem>
+                      <SelectItem value="1001+">1001+</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 4 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+              <div className="space-y-2">
                 <h3 className="text-lg font-bold text-primary">Capabilities & Taxonomy</h3>
                 <p className="text-sm text-muted-foreground">How should AI categorize your specific services?</p>
               </div>
@@ -236,12 +280,11 @@ export default function NewScanWizard() {
                   value={formData.serviceCategories}
                   onChange={(e) => setFormData({...formData, serviceCategories: e.target.value})}
                 />
-                <p className="text-[10px] text-muted-foreground italic">Tip: Be specific. Use the exact terms you want LLMs to associate with your brand.</p>
               </div>
             </div>
           )}
 
-          {currentStep === 4 && (
+          {currentStep === 5 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-primary">Competitive Benchmarking</h3>
@@ -260,7 +303,7 @@ export default function NewScanWizard() {
             </div>
           )}
 
-          {currentStep === 5 && (
+          {currentStep === 6 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-primary">Final Review</h3>
@@ -272,21 +315,17 @@ export default function NewScanWizard() {
                   <div className="text-sm font-bold text-primary">{formData.companyName}</div>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Industry</span>
-                  <div className="text-sm font-bold text-primary">{formData.industry}</div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Founding Year</span>
+                  <div className="text-sm font-bold text-primary">{formData.foundingYear}</div>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Geography</span>
-                  <div className="text-sm font-bold text-primary">{formData.targetGeography}</div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Industry</span>
+                  <div className="text-sm font-bold text-primary">{formData.industry}</div>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Engine</span>
                   <div className="text-sm font-bold text-accent italic">VizAI Multi-Vector v1.2</div>
                 </div>
-              </div>
-              <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 items-start">
-                <Target className="w-5 h-5 text-primary shrink-0" />
-                <p className="text-xs text-primary leading-relaxed">By launching this scan, our engine will perform 24 simulated user intents and <strong>extract real-time signals from your website</strong> to benchmark your visibility.</p>
               </div>
             </div>
           )}
@@ -317,7 +356,7 @@ export default function NewScanWizard() {
                 className="bg-accent hover:bg-accent/90 text-primary font-bold gap-2 px-8 shadow-lg shadow-accent/20"
               >
                 {loading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Footprint...</>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Entity...</>
                 ) : (
                   <>Launch Intelligence Scan <Zap className="w-4 h-4 fill-current" /></>
                 )}

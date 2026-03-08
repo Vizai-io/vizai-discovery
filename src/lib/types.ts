@@ -24,6 +24,9 @@ export interface CompanyProfile {
   serviceCategories: string[];
   targetGeography: string;
   competitors: string[];
+  foundingYear?: number;
+  employeeSize?: string;
+  operatingRegions?: string[];
   createdAt: any;
   monitoringFrequency?: 'off' | 'weekly' | 'biweekly' | 'monthly';
   nextScanAt?: any;
@@ -39,6 +42,22 @@ export interface WebsiteSignal {
   jsonLdDetected: boolean;
   serviceKeywords: string[];
   locationReferences: string[];
+  extractedAt: any;
+}
+
+export interface EntitySignal {
+  id: string;
+  profileId: string;
+  authorityWeight: number; // 0-100
+  serviceCoverageWeight: number; // 0-100
+  geographicRelevanceWeight: number; // 0-100
+  dataConfidence: number; // 0-100
+  enrichedAttributes: {
+    foundingYear?: number;
+    employeeSize?: string;
+    operatingRegions: string[];
+    industriesServed: string[];
+  };
   extractedAt: any;
 }
 
@@ -149,6 +168,7 @@ export interface ScanResults {
     percentile: number;
     totalCompanies: number;
   };
+  entitySignal?: EntitySignal;
 }
 
 export interface RankingEntry {
