@@ -4,18 +4,6 @@ import { ScoreCard } from "@/components/dashboard/score-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Cell,
-  PieChart,
-  Pie
-} from 'recharts';
-import { 
   ShieldCheck, 
   Target, 
   Users, 
@@ -25,29 +13,28 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileText,
-  Table as TableIcon,
   Eye,
   EyeOff,
   Lightbulb,
-  ArrowUpRight,
   TrendingUp,
   Activity,
-  ChevronRight,
-  Info,
   ExternalLink,
   Layers,
   FileCode,
-  Globe
+  Globe,
+  Info,
+  Scale
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useState, useEffect } from "react";
-import { QueryDiscoveryData, ScanResults, StrategicRecommendation } from "@/lib/types";
+import { QueryDiscoveryData, StrategicRecommendation } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { collection, doc, getDoc, getDocs, query, where, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
+import { SCORING_MODEL, calculateWeightedScore } from "@/lib/services/scoring-model";
 
 export default function ScanResultsPage({ params }: { params: { id: string } }) {
   const [scanData, setScanData] = useState<any>(null);
@@ -84,7 +71,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           setScanData(results);
           setQueryDiscovery(discovery || null);
         } else {
-          // Fallback to simulation if no DB record
           const simulatedDiscovery = await QueryEngine.simulateDiscovery(
             "Acme Logistics",
             "Third Party Logistics (3PL)",
@@ -166,6 +152,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           icon={Search} 
           className="bg-primary text-white" 
           description="Avg. AI prominence"
+          tooltip="Consolidated score based on a weighted average of all discovery vectors."
         />
         <ScoreCard 
           title="Description Accuracy" 
@@ -173,6 +160,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           trend={1.5} 
           icon={ShieldCheck} 
           description="Business model alignment"
+          tooltip="Measures how accurately AI summaries reflect your official services and capabilities."
         />
         <ScoreCard 
           title="Citation Strength" 
@@ -180,6 +168,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           trend={8.4} 
           icon={Target} 
           description="Authority of data sources"
+          tooltip="Analyzes the reliability and authority of external sites cited by AI models."
         />
         <ScoreCard 
           title="Service Coverage" 
@@ -187,6 +176,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           trend={-0.8} 
           icon={Zap} 
           description="Completeness of offerings"
+          tooltip="Assesses how many of your key services are recognized during discovery."
         />
         <ScoreCard 
           title="Competitor Threat" 
@@ -194,7 +184,125 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           trend={-2.1} 
           icon={Users} 
           description="Rival share of search voice"
+          tooltip="Tracks how often competitors are recommended over your brand for generic intents."
         />
+      </div>
+
+      {/* Scoring Explanation Panel */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 border-none shadow-sm bg-white overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20 py-4 px-6">
+            <div>
+              <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
+                <Scale className="w-5 h-5 text-primary" />
+                Why this score?
+              </CardTitle>
+              <CardDescription className="text-xs">Transparent weighted scoring framework breakdown</CardDescription>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-bold text-muted-foreground uppercase">Overall Visibility</div>
+              <div className="text-2xl font-bold text-primary">{results.overallScore.toFixed(1)}</div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/10">
+                  <TableRow>
+                    <TableHead className="pl-6 font-bold uppercase text-[10px]">Vector</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] text-center">Weight</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] text-center">Score</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px]">Drivers</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {SCORING_MODEL.map((cat) => {
+                    const score = results.categoryScores[cat.id as keyof typeof results.categoryScores];
+                    return (
+                      <TableRow key={cat.id}>
+                        <TableCell className="pl-6 py-4">
+                          <div className="font-bold text-sm text-primary">{cat.label}</div>
+                          <p className="text-[10px] text-muted-foreground max-w-[150px] leading-tight mt-1">{cat.description}</p>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/20 text-primary">
+                            {(cat.weight * 100).toFixed(0)}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center font-bold text-primary">
+                          {score}%
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap gap-1">
+                              {cat.positiveDrivers.map((d, i) => (
+                                <span key={i} className="text-[8px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded-sm border border-green-100 flex items-center gap-1">
+                                  <CheckCircle2 className="w-2 h-2" /> {d}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {cat.negativeDrivers.map((d, i) => (
+                                <span key={i} className="text-[8px] bg-red-50 text-red-700 px-1.5 py-0.5 rounded-sm border border-red-100 flex items-center gap-1">
+                                  <AlertTriangle className="w-2 h-2" /> {d}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Scoring Insight Summary */}
+        <Card className="border-none shadow-sm bg-primary text-white overflow-hidden">
+          <CardHeader>
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <Info className="w-5 h-5 text-accent" />
+              Scoring Methodology
+            </CardTitle>
+            <CardDescription className="text-white/70 text-xs">How we derive your intelligence metrics</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <p className="text-sm leading-relaxed opacity-90">
+              Your score is calculated using a proprietary weighted average across five critical discovery vectors. We prioritize <strong>AI Visibility (30%)</strong> as the primary indicator of search dominance.
+            </p>
+            <div className="space-y-4">
+               <div className="flex items-start gap-3">
+                  <div className="p-1.5 rounded-lg bg-white/10 shrink-0">
+                    <TrendingUp className="w-4 h-4 text-accent" />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-bold">Primary Benchmark</h5>
+                    <p className="text-xs opacity-70">A score above 85.0 indicates "Leader" status in the AI knowledge layer.</p>
+                  </div>
+               </div>
+               <div className="flex items-start gap-3">
+                  <div className="p-1.5 rounded-lg bg-white/10 shrink-0">
+                    <Scale className="w-4 h-4 text-accent" />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-bold">Dynamic Weighting</h5>
+                    <p className="text-xs opacity-70">Weights are tuned based on industry vertical norms (e.g. 3PL vs Legal).</p>
+                  </div>
+               </div>
+            </div>
+            <div className="pt-4 border-t border-white/10">
+               <div className="flex justify-between items-center text-xs font-bold mb-2 uppercase tracking-widest text-white/50">
+                 Market Baseline
+                 <span>Avg: 64.2</span>
+               </div>
+               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                 <div className="h-full bg-accent w-[64%]" />
+               </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Recommendations & Gaps Grid */}
