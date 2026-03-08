@@ -7,49 +7,92 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import { 
   Zap, 
-  Search, 
   Loader2, 
   Building2, 
   Globe, 
   Users, 
-  Settings2,
-  AlertCircle
+  ChevronRight, 
+  ChevronLeft,
+  CheckCircle2,
+  Briefcase,
+  Target
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase-config";
+import { cn } from "@/lib/utils";
 
-export default function NewScanPage() {
+const STEPS = [
+  { id: 1, title: "Company", icon: Building2 },
+  { id: 2, title: "Market", icon: Globe },
+  { id: 3, title: "Capabilities", icon: Briefcase },
+  { id: 4, title: "Competitors", icon: Users },
+  { id: 5, title: "Review", icon: Target },
+];
+
+export default function NewScanWizard() {
   const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    companyName: "Acme Logistics",
-    website: "https://acme-logistics.ai",
-    industry: "Third Party Logistics (3PL)",
-    serviceCategories: "Freight Forwarding, Warehouse Management, Cold Chain",
-    targetGeography: "North America, Western Europe",
-    competitors: "FedEx, UPS, DHL",
+    companyName: "",
+    website: "",
+    industry: "",
+    targetGeography: "",
+    serviceCategories: "",
+    competitors: "",
   });
 
-  const handleRunScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const progress = (currentStep / STEPS.length) * 100;
 
+  const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
+  const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
+
+  const isStepValid = () => {
+    switch (currentStep) {
+      case 1: return formData.companyName && formData.website;
+      case 2: return formData.industry && formData.targetGeography;
+      case 3: return formData.serviceCategories;
+      case 4: return formData.competitors;
+      default: return true;
+    }
+  };
+
+  const handleFinish = async () => {
+    setLoading(true);
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      toast({
-        title: "Scan Complete",
-        description: "Your AI visibility report is ready.",
+      // 1. Save Company Profile to Firestore
+      const profileRef = await addDoc(collection(db, "companyProfiles"), {
+        ...formData,
+        serviceCategories: formData.serviceCategories.split(",").map(s => s.trim()),
+        competitors: formData.competitors.split(",").map(c => c.trim()),
+        createdAt: serverTimestamp(),
+        organizationId: "org_default_acme" // Mock org for v0.1
       });
 
-      // Navigate to results (with a mock id)
+      // 2. Simulate Scan Creation
+      await addDoc(collection(db, "scans"), {
+        profileId: profileRef.id,
+        date: serverTimestamp(),
+        status: "completed",
+        results: { /* Mock scan results would be generated and stored here */ }
+      });
+
+      toast({
+        title: "Scan Initiated",
+        description: "Your AI visibility report is being generated.",
+      });
+
+      // 3. Navigate to results
       router.push("/scans/results/latest");
     } catch (error) {
+      console.error("Scan error:", error);
       toast({
         title: "Scan Failed",
-        description: "There was an error generating your report.",
+        description: "There was an error initializing your scan profile.",
         variant: "destructive",
       });
     } finally {
@@ -58,162 +101,212 @@ export default function NewScanPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
-          <Zap className="w-6 h-6" />
+    <div className="max-w-3xl mx-auto space-y-8 py-8">
+      {/* Wizard Header */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-primary">Intelligence Setup</h2>
+              <p className="text-xs text-muted-foreground">Step {currentStep} of {STEPS.length}: {STEPS[currentStep - 1].title}</p>
+            </div>
+          </div>
+          <div className="text-right hidden sm:block">
+            <div className="text-sm font-bold text-primary">{progress.toFixed(0)}% Complete</div>
+            <Progress value={progress} className="w-32 h-2 mt-1" />
+          </div>
         </div>
-        <div>
-          <h2 className="text-2xl font-bold text-primary">New Visibility Scan</h2>
-          <p className="text-muted-foreground">Configure your AI discovery intelligence parameters.</p>
+
+        {/* Step Indicator */}
+        <div className="flex justify-between items-center px-2">
+          {STEPS.map((step) => (
+            <div key={step.id} className="flex flex-col items-center gap-2">
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                currentStep >= step.id ? "bg-primary text-white shadow-md" : "bg-muted text-muted-foreground"
+              )}>
+                {currentStep > step.id ? <CheckCircle2 className="w-5 h-5" /> : <step.icon className="w-4 h-4" />}
+              </div>
+              <span className={cn(
+                "text-[10px] font-bold uppercase tracking-tighter",
+                currentStep >= step.id ? "text-primary" : "text-muted-foreground"
+              )}>
+                {step.title}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
-      <form onSubmit={handleRunScan} className="grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-6">
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-muted-foreground" />
-                Company Profile
-              </CardTitle>
-              <CardDescription>Official business details for LLM identification.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+      <Card className="border-none shadow-xl bg-white overflow-hidden">
+        <CardContent className="p-8">
+          {currentStep === 1 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-primary">Identity & Presence</h3>
+                <p className="text-sm text-muted-foreground">Start by defining your official digital identity.</p>
+              </div>
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="companyName">Company Name</Label>
+                  <Label htmlFor="companyName">Full Company Name</Label>
                   <Input 
                     id="companyName" 
+                    placeholder="e.g. Acme Global Logistics" 
                     value={formData.companyName}
-                    onChange={e => setFormData({...formData, companyName: e.target.value})}
-                    placeholder="e.g. Acme Corp" 
+                    onChange={(e) => setFormData({...formData, companyName: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="website">Website URL</Label>
+                  <Label htmlFor="website">Official Website URL</Label>
                   <Input 
                     id="website" 
+                    type="url" 
+                    placeholder="https://acme-logistics.ai" 
                     value={formData.website}
-                    onChange={e => setFormData({...formData, website: e.target.value})}
-                    placeholder="https://..." 
+                    onChange={(e) => setFormData({...formData, website: e.target.value})}
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {currentStep === 2 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
-                <Label htmlFor="industry">Primary Industry</Label>
-                <Input 
-                  id="industry" 
-                  value={formData.industry}
-                  onChange={e => setFormData({...formData, industry: e.target.value})}
-                  placeholder="e.g. Supply Chain & Logistics" 
-                />
+                <h3 className="text-lg font-bold text-primary">Market Context</h3>
+                <p className="text-sm text-muted-foreground">Define your operational domain and target regions.</p>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="industry">Industry Vertical</Label>
+                  <Input 
+                    id="industry" 
+                    placeholder="e.g. Pharmaceutical Logistics" 
+                    value={formData.industry}
+                    onChange={(e) => setFormData({...formData, industry: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="geography">Target Geographies</Label>
+                  <Input 
+                    id="geography" 
+                    placeholder="e.g. North America, DACH Region" 
+                    value={formData.targetGeography}
+                    onChange={(e) => setFormData({...formData, targetGeography: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 3 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-primary">Capabilities & Taxonomy</h3>
+                <p className="text-sm text-muted-foreground">How should AI categorize your specific services?</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="services">Service Categories</Label>
+                <Label htmlFor="services">Service Categories (Comma separated)</Label>
                 <Textarea 
                   id="services" 
+                  rows={6}
+                  placeholder="e.g. Cold Chain Storage, Last-mile Delivery, Custom Clearance..." 
                   value={formData.serviceCategories}
-                  onChange={e => setFormData({...formData, serviceCategories: e.target.value})}
-                  placeholder="Enter services separated by commas..." 
-                  rows={3}
+                  onChange={(e) => setFormData({...formData, serviceCategories: e.target.value})}
                 />
+                <p className="text-[10px] text-muted-foreground italic">Tip: Be specific. Use the exact terms you want LLMs to associate with your brand.</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          )}
 
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Globe className="w-4 h-4 text-muted-foreground" />
-                Context & Market
-              </CardTitle>
-              <CardDescription>Define where and how you want to be discovered.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {currentStep === 4 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
-                <Label htmlFor="geography">Target Geography</Label>
-                <Input 
-                  id="geography" 
-                  value={formData.targetGeography}
-                  onChange={e => setFormData({...formData, targetGeography: e.target.value})}
-                  placeholder="e.g. North America, Global" 
-                />
+                <h3 className="text-lg font-bold text-primary">Competitive Benchmarking</h3>
+                <p className="text-sm text-muted-foreground">Who else is AI recommending for your services?</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="competitors">Main Competitors</Label>
-                <Input 
+                <Label htmlFor="competitors">Competitor Names (Comma separated)</Label>
+                <Textarea 
                   id="competitors" 
+                  rows={4}
+                  placeholder="e.g. FedEx, DHL, UPS..." 
                   value={formData.competitors}
-                  onChange={e => setFormData({...formData, competitors: e.target.value})}
-                  placeholder="Competitor names, separated by commas..." 
+                  onChange={(e) => setFormData({...formData, competitors: e.target.value})}
                 />
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          )}
 
-        <div className="space-y-6">
-          <Card className="border-none shadow-lg bg-primary text-white">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Settings2 className="w-4 h-4 text-accent" />
-                Scan Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex justify-between text-xs font-medium text-white/60">
-                  <span>Engine</span>
-                  <span className="text-white">VizAI Multi-Vector v1.0</span>
+          {currentStep === 5 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-primary">Final Review</h3>
+                <p className="text-sm text-muted-foreground">Confirm your intelligence parameters before launching the scan.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-6 bg-muted/30 p-6 rounded-2xl border">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Company</span>
+                  <div className="text-sm font-bold text-primary">{formData.companyName}</div>
                 </div>
-                <div className="flex justify-between text-xs font-medium text-white/60">
-                  <span>Providers</span>
-                  <span className="text-white">OpenAI, Google, Anthropic</span>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Industry</span>
+                  <div className="text-sm font-bold text-primary">{formData.industry}</div>
                 </div>
-                <div className="flex justify-between text-xs font-medium text-white/60">
-                  <span>Estimated Time</span>
-                  <span className="text-white">~3.5 Minutes</span>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Geography</span>
+                  <div className="text-sm font-bold text-primary">{formData.targetGeography}</div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Engine</span>
+                  <div className="text-sm font-bold text-accent italic">VizAI Multi-Vector v1.2</div>
                 </div>
               </div>
-              
+              <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 items-start">
+                <Target className="w-5 h-5 text-primary shrink-0" />
+                <p className="text-xs text-primary leading-relaxed">By launching this scan, our engine will perform 24 simulated user intents across 4 major LLM providers to benchmark your visibility.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Navigation Buttons */}
+          <div className="flex justify-between items-center mt-12 pt-6 border-t">
+            <Button 
+              variant="ghost" 
+              onClick={prevStep} 
+              disabled={currentStep === 1 || loading}
+              className="gap-2"
+            >
+              <ChevronLeft className="w-4 h-4" /> Back
+            </Button>
+            
+            {currentStep < STEPS.length ? (
               <Button 
-                type="submit"
+                onClick={nextStep} 
+                disabled={!isStepValid()}
+                className="bg-primary hover:bg-primary/90 text-white gap-2 px-8"
+              >
+                Continue <ChevronRight className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button 
+                onClick={handleFinish} 
                 disabled={loading}
-                className="w-full bg-accent hover:bg-accent/90 text-primary font-bold h-12"
+                className="bg-accent hover:bg-accent/90 text-primary font-bold gap-2 px-8 shadow-lg shadow-accent/20"
               >
                 {loading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...</>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</>
                 ) : (
-                  <>Start Discovery Scan</>
+                  <>Launch Visibility Scan <Zap className="w-4 h-4 fill-current" /></>
                 )}
               </Button>
-
-              <div className="p-3 bg-white/10 rounded-lg text-[10px] leading-relaxed flex gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-accent" />
-                <span>By starting this scan, you acknowledge that VizAI will query multiple LLM providers to benchmark your visibility.</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold text-primary">Recent Success</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
-                  <Search className="w-4 h-4" />
-                </div>
-                <div className="text-[10px]">
-                  <div className="font-bold text-primary">Oct 24, 2023</div>
-                  <div className="text-muted-foreground">Overall Visibility: 72.4</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </form>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
