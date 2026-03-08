@@ -1,3 +1,16 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-bg",
+      "description": "Abstract technological network nodes",
+      "imageUrl": "https://picsum.photos/seed/vizai-hero/1200/800",
+      "imageHint": "artificial intelligence technology"
+    },
+    {
+      "id": "dashboard-preview",
+      "description": "Mockup of an analytics dashboard",
+      "imageUrl": "https://picsum.photos/seed/vizai-dash/800/600",
+      "imageHint": "data analytics dashboard"
+    }
+  ]
 }
