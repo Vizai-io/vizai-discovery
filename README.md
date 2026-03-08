@@ -1,59 +1,43 @@
+
 # VizAI Discovery Scanner
 
 Production-ready AI visibility intelligence platform. Built with Next.js 15 (App Router), Firebase, and Genkit.
 
-## Architecture
+## Canonical Route Map
 
-This application is structured to support both v0.1 (mocked) and future real LLM integrations via a **Provider Adapter Architecture**.
+### External / Marketing
+- `/` : Landing Page
+- `/auth/sign-in` : Authenticated access portal
+- `/demo` : Sandbox industry selector
+- `/free-scan` : Lead generation teaser audit
+- `/share/[id]` : Secure read-only presentation for clients
 
-### Key Directories
-- `src/ai/flows`: Genkit-defined flows for analysis, report generation, and recommendations.
-- `src/lib/services`: Business logic layer.
-    - `scan-engine.ts`: Orchestrates the multi-vector audit process.
-    - `adapters/`: Contains individual provider logic (OpenAI, Anthropic, Gemini, etc.).
-- `src/app/(dashboard)`: Authenticated dashboard environment.
-- `src/app/admin`: System-level management.
+### User Command Center
+- `/dashboard` : Portfolio intelligence summary
+- `/scans` : Historical inventory of all audits
+- `/scans/new` : Setup wizard for new entity scans
+- `/scans/[id]` : In-depth discovery analytics and fidelity scores
+- `/scans/[id]/report` : Internal-professional audit report
+- `/companies` : Management of corporate entity signal profiles
+- `/rankings` : Market benchmarking and sector leaderboards
+- `/recommendations` : Strategic action center
+- `/monitoring` : Automated tracking schedules
+- `/history` : Chronological timeline of visibility drift
 
-### AI Integration Layer
-To add a real AI provider:
-1. Create a new adapter in `src/lib/services/adapters/` (e.g., `openai-adapter.ts`).
-2. Implement the `AIProviderAdapter` interface.
-3. Register the adapter in `src/lib/services/scan-engine.ts` within the `getActiveAdapters()` method.
-4. Add necessary environment variables (e.g., `OPENAI_API_KEY`) to `.env`.
+### Administrative Hub
+- `/admin` : System health and seeding controls
+- `/admin/leads` : Consultation intake and sales pipeline
+- `/admin/scans/[id]/review` : Human quality control & anonymization
+- `/admin/scans/[id]/proposal` : Commercial roadmap builder
 
-### Firestore Schema
+## Core Architecture
 
-#### `organizations`
-- `id`: string (UUID)
-- `name`: string
-- `createdAt`: timestamp
+This application uses a **Provider Adapter Architecture** to facilitate hybrid intelligence—balancing deterministic high-volume simulations with live AI model verification via Gemini 1.5 Flash.
 
-#### `users`
-- `uid`: string (Firebase Auth UID)
-- `organizationId`: string (Ref to organization)
-- `role`: 'admin' | 'client'
-- `email`: string
-
-#### `companyProfiles`
-- `id`: string
-- `organizationId`: string
-- `name`: string
-- `website`: string
-- `industry`: string
-- `serviceCategories`: string[]
-- `targetGeography`: string
-- `competitors`: string[]
-
-#### `scans`
-- `id`: string
-- `profileId`: string
-- `organizationId`: string
-- `date`: timestamp
-- `results`: object (Contains scores, category breakdowns, gaps, etc.)
-
-## Getting Started
-
-1. Set up a Firebase Project.
-2. Enable Authentication (Email/Password) and Firestore.
-3. Configure Environment Variables in `.env`.
-4. Run `npm install` and `npm run dev`.
+### Key Data Entities
+- `organizations`: Enterprise accounts.
+- `users`: IAM and role-based access.
+- `companyProfiles`: The digital twins of brands being audited.
+- `scans`: Multi-vector discovery records containing analytics and real AI validation.
+- `consultationRequests`: Lead intake from the free scan funnel.
+- `discoveryDataset`: Long-term repository for trend analysis.

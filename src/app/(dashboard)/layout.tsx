@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { title: "Scans", icon: Search, href: "/scans" },
     { title: "Rankings", icon: Trophy, href: "/rankings" },
     { title: "Recommendations", icon: Lightbulb, href: "/recommendations" },
-    { title: "Scan History", icon: History, href: "/history" },
+    { title: "History", icon: History, href: "/history" },
   ];
 
   return (
@@ -38,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild 
-                    isActive={pathname === item.href}
+                    isActive={pathname === item.href || (item.href === '/scans' && pathname.startsWith('/scans/'))}
                     tooltip={item.title}
                   >
                     <Link href={item.href}>
@@ -54,7 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
              <SidebarMenuButton asChild>
                 <Link href="/admin">
                     <Settings className="w-4 h-4" />
-                    <span>Admin Panel</span>
+                    <span>Admin Control Center</span>
                 </Link>
              </SidebarMenuButton>
              <SidebarMenuButton className="text-destructive hover:text-destructive hover:bg-destructive/10">
@@ -75,14 +75,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-4">
                <div className="hidden sm:flex flex-col items-end">
                   <span className="text-sm font-bold text-primary">Acme Corp</span>
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Client Account</span>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Client Profile</span>
                </div>
                <div className="w-8 h-8 rounded-full bg-accent text-primary flex items-center justify-center font-bold text-xs border border-primary/10">
                   AC
                </div>
             </div>
           </header>
-          <div className={cn("p-6 print:p-0 print:bg-white", pathname.includes('/report/') && "print:p-0")}>
+          <div className={cn("p-6 print:p-0 print:bg-white", pathname.includes('/report') && "print:p-0")}>
             {children}
           </div>
         </main>
