@@ -1,0 +1,114 @@
+
+{
+  "entities": {
+    "Organization": {
+      "title": "Organization",
+      "description": "An enterprise organization using the VizAI platform.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account information and roles.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "client"] },
+        "organizationId": { "type": "string" },
+        "displayName": { "type": "string" }
+      },
+      "required": ["uid", "email", "role", "organizationId"]
+    },
+    "CompanyProfile": {
+      "title": "Company Profile",
+      "description": "Details of a company being scanned for AI visibility.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "name": { "type": "string" },
+        "website": { "type": "string", "format": "uri" },
+        "industry": { "type": "string" },
+        "serviceCategories": { "type": "array", "items": { "type": "string" } },
+        "targetGeography": { "type": "string" },
+        "competitors": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "industry"]
+    },
+    "ScanRecord": {
+      "title": "Scan Record",
+      "description": "The result of an AI visibility scan.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "profileId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "results": { "type": "object" }
+      },
+      "required": ["id", "profileId", "status"]
+    },
+    "RankingEntry": {
+      "title": "Ranking Entry",
+      "description": "A single company's rank and score within a snapshot.",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "score": { "type": "number" },
+        "rank": { "type": "integer" },
+        "change": { "type": "number" },
+        "industry": { "type": "string" },
+        "region": { "type": "string" }
+      },
+      "required": ["companyName", "score", "rank"]
+    },
+    "RankingSnapshot": {
+      "title": "Ranking Snapshot",
+      "description": "A snapshot of industry rankings at a specific time.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "industry": { "type": "string" },
+        "region": { "type": "string" },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/backend/entities/RankingEntry" }
+        }
+      },
+      "required": ["id", "date", "industry", "region", "entries"]
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "/organizations/{orgId}": {
+      "schema": "Organization",
+      "description": "Top-level organization accounts."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Individual user profiles."
+    },
+    "/companyProfiles/{profileId}": {
+      "schema": "CompanyProfile",
+      "description": "Monitored company entities."
+    },
+    "/scans/{scanId}": {
+      "schema": "ScanRecord",
+      "description": "History of AI visibility scans."
+    },
+    "/rankings/{snapshotId}": {
+      "schema": "RankingSnapshot",
+      "description": "Snapshots of industry rankings over time."
+    }
+  }
+}

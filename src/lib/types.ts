@@ -1,3 +1,4 @@
+
 export type UserRole = 'admin' | 'client';
 
 export interface UserProfile {
@@ -101,4 +102,21 @@ export interface ScanResults {
     impact: string;
     priority: 'high' | 'medium' | 'low';
   }[];
+}
+
+export interface RankingEntry {
+  companyName: string;
+  score: number;
+  rank: number;
+  change: number; // Positive means rank improved (moved up)
+  industry: string;
+  region: string;
+}
+
+export interface RankingSnapshot {
+  id: string;
+  date: any;
+  industry: string;
+  region: string;
+  entries: RankingEntry[];
 }
