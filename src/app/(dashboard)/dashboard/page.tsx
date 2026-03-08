@@ -21,7 +21,9 @@ import {
   Trophy,
   Globe,
   BarChart3,
-  TrendingDown
+  TrendingDown,
+  ArrowUpRight,
+  LineChart
 } from "lucide-react";
 import Link from "next/link";
 import { 
@@ -40,32 +42,24 @@ import { collection, query, orderBy, limit, getDocs, where } from "firebase/fire
 import { db } from "@/lib/firebase-config";
 import { ScanRecord } from "@/lib/types";
 
-const MOCK_TREND_DATA = [
-  { name: 'Jan', score: 62 },
-  { name: 'Feb', score: 65 },
-  { name: 'Mar', score: 64 },
-  { name: 'Apr', score: 68 },
-  { name: 'May', score: 72 },
-  { name: 'Jun', score: 71 },
-];
-
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [recentScans, setRecentScans] = useState<ScanRecord[]>([]);
+  const [scans, setScans] = useState<ScanRecord[]>([]);
 
   useEffect(() => {
     async function fetchDashboardData() {
       setLoading(true);
       try {
+        // Fetch more scans to find the first one for progress tracking
         const q = query(
           collection(db, "scans"), 
           where("status", "==", "completed"),
           orderBy("date", "desc"), 
-          limit(5)
+          limit(20)
         );
         const snapshot = await getDocs(q);
-        const scans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord));
-        setRecentScans(scans);
+        const fetchedScans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord));
+        setScans(fetchedScans);
       } catch (error) {
         console.error("Dashboard error:", error);
       } finally {
@@ -75,7 +69,50 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
-  const latestScan = useMemo(() => recentScans[0] || null, [recentScans]);
+  const latestScan = useMemo(() => scans[0] || null, [scans]);
+  const firstScan = useMemo(() => scans[scans.length - 1] || null, [scans]);
+
+  const progressMetrics = useMemo(() => {
+    if (!latestScan || !firstScan || scans.length < 2) return null;
+
+    const totalImprovement = latestScan.results.overallScore - firstScan.results.overallScore;
+    
+    const categoryImprovements = [
+      { 
+        label: "Visibility", 
+        gain: latestScan.results.categoryScores.presence - firstScan.results.categoryScores.presence,
+        icon: Search 
+      },
+      { 
+        label: "Accuracy", 
+        gain: latestScan.results.categoryScores.descriptionAccuracy - firstScan.results.categoryScores.descriptionAccuracy,
+        icon: ShieldCheck 
+      },
+      { 
+        label: "Citation", 
+        gain: latestScan.results.categoryScores.citationStrength - firstScan.results.categoryScores.citationStrength,
+        icon: Target 
+      },
+      { 
+        label: "Coverage", 
+        gain: latestScan.results.categoryScores.serviceCoverage - firstScan.results.categoryScores.serviceCoverage,
+        icon: Zap 
+      },
+    ];
+
+    return {
+      totalImprovement,
+      categoryImprovements,
+      onboardingDate: firstScan.date?.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+    };
+  }, [latestScan, firstScan, scans]);
+
+  const chartData = useMemo(() => {
+    return [...scans].reverse().map(s => ({
+      name: s.date?.toDate().toLocaleDateString(undefined, { month: 'short' }),
+      score: s.results.overallScore
+    }));
+  }, [scans]);
 
   if (loading) {
     return (
@@ -109,6 +146,73 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Discoverability Progress Section */}
+      {progressMetrics && (
+        <Card className="border-none shadow-sm bg-white overflow-hidden">
+          <CardHeader className="pb-4 border-b bg-muted/20">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">Strategy Insight • Growth Narrative</div>
+                <CardTitle className="text-lg font-black tracking-tight flex items-center gap-2 text-primary">
+                  <TrendingUp className="w-5 h-5 text-accent" />
+                  AI Discoverability Progress
+                </CardTitle>
+              </div>
+              <Badge className="bg-green-50 text-green-700 border-green-200 text-[9px] uppercase font-bold tracking-widest px-2 py-1">
+                Onboarded {progressMetrics.onboardingDate}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid md:grid-cols-12 gap-8 items-center">
+              <div className="md:col-span-4 space-y-4 border-r pr-8">
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase">Total Score Yield</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-5xl font-black text-primary">+{progressMetrics.totalImprovement.toFixed(1)}</span>
+                    <span className="text-sm font-bold text-muted-foreground">Points</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Your AI discoverability has improved by <strong>{progressMetrics.totalImprovement.toFixed(1)} points</strong> since your initial audit.
+                  </p>
+                </div>
+                <div className="flex gap-4 pt-2">
+                   <div className="space-y-0.5">
+                      <div className="text-[9px] font-bold text-muted-foreground uppercase">First Scan</div>
+                      <div className="text-lg font-bold text-primary/60">{firstScan?.results.overallScore.toFixed(1)}</div>
+                   </div>
+                   <ArrowRight className="w-4 h-4 text-muted-foreground mt-6" />
+                   <div className="space-y-0.5">
+                      <div className="text-[9px] font-bold text-muted-foreground uppercase">Latest Scan</div>
+                      <div className="text-lg font-bold text-primary">{latestScan?.results.overallScore.toFixed(1)}</div>
+                   </div>
+                </div>
+              </div>
+              <div className="md:col-span-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {progressMetrics.categoryImprovements.map((cat, i) => (
+                  <div key={i} className="p-4 bg-muted/30 rounded-2xl border border-transparent hover:border-primary/10 transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                       <cat.icon className="w-4 h-4 text-primary opacity-40" />
+                       <div className={cn(
+                         "text-[10px] font-bold flex items-center gap-0.5",
+                         cat.gain >= 0 ? "text-green-600" : "text-red-500"
+                       )}>
+                         {cat.gain >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                         {Math.abs(cat.gain).toFixed(1)}
+                       </div>
+                    </div>
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{cat.label}</div>
+                    <div className="text-xl font-black text-primary mt-1">
+                      {latestScan?.results.categoryScores[cat.label.toLowerCase().replace(' ', '') as keyof typeof latestScan.results.categoryScores]?.toFixed(0) || "0"}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Market Benchmarking Summary */}
       {latestScan?.results?.benchmark && (
@@ -165,7 +269,7 @@ export default function DashboardPage() {
         <ScoreCard 
           title="Overall Visibility" 
           score={latestScan?.results?.overallScore || 72.4} 
-          trend={4.2} 
+          trend={latestScan && firstScan ? latestScan.results.overallScore - firstScan.results.overallScore : 0} 
           icon={Search} 
           description="Avg. AI prominence"
           tooltip="Consolidated score based on weighted discovery vectors."
@@ -173,7 +277,7 @@ export default function DashboardPage() {
         <ScoreCard 
           title="Description Accuracy" 
           score={latestScan?.results?.categoryScores?.descriptionAccuracy || 88.1} 
-          trend={1.5} 
+          trend={latestScan && firstScan ? latestScan.results.categoryScores.descriptionAccuracy - firstScan.results.categoryScores.descriptionAccuracy : 0} 
           icon={ShieldCheck} 
           description="Model alignment"
           tooltip="Accuracy of AI-generated business summaries."
@@ -181,7 +285,7 @@ export default function DashboardPage() {
         <ScoreCard 
           title="Competitor Threat" 
           score={latestScan?.results?.categoryScores?.competitorShareOfVoice || 34.2} 
-          trend={-2.1} 
+          trend={latestScan && firstScan ? latestScan.results.categoryScores.competitorShareOfVoice - firstScan.results.categoryScores.competitorShareOfVoice : 0} 
           icon={Users} 
           description="Rival share of voice"
           tooltip="Aggressiveness of competitor recommendations."
@@ -189,7 +293,7 @@ export default function DashboardPage() {
         <ScoreCard 
           title="Citation Strength" 
           score={latestScan?.results?.categoryScores?.citationStrength || 65.5} 
-          trend={8.4} 
+          trend={latestScan && firstScan ? latestScan.results.categoryScores.citationStrength - firstScan.results.categoryScores.citationStrength : 0} 
           icon={Target} 
           description="Authority sourcing"
           tooltip="Quality of sources cited by AI models."
@@ -197,7 +301,7 @@ export default function DashboardPage() {
         <ScoreCard 
           title="Service Coverage" 
           score={latestScan?.results?.categoryScores?.serviceCoverage || 54.0} 
-          trend={0.8} 
+          trend={latestScan && firstScan ? latestScan.results.categoryScores.serviceCoverage - firstScan.results.categoryScores.serviceCoverage : 0} 
           icon={Zap} 
           description="Category indexing"
           tooltip="Depth of service taxonomy discovery."
@@ -210,13 +314,13 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg font-bold text-primary">Visibility Trend</CardTitle>
-              <CardDescription>Overall AI Index over last 6 months</CardDescription>
+              <CardDescription>Historical AI Index Performance</CardDescription>
             </div>
-            <TrendingUp className="w-5 h-5 text-muted-foreground" />
+            <LineChart className="w-5 h-5 text-muted-foreground" />
           </CardHeader>
           <CardContent className="h-[300px] w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={MOCK_TREND_DATA}>
+              <AreaChart data={chartData.length > 0 ? chartData : [{ name: 'Empty', score: 0 }]}>
                 <defs>
                   <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#174C80" stopOpacity={0.1}/>
@@ -319,7 +423,7 @@ export default function DashboardPage() {
           <History className="w-5 h-5 text-muted-foreground" />
         </CardHeader>
         <CardContent className="p-0">
-          {recentScans.length > 0 ? (
+          {scans.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-muted/50 text-muted-foreground font-bold uppercase text-[10px] tracking-widest">
@@ -332,7 +436,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {recentScans.map((scan, i) => (
+                  {scans.slice(0, 5).map((scan, i) => (
                     <tr key={i} className="hover:bg-muted/30 transition-colors">
                       <td className="px-6 py-4 font-medium text-primary">
                         {scan.date?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
