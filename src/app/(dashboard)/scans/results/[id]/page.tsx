@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ScoreCard } from "@/components/dashboard/score-card";
@@ -26,7 +27,8 @@ import {
   Scale,
   ArrowUpRight,
   ChevronRight,
-  TrendingDown
+  TrendingDown,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -152,7 +154,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
-      {/* Primary KPI Row with Model-Driven Tooltips */}
+      {/* Primary KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <ScoreCard 
           title="Overall Visibility" 
@@ -197,65 +199,70 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         />
       </div>
 
-      {/* Optimization Scenario Section */}
-      <Card className="border-none shadow-xl bg-gradient-to-br from-primary to-[#0d2a4a] text-white overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
+      {/* Projected Improvement: Optimization Scenario */}
+      <Card className="border-none shadow-2xl bg-gradient-to-br from-[#174C80] via-[#0d2a4a] to-black text-white overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
           <div className="space-y-1">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-accent" />
-              Optimization Scenario: Projected Impact
+            <CardTitle className="text-2xl font-bold flex items-center gap-2">
+              <Sparkles className="w-7 h-7 text-accent animate-pulse" />
+              Projected Improvement
             </CardTitle>
-            <CardDescription className="text-white/60 text-sm">Estimated visibility gains following implementation of recommended actions</CardDescription>
+            <CardDescription className="text-white/60 text-base">Strategic visibility uplift following implementation of prioritized actions</CardDescription>
           </div>
-          <Badge className="bg-accent text-primary font-bold px-3 py-1">Strategic Projection</Badge>
+          <Badge className="bg-accent text-primary font-bold px-4 py-1.5 text-xs uppercase tracking-widest">Executive Projection</Badge>
         </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid lg:grid-cols-4 gap-8">
-            <div className="flex flex-col justify-center items-center p-6 bg-white/5 rounded-2xl border border-white/10 text-center">
-              <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Current Baseline</div>
-              <div className="text-4xl font-bold mb-4">{results.overallScore.toFixed(1)}</div>
-              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-white/30" style={{ width: `${results.overallScore}%` }} />
+        <CardContent className="pt-8 relative z-10">
+          <div className="grid lg:grid-cols-12 gap-10 items-center">
+            {/* Score Comparison */}
+            <div className="lg:col-span-5 grid grid-cols-2 gap-4">
+              <div className="p-8 bg-white/5 rounded-3xl border border-white/10 text-center space-y-2 backdrop-blur-sm">
+                <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">Current Index</div>
+                <div className="text-5xl font-black">{results.overallScore.toFixed(1)}</div>
+                <div className="text-[10px] text-white/60 font-medium">Industry Average: 64.2</div>
+              </div>
+              <div className="p-8 bg-accent/10 rounded-3xl border border-accent/30 text-center space-y-2 relative overflow-hidden backdrop-blur-sm">
+                <div className="absolute top-0 left-0 w-full h-1 bg-accent/50" />
+                <div className="text-[10px] font-bold text-accent uppercase tracking-[0.2em]">Projected Index</div>
+                <div className="text-5xl font-black text-accent">{projection.projectedOverall.toFixed(1)}</div>
+                <div className="text-[10px] text-accent/80 font-bold uppercase">+{projection.totalGain.toFixed(1)} Gain</div>
               </div>
             </div>
 
-            <div className="flex flex-col justify-center items-center">
-              <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center mb-2">
-                <ChevronRight className="w-6 h-6 text-accent" />
+            {/* Growth Driver Explanation */}
+            <div className="lg:col-span-7 space-y-6">
+              <div className="space-y-4">
+                <div className="text-xs font-bold text-white/50 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <Layers className="w-4 h-4" /> Growth Vectors by Category
+                </div>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {projection.improvements.map((imp, i) => (
+                    <div key={i} className="flex items-center justify-between p-3.5 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-accent shadow-[0_0_8px_rgba(0,210,255,0.8)]" />
+                        <span className="text-sm font-medium opacity-90">{imp.label}</span>
+                      </div>
+                      <span className="text-sm font-bold text-accent">+{imp.gain}%</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="text-[10px] font-bold text-accent uppercase tracking-tighter">Gain: +{projection.totalGain.toFixed(1)}</div>
-            </div>
 
-            <div className="flex flex-col justify-center items-center p-6 bg-accent/10 rounded-2xl border border-accent/20 text-center relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-2">
-                <Zap className="w-4 h-4 text-accent animate-pulse" />
+              <div className="p-5 bg-primary/20 rounded-2xl border border-white/5 flex gap-4 items-start">
+                <Lightbulb className="w-6 h-6 text-accent shrink-0 mt-1" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold">Primary Improvement Drivers</h4>
+                  <p className="text-xs text-white/60 leading-relaxed">
+                    This uplift is primarily driven by the deployment of <strong>JSON-LD technical entity signals</strong> and the refinement of <strong>service taxonomy content</strong>. By clarifying these vectors, LLMs can resolve identity ambiguity, leading to higher citation strength and definitive discovery for high-intent queries.
+                  </p>
+                </div>
               </div>
-              <div className="text-[10px] font-bold text-accent uppercase tracking-widest mb-1">Optimized Projection</div>
-              <div className="text-5xl font-bold text-accent mb-4">{projection.projectedOverall.toFixed(1)}</div>
-              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-accent" style={{ width: `${projection.projectedOverall}%` }} />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="text-xs font-bold text-white/70 uppercase mb-2">Growth Vectors</div>
-              <div className="space-y-2">
-                {projection.improvements.slice(0, 3).map((imp, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs p-2 bg-white/5 rounded-lg border border-white/10">
-                    <span className="opacity-80">{imp.label}</span>
-                    <span className="text-accent font-bold">+{imp.gain}%</span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] text-white/50 italic leading-tight">
-                *Projections assume high-priority deployment of technical entity signals and capability taxonomy clarity.
-              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Why this score? - Transparent Methodology Section */}
+      {/* Why this score? */}
       <div className="grid lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 border-none shadow-sm bg-white overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20 py-4 px-6">
@@ -326,7 +333,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           </CardContent>
         </Card>
 
-        {/* Scoring Insight Summary */}
+        {/* Methodology Card */}
         <Card className="border-none shadow-sm bg-primary text-white overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -357,15 +364,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                     <h5 className="text-sm font-bold">Dynamic Weighting</h5>
                     <p className="text-xs opacity-70">Weights are tuned based on industry vertical norms and intent classification.</p>
                   </div>
-               </div>
-            </div>
-            <div className="pt-4 border-t border-white/10">
-               <div className="flex justify-between items-center text-xs font-bold mb-2 uppercase tracking-widest text-white/50">
-                 Market Baseline
-                 <span>Avg: 64.2</span>
-               </div>
-               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                 <div className="h-full bg-accent w-[64%]" />
                </div>
             </div>
           </CardContent>
@@ -420,7 +418,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           </CardContent>
         </Card>
 
-        {/* Missed Opportunities / Gaps */}
+        {/* Missed Opportunities */}
         <Card className="border-none shadow-sm bg-white overflow-hidden">
           <CardHeader className="border-b bg-red-50/30">
             <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
@@ -448,14 +446,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                   </div>
                 </div>
               ))}
-              {(!queryDiscovery || queryDiscovery.queries.every(q => q.results.some(r => r.isTargetCompanyMentioned))) && (
-                <div className="p-12 text-center flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <p className="text-xs text-muted-foreground italic">No significant discovery gaps found in current vector set.</p>
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
