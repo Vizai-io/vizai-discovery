@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { RankingService } from "@/lib/services/ranking-service";
 import { RankingSnapshot, RankingEntry } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,10 +17,17 @@ import {
   Building2, 
   Loader2,
   Medal,
-  Search
+  Search,
+  BarChart3,
+  Target,
+  Users,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 
 export default function RankingsPage() {
   const [snapshot, setSnapshot] = useState<RankingSnapshot | null>(null);
@@ -43,15 +50,43 @@ export default function RankingsPage() {
     entry.companyName.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
+  // Benchmarking Calculations
+  const benchmarks = useMemo(() => {
+    if (!snapshot || snapshot.entries.length === 0) return null;
+    
+    const entries = snapshot.entries;
+    const scores = entries.map(e => e.score);
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const topScore = Math.max(...scores);
+    
+    const myEntry = entries.find(e => e.companyName === "Acme Logistics");
+    const myScore = myEntry?.score || 0;
+    const myRank = myEntry?.rank || entries.length;
+    
+    // Simple percentile calculation
+    const percentile = ((entries.length - myRank + 1) / entries.length) * 100;
+
+    return {
+      avgScore,
+      topScore,
+      myScore,
+      percentile,
+      totalCompanies: entries.length,
+      isLeader: percentile >= 80,
+      isUnderperforming: myScore < avgScore
+    };
+  }, [snapshot]);
+
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h2 className="text-3xl font-bold text-primary flex items-center gap-2">
-            <Trophy className="w-8 h-8 text-accent" />
-            Industry Leaderboards
-          </h2>
+          <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] mb-1">
+            <Trophy className="w-3 h-3 text-accent" />
+            Market Intelligence • Global Benchmarking
+          </div>
+          <h2 className="text-3xl font-bold text-primary tracking-tight">Industry Leaderboards</h2>
           <p className="text-muted-foreground mt-1">
             Real-time AI Visibility rankings across global markets.
           </p>
@@ -88,161 +123,249 @@ export default function RankingsPage() {
         </div>
       </div>
 
-      {/* Rankings Table */}
-      <Card className="border-none shadow-sm overflow-hidden">
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <CardTitle className="text-lg font-bold text-primary">Top Performers</CardTitle>
-            <CardDescription>
-              Based on the latest aggregated AI scan scores for <strong>{industry}</strong> in <strong>{region}</strong>.
-            </CardDescription>
-          </div>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search companies..." 
-              className="pl-9 h-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-4">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <p className="font-medium">Calculating visibility snapshots...</p>
+      {/* Market Benchmarking Summaries */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Industry Average</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{benchmarks?.avgScore.toFixed(1) || "..."}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Mean visibility for {industry}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Top Performer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-accent">{benchmarks?.topScore.toFixed(1) || "..."}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Maximum achievable signal health</p>
+          </CardContent>
+        </Card>
+        <Card className="border-none shadow-sm bg-primary text-white">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Your Visibility</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{benchmarks?.myScore.toFixed(1) || "..."}</div>
+            <p className="text-[10px] text-white/50 mt-1">Current Acme Logistics score</p>
+          </CardContent>
+        </Card>
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Percentile Position</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{benchmarks?.percentile.toFixed(0) || "..."}th</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Relative to {benchmarks?.totalCompanies} rivals</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Rankings Table */}
+        <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden bg-white">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b bg-muted/10 py-4 px-6">
+            <div>
+              <CardTitle className="text-lg font-bold text-primary">Market Leaders</CardTitle>
+              <CardDescription className="text-xs">
+                Performance snapshot for <strong>{industry}</strong> in <strong>{region}</strong>.
+              </CardDescription>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead className="w-[80px] text-center font-bold uppercase text-[10px]">Rank</TableHead>
-                    <TableHead className="font-bold uppercase text-[10px]">Company Name</TableHead>
-                    <TableHead className="font-bold uppercase text-[10px] text-center">Score</TableHead>
-                    <TableHead className="font-bold uppercase text-[10px] text-center">Trend</TableHead>
-                    <TableHead className="font-bold uppercase text-[10px]">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredEntries.length > 0 ? (
-                    filteredEntries.map((entry) => (
-                      <TableRow key={entry.companyName} className="hover:bg-muted/20 transition-colors group">
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center">
-                            {entry.rank <= 3 ? (
-                              <div className={cn(
-                                "w-8 h-8 rounded-full flex items-center justify-center text-white font-bold",
-                                entry.rank === 1 ? "bg-yellow-500" : entry.rank === 2 ? "bg-slate-400" : "bg-orange-400"
-                              )}>
-                                {entry.rank}
-                              </div>
-                            ) : (
-                              <span className="text-sm font-bold text-muted-foreground">{entry.rank}</span>
-                            )}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search companies..." 
+                className="pl-9 h-9 bg-white border-none shadow-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-4">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="font-medium">Calculating visibility snapshots...</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead className="w-[80px] text-center font-bold uppercase text-[10px] tracking-widest">Rank</TableHead>
+                      <TableHead className="font-bold uppercase text-[10px] tracking-widest">Company</TableHead>
+                      <TableHead className="font-bold uppercase text-[10px] tracking-widest text-center">AI Index</TableHead>
+                      <TableHead className="font-bold uppercase text-[10px] tracking-widest text-center">Trend</TableHead>
+                      <TableHead className="font-bold uppercase text-[10px] tracking-widest">Classification</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredEntries.length > 0 ? (
+                      filteredEntries.map((entry) => (
+                        <TableRow key={entry.companyName} className="hover:bg-muted/20 transition-colors group">
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center">
+                              {entry.rank <= 3 ? (
+                                <div className={cn(
+                                  "w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-sm",
+                                  entry.rank === 1 ? "bg-yellow-500" : entry.rank === 2 ? "bg-slate-400" : "bg-orange-400"
+                                )}>
+                                  {entry.rank}
+                                </div>
+                              ) : (
+                                <span className="text-sm font-bold text-muted-foreground">{entry.rank}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-bold text-primary group-hover:text-accent transition-colors flex items-center">
+                              {entry.companyName}
+                              {entry.companyName === "Acme Logistics" && (
+                                <Badge className="ml-2 bg-primary/10 text-primary border-none text-[8px] uppercase tracking-widest">You</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="text-lg font-bold text-primary">
+                              {entry.score.toFixed(1)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center">
+                              {entry.change > 0 ? (
+                                <div className="flex items-center gap-1 text-green-600 font-bold text-[10px] bg-green-50 px-2 py-1 rounded-full border border-green-100">
+                                  <TrendingUp className="w-3 h-3" />
+                                  +{entry.change}
+                                </div>
+                              ) : entry.change < 0 ? (
+                                <div className="flex items-center gap-1 text-red-600 font-bold text-[10px] bg-red-50 px-2 py-1 rounded-full border border-red-100">
+                                  <TrendingDown className="w-3 h-3" />
+                                  {entry.change}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 text-muted-foreground font-bold text-[10px] bg-muted/50 px-2 py-1 rounded-full border border-transparent">
+                                  <Minus className="w-3 h-3" />
+                                  0
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                             <div className="flex items-center gap-2">
+                                <div className={cn(
+                                  "w-2 h-2 rounded-full shadow-sm",
+                                  entry.score > 80 ? "bg-green-500" : entry.score > 60 ? "bg-yellow-500" : "bg-red-500"
+                                )} />
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                  {entry.score > 80 ? "AI Leader" : entry.score > 60 ? "Market Stable" : "Discovery Deficit"}
+                                </span>
+                             </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic">
+                          <div className="flex flex-col items-center gap-2">
+                            <Search className="w-8 h-8 opacity-20" />
+                            No companies found matching your query.
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-bold text-primary group-hover:text-accent transition-colors">
-                            {entry.companyName}
-                            {entry.companyName === "Acme Logistics" && (
-                              <Badge className="ml-2 bg-primary/10 text-primary border-none text-[8px] uppercase">You</Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="text-lg font-bold text-primary">
-                            {entry.score.toFixed(1)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center">
-                            {entry.change > 0 ? (
-                              <div className="flex items-center gap-1 text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded-full border border-green-100">
-                                <TrendingUp className="w-3 h-3" />
-                                +{entry.change}
-                              </div>
-                            ) : entry.change < 0 ? (
-                              <div className="flex items-center gap-1 text-red-600 font-bold text-xs bg-red-50 px-2 py-1 rounded-full border border-red-100">
-                                <TrendingDown className="w-3 h-3" />
-                                {entry.change}
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1 text-muted-foreground font-bold text-xs bg-muted/50 px-2 py-1 rounded-full border border-transparent">
-                                <Minus className="w-3 h-3" />
-                                0
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                           <div className="flex items-center gap-2">
-                              <div className={cn(
-                                "w-2 h-2 rounded-full",
-                                entry.score > 80 ? "bg-green-500" : entry.score > 60 ? "bg-yellow-500" : "bg-red-500"
-                              )} />
-                              <span className="text-xs font-medium text-muted-foreground uppercase tracking-tighter">
-                                {entry.score > 80 ? "AI Leader" : entry.score > 60 ? "Stable" : "At Risk"}
-                              </span>
-                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
-                        No companies found matching your search.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Top Insights */}
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="border-none shadow-sm bg-accent/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold text-primary uppercase tracking-widest">Market Leader</CardTitle>
-          </CardHeader>
-          <CardContent>
-             {!loading && snapshot?.entries[0] && (
-               <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-accent flex items-center justify-center text-primary">
-                    <Medal className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-primary">{snapshot.entries[0].companyName}</div>
-                    <div className="text-xs text-muted-foreground">Highest AI coverage in {region}</div>
-                  </div>
-               </div>
-             )}
-          </CardContent>
-        </Card>
-        
-        <Card className="border-none shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold text-primary uppercase tracking-widest">Global Avg. Score</CardTitle>
-          </CardHeader>
-          <CardContent>
-             <div className="text-3xl font-bold text-primary">68.4</div>
-             <p className="text-xs text-muted-foreground mt-1">Across all tracked regions</p>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold text-primary uppercase tracking-widest">Next Snapshot</CardTitle>
-          </CardHeader>
-          <CardContent>
-             <div className="text-3xl font-bold text-primary">02:14:45</div>
-             <p className="text-xs text-muted-foreground mt-1">Time remaining for recalculation</p>
-          </CardContent>
-        </Card>
+        {/* Benchmarking Comparison Panel */}
+        <div className="space-y-6">
+          <Card className="border-none shadow-sm bg-gradient-to-br from-[#174C80] to-[#0d2a4a] text-white overflow-hidden">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest text-accent">
+                  <BarChart3 className="w-4 h-4" />
+                  How You Compare
+                </CardTitle>
+                <Badge className="bg-white/10 text-white border-white/20 text-[8px] uppercase font-bold tracking-widest">Live Audit</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] font-bold uppercase text-white/60">
+                    <span>Discovery Index</span>
+                    <span>{benchmarks?.myScore.toFixed(1)} / 100</span>
+                  </div>
+                  <Progress value={benchmarks?.myScore} className="h-1.5 bg-white/10" />
+                </div>
+                <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "p-1.5 rounded-lg shrink-0",
+                      benchmarks?.isLeader ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"
+                    )}>
+                      {benchmarks?.isLeader ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold mb-1">
+                        {benchmarks?.isLeader ? "Sector Leader Status" : "Opportunity for Gain"}
+                      </h4>
+                      <p className="text-[10px] opacity-70 leading-relaxed">
+                        {benchmarks?.isLeader 
+                          ? "Your brand currently occupies the top 20th percentile of AI discovery responses. Defensive signaling is recommended."
+                          : `You are performing at ${benchmarks?.percentile.toFixed(0)}% of market capacity. Significant visibility gaps identified.`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t border-white/10">
+                <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-3">Executive Recommendation</div>
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/10 border border-accent/20">
+                   <Target className="w-4 h-4 text-accent" />
+                   <div className="text-[10px] font-medium leading-relaxed italic">
+                     {benchmarks?.isUnderperforming 
+                       ? "Focus on increasing structured entity signals to bridge the gap with industry average."
+                       : "Strengthen authoritative citations to solidify your position against rising competitors."}
+                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm bg-white overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold text-primary uppercase tracking-widest">Top Performers Analysis</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y">
+                {snapshot?.entries.slice(0, 3).map((e, i) => (
+                  <div key={i} className="px-6 py-4 flex items-center justify-between group hover:bg-muted/10 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs font-bold text-muted-foreground w-4">#{e.rank}</div>
+                      <div className="text-sm font-bold text-primary">{e.companyName}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-primary">{e.score.toFixed(1)}</div>
+                      <div className="text-[8px] text-muted-foreground uppercase font-bold tracking-tighter">AI Discovery Score</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 border-t bg-muted/20">
+                <button className="w-full text-[10px] font-bold text-primary flex items-center justify-center gap-1 uppercase tracking-widest hover:text-accent transition-colors">
+                  View Full Sector Report <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
