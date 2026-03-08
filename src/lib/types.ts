@@ -108,6 +108,11 @@ export interface ScanRecord {
   queryDiscovery?: QueryDiscoveryData;
   queryLibraryUsed?: string[];
   realQueryResults?: RealQueryResult[];
+  // Share Settings
+  shareEnabled?: boolean;
+  shareCreatedAt?: any;
+  viewCount?: number;
+  lastViewedAt?: any;
 }
 
 export interface RealQueryResult {

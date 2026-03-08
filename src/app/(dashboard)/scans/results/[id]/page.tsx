@@ -35,10 +35,19 @@ import {
   Check,
   Radar,
   FileSearch,
-  Lock
+  Lock,
+  Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogTrigger
+} from "@/components/ui/dialog";
 import { useState, useEffect, useMemo } from "react";
 import { QueryDiscoveryData, StrategicRecommendation, QueryRecord, RealQueryResult, ScanResults, ScanRecord } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
@@ -48,6 +57,7 @@ import Link from "next/link";
 import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { SCORING_MODEL, calculateProjectedImprovement } from "@/lib/services/scoring-model";
+import { toast } from "@/hooks/use-toast";
 
 export default function ScanResultsPage({ params }: { params: { id: string } }) {
   const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
@@ -133,6 +143,15 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       });
   }, [queryDiscovery, results]);
 
+  const copyShareLink = () => {
+    const url = `${window.location.origin}/share/${scanRecord?.id}`;
+    navigator.clipboard.writeText(url);
+    toast({
+      title: "Link Copied",
+      description: "External presentation URL copied to clipboard.",
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -171,9 +190,44 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 rounded-full">
-            <Share2 className="w-4 h-4" /> Share Access
-          </Button>
+          {scanRecord?.shareEnabled ? (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 rounded-full">
+                  <Share2 className="w-4 h-4" /> Shared Access
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>External Presentation Link</DialogTitle>
+                  <DialogDescription>
+                    This audit has been approved for external sharing. Anyone with this link can view the read-only presentation.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex items-center space-x-2 pt-4">
+                  <div className="grid flex-1 gap-2">
+                    <label htmlFor="link" className="sr-only">Link</label>
+                    <div className="flex items-center gap-2 bg-muted/50 p-3 rounded-xl">
+                      <span className="text-xs font-medium truncate flex-1">
+                        {`${window.location.origin}/share/${scanRecord.id}`}
+                      </span>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={copyShareLink}>
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-4 border-t mt-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <span>View Count: {scanRecord.viewCount || 0}</span>
+                  <span>Last Viewed: {scanRecord.lastViewedAt ? scanRecord.lastViewedAt.toDate().toLocaleDateString() : 'Never'}</span>
+                </div>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 rounded-full opacity-50 cursor-not-allowed" disabled>
+              <Lock className="w-4 h-4" /> Share Access
+            </Button>
+          )}
           <Link href={`/scans/report/${params.id}`}>
             <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 rounded-full px-6">
               <ExternalLink className="w-4 h-4" /> Presentation View
