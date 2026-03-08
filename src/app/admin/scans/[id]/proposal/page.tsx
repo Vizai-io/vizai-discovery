@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/firebase/config";
+import { db } from "@/lib/firebase-config";
 import { ScanRecord, ProposalData, ServicePackageType } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -201,7 +201,7 @@ export default function ProposalBuilderPage({ params }: { params: { id: string }
                     {activePackageInfo.label}
                   </Badge>
                 </div>
-                <h2 className="text-2xl font-black tracking-tight leading-tight">Recommended Engagement Framework</h2>
+                <h2 className="text-2xl font-black tracking-tight leading-tight">Recommended Engagement Framework framework</h2>
                 <p className="text-sm text-white/70 max-w-lg leading-relaxed">{activePackageInfo.description}</p>
               </div>
               <div className="grid grid-cols-1 gap-2 shrink-0">

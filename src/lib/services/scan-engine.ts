@@ -11,9 +11,9 @@ import { MockAdapter } from "./adapters/mock-adapter";
 import { DiscoveryContext } from "./adapters/provider-interface";
 import { QueryLibraryService } from "./query-library-service";
 import { BenchmarkService } from "./benchmark-service";
-import { WebsiteExtractor } from "./website-extractor";
-import { EntityEnrichment } from "./entity-enrichment";
-import { PresenceEnrichment } from "./presence-enrichment";
+import { extractWebsiteSignals } from "./website-extractor";
+import { enrichEntity } from "./entity-enrichment";
+import { analyzePresence } from "./presence-enrichment";
 import { RealQueryEngine } from "./real-query-engine";
 import { DiscoveryDataService } from "./discovery-data-service";
 import { db } from "@/lib/firebase-config";
@@ -34,17 +34,17 @@ export class ScanEngine {
    */
   static async runScan(input: any, profileId: string = "demo_id", scanIdPlaceholder?: string): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData, realQueryResults?: RealQueryResult[] }> {
     // 1. Extract Website Intelligence
-    const websiteSignals = await WebsiteExtractor.extractSignals(input.website, profileId);
+    const websiteSignals = await extractWebsiteSignals(input.website, profileId);
     if (websiteSignals) {
       await setDoc(doc(db, "websiteSignals", websiteSignals.id), websiteSignals);
     }
 
     // 2. Business Entity Enrichment
-    const entitySignal = await EntityEnrichment.enrich(input, websiteSignals);
+    const entitySignal = await enrichEntity(input, websiteSignals);
     await setDoc(doc(db, "entitySignals", entitySignal.id), entitySignal);
 
     // 3. Local Presence Signal Analysis
-    const presenceSignal = await PresenceEnrichment.analyzePresence(input);
+    const presenceSignal = await analyzePresence(input);
     await setDoc(doc(db, "presenceSignals", presenceSignal.id), presenceSignal);
 
     // 4. Generate core report findings (Narrative Analysis)
