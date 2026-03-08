@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -24,6 +25,7 @@ import { toast } from "@/hooks/use-toast";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { cn } from "@/lib/utils";
+import { ScanEngine } from "@/lib/services/scan-engine";
 
 const STEPS = [
   { id: 1, title: "Company", icon: Building2 },
@@ -65,34 +67,48 @@ export default function NewScanWizard() {
     setLoading(true);
     try {
       // 1. Save Company Profile to Firestore
-      const profileRef = await addDoc(collection(db, "companyProfiles"), {
+      const profileData = {
         ...formData,
         serviceCategories: formData.serviceCategories.split(",").map(s => s.trim()),
         competitors: formData.competitors.split(",").map(c => c.trim()),
         createdAt: serverTimestamp(),
         organizationId: "org_default_acme" // Mock org for v0.1
-      });
+      };
 
-      // 2. Simulate Scan Creation
-      await addDoc(collection(db, "scans"), {
+      const profileRef = await addDoc(collection(db, "companyProfiles"), profileData);
+
+      // 2. Run the Scan Engine (Includes Website Intelligence Extraction)
+      const scanOutput = await ScanEngine.runScan({
+        companyName: profileData.companyName,
+        website: profileData.website,
+        industry: profileData.industry,
+        serviceCategories: profileData.serviceCategories,
+        targetGeography: profileData.targetGeography,
+        competitors: profileData.competitors,
+      }, profileRef.id);
+
+      // 3. Save Scan to Firestore
+      const scanRef = await addDoc(collection(db, "scans"), {
         profileId: profileRef.id,
         date: serverTimestamp(),
         status: "completed",
-        results: { /* Mock scan results would be generated and stored here */ }
+        results: scanOutput,
+        queryDiscovery: scanOutput.queryDiscovery,
+        organizationId: "org_default_acme"
       });
 
       toast({
-        title: "Scan Initiated",
-        description: "Your AI visibility report is being generated.",
+        title: "Scan Completed",
+        description: "Your AI visibility report has been generated with website intelligence.",
       });
 
-      // 3. Navigate to results
-      router.push("/scans/results/latest");
+      // 4. Navigate to results
+      router.push(`/scans/results/${scanRef.id}`);
     } catch (error) {
       console.error("Scan error:", error);
       toast({
         title: "Scan Failed",
-        description: "There was an error initializing your scan profile.",
+        description: "There was an error analyzing the company footprint.",
         variant: "destructive",
       });
     } finally {
@@ -168,6 +184,9 @@ export default function NewScanWizard() {
                     value={formData.website}
                     onChange={(e) => setFormData({...formData, website: e.target.value})}
                   />
+                  <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-accent" /> Our engine will extract intelligence signals directly from this URL.
+                  </p>
                 </div>
               </div>
             </div>
@@ -267,7 +286,7 @@ export default function NewScanWizard() {
               </div>
               <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 items-start">
                 <Target className="w-5 h-5 text-primary shrink-0" />
-                <p className="text-xs text-primary leading-relaxed">By launching this scan, our engine will perform 24 simulated user intents across 4 major LLM providers to benchmark your visibility.</p>
+                <p className="text-xs text-primary leading-relaxed">By launching this scan, our engine will perform 24 simulated user intents and <strong>extract real-time signals from your website</strong> to benchmark your visibility.</p>
               </div>
             </div>
           )}
@@ -298,9 +317,9 @@ export default function NewScanWizard() {
                 className="bg-accent hover:bg-accent/90 text-primary font-bold gap-2 px-8 shadow-lg shadow-accent/20"
               >
                 {loading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Footprint...</>
                 ) : (
-                  <>Launch Visibility Scan <Zap className="w-4 h-4 fill-current" /></>
+                  <>Launch Intelligence Scan <Zap className="w-4 h-4 fill-current" /></>
                 )}
               </Button>
             )}

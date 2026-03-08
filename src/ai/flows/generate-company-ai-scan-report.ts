@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow to simulate an AI scan for a company and generate a detailed report.
@@ -17,6 +18,14 @@ const GenerateCompanyAIScanReportInputSchema = z.object({
   serviceCategories: z.array(z.string()).describe('List of services or product categories offered by the company.'),
   targetGeography: z.string().describe('The primary geographic market the company targets.'),
   competitors: z.array(z.string()).describe('A list of competitor company names.'),
+  websiteSignals: z.object({
+    title: z.string(),
+    metaDescription: z.string(),
+    h1: z.array(z.string()),
+    jsonLdDetected: z.boolean(),
+    serviceKeywords: z.array(z.string()),
+    locationReferences: z.array(z.string()),
+  }).optional().describe('Technical SEO signals extracted from the company website.'),
 });
 export type GenerateCompanyAIScanReportInput = z.infer<typeof GenerateCompanyAIScanReportInputSchema>;
 
@@ -77,11 +86,18 @@ const scanReportPrompt = ai.definePrompt({
   name: 'companyAIScanReportPrompt',
   input: { schema: GenerateCompanyAIScanReportInputSchema },
   output: { schema: GenerateCompanyAIScanReportOutputSchema },
-  prompt: `You are the VizAI Discovery Scanner, an expert AI visibility analyst. Your task is to generate a detailed, comprehensive AI scan report for a company, based on the provided input.
+  prompt: `You are the VizAI Discovery Scanner, an expert AI visibility analyst. Your task is to generate a detailed, comprehensive AI scan report for a company.
 
-For v0.1, simulate the scan results with realistic, plausible mock data. The output must be a JSON object strictly adhering to the defined output schema, including scores, recommendations, and detailed analysis.
+For v0.1, simulate results based on the inputs and provided technical website signals.
 
-Generate scores (0-100) and descriptions that reflect a typical company in the given industry and geography, and consider the impact of the provided competitors.
+{{#if websiteSignals}}
+TECHNICAL WEBSITE SIGNALS:
+- Title: {{{websiteSignals.title}}}
+- Meta: {{{websiteSignals.metaDescription}}}
+- JSON-LD Found: {{#if websiteSignals.jsonLdDetected}}Yes{{else}}No{{/if}}
+- Detected Services: {{#each websiteSignals.serviceKeywords}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+- Detected Geographies: {{#each websiteSignals.locationReferences}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+{{/if}}
 
 Company Details:
 Name: {{{companyName}}}
@@ -91,7 +107,11 @@ Service Categories: {{#each serviceCategories}}{{{this}}}{{#unless @last}}, {{/u
 Target Geography: {{{targetGeography}}}
 Competitors: {{#each competitors}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 
-Generate a detailed AI scan report in JSON format, ensuring all fields are populated with realistic mock data based on the descriptions in the output schema.`,
+If JSON-LD is missing, decrease 'citationStrength' and 'descriptionAccuracy' scores.
+If serviceKeywords match serviceCategories, increase 'serviceCoverage' score.
+If locationReferences match targetGeography, increase 'presence' score.
+
+Generate a detailed AI scan report in JSON format.`,
 });
 
 const generateCompanyAIScanReportFlow = ai.defineFlow(
@@ -101,8 +121,6 @@ const generateCompanyAIScanReportFlow = ai.defineFlow(
     outputSchema: GenerateCompanyAIScanReportOutputSchema,
   },
   async (input) => {
-    // For v0.1, we directly call the prompt to generate mock data.
-    // In future versions, this flow would orchestrate calls to external LLMs and other services.
     const { output } = await scanReportPrompt(input);
     if (!output) {
       throw new Error('Failed to generate mock AI scan report.');

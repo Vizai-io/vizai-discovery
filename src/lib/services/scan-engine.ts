@@ -4,20 +4,18 @@
  * Decoupled into a Provider Adapter architecture for easy future scaling.
  */
 
-import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput, GenerateCompanyAIScanReportOutput } from "@/ai/flows/generate-company-ai-scan-report";
+import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput } from "@/ai/flows/generate-company-ai-scan-report";
 import { provideAiScanRecommendations, ProvideAiScanRecommendationsOutput } from "@/ai/flows/provide-ai-scan-recommendations";
-import { QueryEngine } from "./query-engine";
-import { QueryDiscoveryData, QueryRecord, IndustryQuery, ScanResults } from "../types";
+import { QueryDiscoveryData, QueryRecord, ScanResults, WebsiteSignal } from "../types";
 import { MockAdapter } from "./adapters/mock-adapter";
 import { DiscoveryContext } from "./adapters/provider-interface";
 import { QueryLibraryService } from "./query-library-service";
 import { BenchmarkService } from "./benchmark-service";
+import { WebsiteExtractor } from "./website-extractor";
+import { db } from "@/lib/firebase-config";
+import { doc, setDoc } from "firebase/firestore";
 
 export class ScanEngine {
-  /**
-   * List of active adapters. In future, real adapters (OpenAI, Perplexity) 
-   * can be added to this array.
-   */
   private static getActiveAdapters() {
     return [
       new MockAdapter('OpenAI', 'GPT-4o'),
@@ -30,11 +28,21 @@ export class ScanEngine {
   /**
    * Run a full scan for a company profile.
    */
-  static async runScan(input: GenerateCompanyAIScanReportInput): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData }> {
-    // 1. Generate core report findings (Narrative Analysis)
-    const report = await generateCompanyAIScanReport(input);
+  static async runScan(input: GenerateCompanyAIScanReportInput, profileId: string): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData }> {
+    // 1. Extract Website Intelligence
+    const websiteSignals = await WebsiteExtractor.extractSignals(input.website, profileId);
+    if (websiteSignals) {
+      await setDoc(doc(db, "websiteSignals", websiteSignals.id), websiteSignals);
+    }
+
+    // 2. Generate core report findings (Narrative Analysis)
+    // Pass signals to the AI flow to influence scores
+    const report = await generateCompanyAIScanReport({
+      ...input,
+      websiteSignals: websiteSignals || undefined
+    });
     
-    // 2. Execute Multi-Vector Discovery (Signal Analysis) using Industry Query Library
+    // 3. Execute Multi-Vector Discovery (Signal Analysis)
     const context: DiscoveryContext = {
       targetCompany: input.companyName,
       industry: input.industry,
@@ -45,7 +53,7 @@ export class ScanEngine {
 
     const queryDiscovery = await this.performDiscovery(context);
 
-    // 3. Calculate Industry Benchmarking
+    // 4. Calculate Industry Benchmarking
     const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
     const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);
 
@@ -71,17 +79,14 @@ export class ScanEngine {
     industry: string;
     targetGeography: string;
   }): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData }> {
-    // 1. Mock minimal inputs for the report flow
     const fullInput: GenerateCompanyAIScanReportInput = {
       ...input,
-      serviceCategories: ["General Service"], // Placeholder
-      competitors: ["Industry Leader A", "Industry Leader B"], // Placeholder
+      serviceCategories: ["General Service"],
+      competitors: ["Industry Leader A", "Industry Leader B"],
     };
 
-    // 2. Generate core report findings
     const report = await generateCompanyAIScanReport(fullInput);
     
-    // 3. Execute Limited Multi-Vector Discovery (Signal Analysis)
     const context: DiscoveryContext = {
       targetCompany: input.companyName,
       industry: input.industry,
@@ -90,7 +95,6 @@ export class ScanEngine {
       competitors: fullInput.competitors
     };
 
-    // Only 3 queries for free scan
     const libraryQueries = await QueryLibraryService.getQueriesForIndustry(context.industry, 3);
     const adapters = this.getActiveAdapters();
     const queryRecords: QueryRecord[] = [];
@@ -121,7 +125,6 @@ export class ScanEngine {
       }
     };
 
-    // 4. Calculate Industry Benchmarking
     const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
     const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);
 
@@ -138,21 +141,13 @@ export class ScanEngine {
     };
   }
 
-  /**
-   * Performs the discovery phase across all active AI providers.
-   * Now utilizes the Industry Query Library for realistic intent vectors.
-   */
   private static async performDiscovery(context: DiscoveryContext): Promise<QueryDiscoveryData> {
     const adapters = this.getActiveAdapters();
-    
-    // Fetch realistic queries from the industry library
     const libraryQueries = await QueryLibraryService.getQueriesForIndustry(context.industry, 8);
-    
     const queryRecords: QueryRecord[] = [];
     let companyMentionCount = 0;
 
     for (const libQuery of libraryQueries) {
-      // Execute discovery across all providers for this specific query vector
       const results = await Promise.all(
         adapters.map(adapter => adapter.executeDiscovery(libQuery.text, context))
       );
@@ -178,25 +173,5 @@ export class ScanEngine {
         coveragePercentage: (companyMentionCount / libraryQueries.length) * 100
       }
     };
-  }
-
-  /**
-   * Generate strategic recommendations based on scan scores.
-   */
-  static async getRecommendations(report: GenerateCompanyAIScanReportOutput, input: GenerateCompanyAIScanReportInput): Promise<ProvideAiScanRecommendationsOutput> {
-    return provideAiScanRecommendations({
-      companyName: input.companyName,
-      industry: input.industry,
-      targetGeography: input.targetGeography,
-      currentScores: {
-        visibilityScore: report.overallScore,
-        descriptionAccuracyScore: report.categoryScores.descriptionAccuracy,
-        citationStrengthScore: report.categoryScores.citationStrength,
-        serviceCoverageScore: report.categoryScores.serviceCoverage,
-        competitorShareOfVoiceScore: report.categoryScores.competitorShareOfVoice,
-      },
-      identifiedGaps: report.knowledgeGaps.map(g => g.description),
-      competitors: input.competitors,
-    });
   }
 }

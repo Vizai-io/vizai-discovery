@@ -30,6 +30,18 @@ export interface CompanyProfile {
   lastScanAt?: any;
 }
 
+export interface WebsiteSignal {
+  id: string;
+  profileId: string;
+  title: string;
+  metaDescription: string;
+  h1: string[];
+  jsonLdDetected: boolean;
+  serviceKeywords: string[];
+  locationReferences: string[];
+  extractedAt: any;
+}
+
 export interface CompetitorProfile {
   id: string;
   name: string;
