@@ -1,3 +1,4 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,8 +43,11 @@ export default function LandingPage() {
           <Link href="/login">
             <Button variant="ghost" className="hidden sm:inline-flex font-bold text-primary">Sign In</Button>
           </Link>
+          <Link href="/free-scan">
+            <Button variant="outline" className="border-primary text-primary hover:bg-primary/5 font-bold px-6">Run Free Scan</Button>
+          </Link>
           <Link href="/demo">
-            <Button className="bg-primary hover:bg-primary/90 text-white font-bold px-6 shadow-lg shadow-primary/20">Launch Demo</Button>
+            <Button className="bg-primary hover:bg-primary/90 text-white font-bold px-6 shadow-lg shadow-primary/20">Launch Full Demo</Button>
           </Link>
         </div>
       </header>
@@ -64,15 +68,17 @@ export default function LandingPage() {
                 Measure and optimize your presence in the AI knowledge layer. We help enterprises understand exactly how ChatGPT, Perplexity, and Gemini discover, describe, and prioritize their services.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Link href="/demo">
+                <Link href="/free-scan">
                   <Button size="lg" className="h-14 px-8 text-lg bg-primary hover:bg-primary/90 shadow-2xl shadow-primary/30 group">
-                    Start Your Intelligence Audit
+                    Get Your Free AI Audit
                     <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </Link>
-                <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-primary/20 text-primary hover:bg-primary/5 font-bold">
-                  View Case Studies
-                </Button>
+                <Link href="/demo">
+                  <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-primary/20 text-primary hover:bg-primary/5 font-bold">
+                    View Interactive Demo
+                  </Button>
+                </Link>
               </div>
               <div className="flex items-center gap-6 pt-6 opacity-70">
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Trusted by AI-Forward Enterprises</div>
@@ -283,9 +289,9 @@ export default function LandingPage() {
               <p className="text-xl text-muted-foreground font-medium">Stop guessing how AI views your brand. Get the definitive visibility report today.</p>
            </div>
            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Link href="/demo">
+              <Link href="/free-scan">
                 <Button size="lg" className="h-16 px-12 text-xl bg-primary hover:bg-primary/90 shadow-2xl shadow-primary/30">
-                  Launch Free Demo Scan
+                  Run Free Scan Now
                 </Button>
               </Link>
               <Button size="lg" variant="outline" className="h-16 px-12 text-xl border-primary text-primary hover:bg-primary/5 font-bold">

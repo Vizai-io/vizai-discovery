@@ -63,6 +63,80 @@ export class ScanEngine {
   }
 
   /**
+   * Run a limited free scan for a company profile.
+   */
+  static async runFreeScan(input: {
+    companyName: string;
+    website: string;
+    industry: string;
+    targetGeography: string;
+  }): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData }> {
+    // 1. Mock minimal inputs for the report flow
+    const fullInput: GenerateCompanyAIScanReportInput = {
+      ...input,
+      serviceCategories: ["General Service"], // Placeholder
+      competitors: ["Industry Leader A", "Industry Leader B"], // Placeholder
+    };
+
+    // 2. Generate core report findings
+    const report = await generateCompanyAIScanReport(fullInput);
+    
+    // 3. Execute Limited Multi-Vector Discovery (Signal Analysis)
+    const context: DiscoveryContext = {
+      targetCompany: input.companyName,
+      industry: input.industry,
+      geography: input.targetGeography,
+      serviceCategories: fullInput.serviceCategories,
+      competitors: fullInput.competitors
+    };
+
+    // Only 3 queries for free scan
+    const libraryQueries = await QueryLibraryService.getQueriesForIndustry(context.industry, 3);
+    const adapters = this.getActiveAdapters();
+    const queryRecords: QueryRecord[] = [];
+    let companyMentionCount = 0;
+
+    for (const libQuery of libraryQueries) {
+      const results = await Promise.all(
+        adapters.map(adapter => adapter.executeDiscovery(libQuery.text, context))
+      );
+      if (results.some(r => r.isTargetCompanyMentioned)) {
+        companyMentionCount++;
+      }
+      queryRecords.push({
+        id: Math.random().toString(36).substr(2, 9),
+        text: libQuery.text,
+        results
+      });
+    }
+
+    const queryDiscovery = {
+      queries: queryRecords,
+      summary: {
+        totalQueries: libraryQueries.length,
+        companyMentionCount,
+        coveragePercentage: (companyMentionCount / libraryQueries.length) * 100
+      }
+    };
+
+    // 4. Calculate Industry Benchmarking
+    const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
+    const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);
+
+    return {
+      ...report,
+      queryDiscovery,
+      benchmark: {
+        industry: benchmarkData.industry,
+        industryAverage: benchmarkData.averageScore,
+        topPerformer: benchmarkData.topScore,
+        percentile: percentile,
+        totalCompanies: benchmarkData.totalCompanies
+      }
+    };
+  }
+
+  /**
    * Performs the discovery phase across all active AI providers.
    * Now utilizes the Industry Query Library for realistic intent vectors.
    */
