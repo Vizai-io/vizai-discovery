@@ -6,13 +6,14 @@
 
 import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput } from "@/ai/flows/generate-company-ai-scan-report";
 import { provideAiScanRecommendations, ProvideAiScanRecommendationsOutput } from "@/ai/flows/provide-ai-scan-recommendations";
-import { QueryDiscoveryData, QueryRecord, ScanResults, WebsiteSignal, EntitySignal } from "../types";
+import { QueryDiscoveryData, QueryRecord, ScanResults, WebsiteSignal, EntitySignal, PresenceSignal } from "../types";
 import { MockAdapter } from "./adapters/mock-adapter";
 import { DiscoveryContext } from "./adapters/provider-interface";
 import { QueryLibraryService } from "./query-library-service";
 import { BenchmarkService } from "./benchmark-service";
 import { WebsiteExtractor } from "./website-extractor";
 import { EntityEnrichment } from "./entity-enrichment";
+import { PresenceEnrichment } from "./presence-enrichment";
 import { db } from "@/lib/firebase-config";
 import { doc, setDoc } from "firebase/firestore";
 
@@ -29,7 +30,7 @@ export class ScanEngine {
   /**
    * Run a full scan for a company profile.
    */
-  static async runScan(input: any, profileId: string): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData }> {
+  static async runScan(input: any, profileId: string = "demo_id"): Promise<ScanResults & { queryDiscovery: QueryDiscoveryData }> {
     // 1. Extract Website Intelligence
     const websiteSignals = await WebsiteExtractor.extractSignals(input.website, profileId);
     if (websiteSignals) {
@@ -40,7 +41,11 @@ export class ScanEngine {
     const entitySignal = await EntityEnrichment.enrich(input, websiteSignals);
     await setDoc(doc(db, "entitySignals", entitySignal.id), entitySignal);
 
-    // 3. Generate core report findings (Narrative Analysis)
+    // 3. Local Presence Signal Analysis (NEW)
+    const presenceSignal = await PresenceEnrichment.analyzePresence(input);
+    await setDoc(doc(db, "presenceSignals", presenceSignal.id), presenceSignal);
+
+    // 4. Generate core report findings (Narrative Analysis)
     // Pass signals to the AI flow to influence scores
     const report = await generateCompanyAIScanReport({
       ...input,
@@ -48,7 +53,13 @@ export class ScanEngine {
       entitySignal: entitySignal || undefined
     } as any);
     
-    // 4. Execute Multi-Vector Discovery (Signal Analysis)
+    // Adjust report scores based on Presence Signals
+    if (presenceSignal) {
+      report.categoryScores.citationStrength = Math.min(100, report.categoryScores.citationStrength + (presenceSignal.citationWeight / 5));
+      report.overallScore = Math.min(100, report.overallScore + (presenceSignal.authorityBoost / 10));
+    }
+
+    // 5. Execute Multi-Vector Discovery (Signal Analysis)
     const context: DiscoveryContext = {
       targetCompany: input.companyName,
       industry: input.industry,
@@ -59,7 +70,7 @@ export class ScanEngine {
 
     const queryDiscovery = await this.performDiscovery(context);
 
-    // 5. Calculate Industry Benchmarking
+    // 6. Calculate Industry Benchmarking
     const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
     const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);
 
@@ -67,6 +78,7 @@ export class ScanEngine {
       ...report,
       queryDiscovery,
       entitySignal,
+      presenceSignal,
       benchmark: {
         industry: benchmarkData.industry,
         industryAverage: benchmarkData.averageScore,

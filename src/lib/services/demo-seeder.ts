@@ -17,6 +17,9 @@ export const DEMO_PROFILES = {
     targetGeography: "North America & EU",
     serviceCategories: ["Cold Chain", "Last-mile Delivery", "Freight Forwarding", "Customs Brokerage"],
     competitors: ["FedEx", "DHL", "UPS", "Maersk"],
+    googleBusinessProfileUrl: "https://maps.google.com/acme-logistics",
+    linkedInPageUrl: "https://linkedin.com/company/acme-logistics",
+    directoryListings: ["Clutch", "LogisticsWorld"],
   },
   warehousing: {
     companyName: "StorageMax Solutions",
@@ -25,6 +28,8 @@ export const DEMO_PROFILES = {
     targetGeography: "Midwest USA",
     serviceCategories: ["B2B Fulfillment", "Inventory Management", "Cross-docking", "Pallet Storage"],
     competitors: ["Prologis", "Lineage Logistics", "Americold"],
+    googleBusinessProfileUrl: "https://maps.google.com/storagemax",
+    linkedInPageUrl: "https://linkedin.com/company/storagemax",
   },
   manufacturing: {
     companyName: "Precision Parts Corp",
@@ -33,6 +38,8 @@ export const DEMO_PROFILES = {
     targetGeography: "Global",
     serviceCategories: ["OEM Components", "Electric Drivetrains", "Precision Stamping", "Rapid Prototyping"],
     competitors: ["Bosch", "Magna International", "Denso"],
+    linkedInPageUrl: "https://linkedin.com/company/precision-parts",
+    directoryListings: ["Thomasnet", "MFG.com"],
   },
   legal: {
     companyName: "Justice & Partners",
@@ -41,6 +48,9 @@ export const DEMO_PROFILES = {
     targetGeography: "United Kingdom",
     serviceCategories: ["M&A Advisory", "Intellectual Property", "Litigation Support", "Compliance Audit"],
     competitors: ["Clifford Chance", "DLA Piper", "Linklaters"],
+    googleBusinessProfileUrl: "https://maps.google.com/justice-law",
+    linkedInPageUrl: "https://linkedin.com/company/justice-law",
+    directoryListings: ["Chambers", "Legal500"],
   },
 };
 
@@ -78,7 +88,7 @@ export class DemoSeeder {
   }
 
   private static async createMockScan(profileId: string, orgId: string, profile: any, daysAgo: number, scoreOffset: number) {
-    const scanResults = await ScanEngine.runScan(profile);
+    const scanResults = await ScanEngine.runScan(profile, profileId);
     
     const historicalDate = new Date();
     historicalDate.setDate(historicalDate.getDate() - daysAgo);

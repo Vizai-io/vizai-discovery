@@ -28,7 +28,10 @@ import {
   Briefcase,
   Target,
   Calendar,
-  Layers
+  Layers,
+  Linkedin,
+  MapPin,
+  Library
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -40,9 +43,10 @@ const STEPS = [
   { id: 1, title: "Identity", icon: Building2 },
   { id: 2, title: "Market", icon: Globe },
   { id: 3, title: "Entity Details", icon: Layers },
-  { id: 4, title: "Capabilities", icon: Briefcase },
-  { id: 5, title: "Competitors", icon: Users },
-  { id: 6, title: "Review", icon: Target },
+  { id: 4, title: "Presence", icon: MapPin },
+  { id: 5, title: "Capabilities", icon: Briefcase },
+  { id: 6, title: "Competitors", icon: Users },
+  { id: 7, title: "Review", icon: Target },
 ];
 
 export default function NewScanWizard() {
@@ -58,6 +62,9 @@ export default function NewScanWizard() {
     competitors: "",
     foundingYear: "",
     employeeSize: "",
+    googleBusinessProfileUrl: "",
+    linkedInPageUrl: "",
+    directoryListings: "",
   });
 
   const progress = (currentStep / STEPS.length) * 100;
@@ -70,8 +77,8 @@ export default function NewScanWizard() {
       case 1: return formData.companyName && formData.website;
       case 2: return formData.industry && formData.targetGeography;
       case 3: return formData.foundingYear && formData.employeeSize;
-      case 4: return formData.serviceCategories;
-      case 5: return formData.competitors;
+      case 5: return formData.serviceCategories;
+      case 6: return formData.competitors;
       default: return true;
     }
   };
@@ -85,13 +92,14 @@ export default function NewScanWizard() {
         foundingYear: parseInt(formData.foundingYear),
         serviceCategories: formData.serviceCategories.split(",").map(s => s.trim()),
         competitors: formData.competitors.split(",").map(c => c.trim()),
+        directoryListings: formData.directoryListings ? formData.directoryListings.split(",").map(d => d.trim()) : [],
         createdAt: serverTimestamp(),
         organizationId: "org_default_acme" // Mock org for v0.1
       };
 
       const profileRef = await addDoc(collection(db, "companyProfiles"), profileData);
 
-      // 2. Run the Scan Engine (Includes Website Intelligence & Entity Enrichment)
+      // 2. Run the Scan Engine (Includes Website Intel, Entity Enrichment, & Presence Signal)
       const scanOutput = await ScanEngine.runScan(profileData, profileRef.id);
 
       // 3. Save Scan to Firestore
@@ -106,7 +114,7 @@ export default function NewScanWizard() {
 
       toast({
         title: "Scan Completed",
-        description: "Your AI visibility report has been generated with entity enrichment.",
+        description: "Your AI visibility report has been generated with entity and presence enrichment.",
       });
 
       // 4. Navigate to results
@@ -154,7 +162,7 @@ export default function NewScanWizard() {
                 {currentStep > step.id ? <CheckCircle2 className="w-5 h-5" /> : <step.icon className="w-4 h-4" />}
               </div>
               <span className={cn(
-                "text-[10px] font-bold uppercase tracking-tighter",
+                "text-[10px] font-bold uppercase tracking-tighter text-center max-w-[60px]",
                 currentStep >= step.id ? "text-primary" : "text-muted-foreground"
               )}>
                 {step.title}
@@ -268,6 +276,52 @@ export default function NewScanWizard() {
           {currentStep === 4 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
+                <h3 className="text-lg font-bold text-primary">Professional & Local Presence</h3>
+                <p className="text-sm text-muted-foreground">Connect external profiles to strengthen citation authority.</p>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gbp" className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-accent" /> Google Business Profile URL
+                  </Label>
+                  <Input 
+                    id="gbp" 
+                    type="url"
+                    placeholder="https://business.google.com/..." 
+                    value={formData.googleBusinessProfileUrl}
+                    onChange={(e) => setFormData({...formData, googleBusinessProfileUrl: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="linkedin" className="flex items-center gap-2">
+                    <Linkedin className="w-4 h-4 text-accent" /> LinkedIn Company Page
+                  </Label>
+                  <Input 
+                    id="linkedin" 
+                    type="url"
+                    placeholder="https://linkedin.com/company/..." 
+                    value={formData.linkedInPageUrl}
+                    onChange={(e) => setFormData({...formData, linkedInPageUrl: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="directories" className="flex items-center gap-2">
+                    <Library className="w-4 h-4 text-accent" /> Industry Directory Listings
+                  </Label>
+                  <Textarea 
+                    id="directories" 
+                    placeholder="e.g. Clutch, G2, Thomasnet (Comma separated)" 
+                    value={formData.directoryListings}
+                    onChange={(e) => setFormData({...formData, directoryListings: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 5 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+              <div className="space-y-2">
                 <h3 className="text-lg font-bold text-primary">Capabilities & Taxonomy</h3>
                 <p className="text-sm text-muted-foreground">How should AI categorize your specific services?</p>
               </div>
@@ -284,7 +338,7 @@ export default function NewScanWizard() {
             </div>
           )}
 
-          {currentStep === 5 && (
+          {currentStep === 6 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-primary">Competitive Benchmarking</h3>
@@ -303,7 +357,7 @@ export default function NewScanWizard() {
             </div>
           )}
 
-          {currentStep === 6 && (
+          {currentStep === 7 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-primary">Final Review</h3>
@@ -315,8 +369,13 @@ export default function NewScanWizard() {
                   <div className="text-sm font-bold text-primary">{formData.companyName}</div>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Founding Year</span>
-                  <div className="text-sm font-bold text-primary">{formData.foundingYear}</div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Presence Signals</span>
+                  <div className="text-sm font-bold text-primary">
+                    {formData.googleBusinessProfileUrl ? 'GBP ' : ''}
+                    {formData.linkedInPageUrl ? 'LI ' : ''}
+                    {formData.directoryListings ? 'Dir' : ''}
+                    {!formData.googleBusinessProfileUrl && !formData.linkedInPageUrl && !formData.directoryListings && 'None'}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Industry</span>
@@ -356,7 +415,7 @@ export default function NewScanWizard() {
                 className="bg-accent hover:bg-accent/90 text-primary font-bold gap-2 px-8 shadow-lg shadow-accent/20"
               >
                 {loading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Entity...</>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Presence...</>
                 ) : (
                   <>Launch Intelligence Scan <Zap className="w-4 h-4 fill-current" /></>
                 )}

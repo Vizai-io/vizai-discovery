@@ -41,11 +41,30 @@
         "foundingYear": { "type": "number" },
         "employeeSize": { "type": "string" },
         "operatingRegions": { "type": "array", "items": { "type": "string" } },
+        "googleBusinessProfileUrl": { "type": "string", "format": "uri" },
+        "linkedInPageUrl": { "type": "string", "format": "uri" },
+        "directoryListings": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" },
         "monitoringFrequency": { "type": "string", "enum": ["off", "weekly", "biweekly", "monthly"] },
         "nextScanAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "industry"]
+    },
+    "PresenceSignal": {
+      "title": "Presence Signal",
+      "description": "Signals indicating the company's local and professional presence across the web.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "profileId": { "type": "string" },
+        "hasGoogleBusiness": { "type": "boolean" },
+        "hasLinkedIn": { "type": "boolean" },
+        "directoryCount": { "type": "number" },
+        "citationWeight": { "type": "number" },
+        "authorityBoost": { "type": "number" },
+        "lastVerifiedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "profileId"]
     },
     "EntitySignal": {
       "title": "Entity Signal",
@@ -97,6 +116,10 @@
     "/entitySignals/{signalId}": {
       "schema": "EntitySignal",
       "description": "Technical entity enrichment data."
+    },
+    "/presenceSignals/{signalId}": {
+      "schema": "PresenceSignal",
+      "description": "Local and professional presence signals."
     },
     "/websiteSignals/{signalId}": {
       "schema": "WebsiteSignal",

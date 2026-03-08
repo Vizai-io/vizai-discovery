@@ -27,6 +27,9 @@ export interface CompanyProfile {
   foundingYear?: number;
   employeeSize?: string;
   operatingRegions?: string[];
+  googleBusinessProfileUrl?: string;
+  linkedInPageUrl?: string;
+  directoryListings?: string[];
   createdAt: any;
   monitoringFrequency?: 'off' | 'weekly' | 'biweekly' | 'monthly';
   nextScanAt?: any;
@@ -43,6 +46,17 @@ export interface WebsiteSignal {
   serviceKeywords: string[];
   locationReferences: string[];
   extractedAt: any;
+}
+
+export interface PresenceSignal {
+  id: string;
+  profileId: string;
+  hasGoogleBusiness: boolean;
+  hasLinkedIn: boolean;
+  directoryCount: number;
+  citationWeight: number; // 0-100
+  authorityBoost: number; // 0-100
+  lastVerifiedAt: any;
 }
 
 export interface EntitySignal {
@@ -169,6 +183,7 @@ export interface ScanResults {
     totalCompanies: number;
   };
   entitySignal?: EntitySignal;
+  presenceSignal?: PresenceSignal;
 }
 
 export interface RankingEntry {
