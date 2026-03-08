@@ -15,6 +15,7 @@ import { WebsiteExtractor } from "./website-extractor";
 import { EntityEnrichment } from "./entity-enrichment";
 import { PresenceEnrichment } from "./presence-enrichment";
 import { RealQueryEngine } from "./real-query-engine";
+import { DiscoveryDataService } from "./discovery-data-service";
 import { db } from "@/lib/firebase-config";
 import { doc, setDoc } from "firebase/firestore";
 
@@ -78,6 +79,18 @@ export class ScanEngine {
     let realResults: RealQueryResult[] = [];
     if (profileId !== "demo_id" && scanIdPlaceholder) {
       realResults = await RealQueryEngine.runVerification(input as any, scanIdPlaceholder);
+    }
+
+    // 8. Record Discovery Events to Dataset
+    if (scanIdPlaceholder) {
+      DiscoveryDataService.recordDiscoveryEvents(
+        scanIdPlaceholder,
+        input.industry,
+        input.targetGeography,
+        queryDiscovery,
+        input.competitors,
+        input.companyName
+      );
     }
 
     return {
@@ -150,6 +163,16 @@ export class ScanEngine {
         coveragePercentage: (companyMentionCount / libraryQueries.length) * 100
       }
     };
+
+    // Record events for the free scan as well
+    DiscoveryDataService.recordDiscoveryEvents(
+      "free_scan_" + Math.random().toString(36).substr(2, 5),
+      input.industry,
+      input.targetGeography,
+      queryDiscovery,
+      fullInput.competitors,
+      input.companyName
+    );
 
     const benchmarkData = BenchmarkService.getBenchmarkForIndustry(input.industry);
     const percentile = BenchmarkService.calculatePercentile(report.overallScore, benchmarkData);

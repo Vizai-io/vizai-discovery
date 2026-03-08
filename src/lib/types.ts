@@ -226,3 +226,16 @@ export interface IndustryBenchmark {
   minScore: number;
   totalCompanies: number;
 }
+
+export interface DiscoveryDataEntry {
+  id: string;
+  scanId: string;
+  industry: string;
+  region: string;
+  queryText: string;
+  companiesMentioned: string[];
+  competitorsPresent: string[];
+  targetCompanyPresent: boolean;
+  intentType?: string;
+  timestamp: any;
+}
