@@ -15,7 +15,10 @@ import {
   Cpu, 
   History, 
   Trophy, 
-  ArrowRight 
+  ArrowRight,
+  Eye,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -32,7 +35,7 @@ export default function LandingPage() {
         </div>
         <nav className="hidden md:flex items-center gap-8">
           <Link href="#how-it-works" className="text-sm font-semibold text-muted-foreground hover:text-primary transition-colors">Methodology</Link>
-          <Link href="#measures" className="text-sm font-semibold text-muted-foreground hover:text-primary transition-colors">Intelligence Vectors</Link>
+          <Link href="#measures" className="text-sm font-semibold text-muted-foreground hover:text-primary transition-colors">Audit Vectors</Link>
           <Link href="/rankings" className="text-sm font-semibold text-muted-foreground hover:text-primary transition-colors">Benchmarking</Link>
         </nav>
         <div className="flex items-center gap-4">
@@ -58,7 +61,7 @@ export default function LandingPage() {
                 Control How AI Systems <span className="text-accent italic">Recommend</span> Your Brand
               </h1>
               <p className="text-xl text-muted-foreground max-w-lg leading-relaxed font-medium">
-                Measure and optimize your presence in the LLM knowledge layer. We help enterprises understand how ChatGPT, Perplexity, and Gemini discover, describe, and prioritize their services.
+                Measure and optimize your presence in the AI knowledge layer. We help enterprises understand exactly how ChatGPT, Perplexity, and Gemini discover, describe, and prioritize their services.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <Link href="/demo">
@@ -124,15 +127,15 @@ export default function LandingPage() {
         <section id="how-it-works" className="py-24 px-6 bg-white">
           <div className="max-w-7xl mx-auto space-y-16">
             <div className="text-center max-w-3xl mx-auto space-y-4">
-              <h2 className="text-3xl font-headline font-bold text-primary sm:text-5xl tracking-tight">A Professional Grade Methodology</h2>
-              <p className="text-muted-foreground text-lg font-medium leading-relaxed">Our intelligence engine follows a rigorous four-stage process to map your position in the AI search ecosystem.</p>
+              <h2 className="text-3xl font-headline font-bold text-primary sm:text-5xl tracking-tight">How AI Discovery Works</h2>
+              <p className="text-muted-foreground text-lg font-medium leading-relaxed">Our intelligence engine follows a rigorous methodology to map your position in the professional AI search ecosystem.</p>
             </div>
             <div className="grid md:grid-cols-4 gap-8">
               {[
-                { step: "01", title: "Define Entity Profile", desc: "We map your official service taxonomy, capabilities, and unique value propositions.", icon: Search },
-                { step: "02", title: "Simulate Intent Vectors", desc: "Our engine executes 24+ simulated user discovery paths across major LLM providers.", icon: Target },
-                { step: "03", title: "Analyze Signal Weights", desc: "We measure how AI interprets your authority, location relevance, and citation strength.", icon: LineChart },
-                { step: "04", title: "Strategic Roadmap", desc: "Receive prioritized actions to bridge knowledge gaps and recapture market share.", icon: Trophy }
+                { step: "01", title: "Map Entity Signal", desc: "We define your official service taxonomy, capability layers, and high-intent keyword vectors.", icon: Search },
+                { step: "02", title: "Simulate Intent Vectors", desc: "Our engine executes 24+ discovery paths across major LLM knowledge models.", icon: Target },
+                { step: "03", title: "Analyze Recommendation Patterns", desc: "We measure how AI resolves identity ambiguity and prioritizes your brand over competitors.", icon: LineChart },
+                { step: "04", title: "Strategic Optimization", desc: "Receive prioritized actions to bridge knowledge gaps and solidify AI-first authority.", icon: Trophy }
               ].map((item, i) => (
                 <div key={i} className="space-y-6 relative group">
                   <div className="text-5xl font-black text-primary/5 absolute -top-4 -left-2 group-hover:text-primary/10 transition-colors">{item.step}</div>
@@ -153,18 +156,18 @@ export default function LandingPage() {
         <section id="measures" className="py-24 px-6 bg-muted/30">
           <div className="max-w-7xl mx-auto space-y-16">
             <div className="text-center max-w-3xl mx-auto space-y-4">
-              <h2 className="text-3xl font-headline font-bold text-primary sm:text-4xl">Intelligence Vectors We Track</h2>
-              <p className="text-muted-foreground text-lg">AI discoverability is determined by 6 core intelligence pillars.</p>
+              <h2 className="text-3xl font-headline font-bold text-primary sm:text-4xl">Measurement Intelligence Pillars</h2>
+              <p className="text-muted-foreground text-lg">We track 6 critical vectors that determine your visibility in the AI search layer.</p>
             </div>
             
             <div className="grid md:grid-cols-3 gap-8">
               {[
-                { icon: Target, title: "AI Visibility Prominence", desc: "Overall frequency and priority positioning in AI-generated discovery responses." },
-                { icon: BarChart3, title: "Competitive Share of Voice", desc: "Quantifying how often LLMs recommend your rivals for high-intent generic queries." },
-                { icon: ShieldCheck, title: "Narrative Accuracy", desc: "Benchmarking AI summaries against your official business history and current capabilities." },
-                { icon: Globe, title: "Geographic Coverage", desc: "Analysis of how well local and regional intents trigger your brand as a primary result." },
-                { icon: LineChart, title: "Sourcing & Citations", desc: "Evaluating the authority of the external domains AI uses as proof-points for your entity." },
-                { icon: Zap, title: "Service Taxonomy Clarity", desc: "How effectively AI classifies your various products into correct market segments." }
+                { icon: Target, title: "Discovery Prominence", desc: "Ranking frequency and priority positioning in AI-generated discovery and recommendation responses." },
+                { icon: BarChart3, title: "Competitive Share of Voice", desc: "Quantitative measurement of rival brand citations for high-intent generic sector queries." },
+                { icon: ShieldCheck, title: "Narrative Alignment", desc: "Benchmarking AI summaries against official corporate history and verified service capabilities." },
+                { icon: Globe, title: "Geographic Resolution", desc: "Analysis of how regional and local search intents trigger your brand as a primary entity." },
+                { icon: LineChart, title: "Citation Authority", desc: "Evaluating the strength and quality of the external sources AI uses to validate your business." },
+                { icon: Zap, title: "Taxonomy Accuracy", desc: "How effectively AI classifies your various products into the correct industry and functional segments." }
               ].map((item, i) => (
                 <div key={i} className="p-10 rounded-3xl border border-primary/5 bg-white hover:border-accent/20 hover:shadow-2xl hover:shadow-primary/5 transition-all group">
                   <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center mb-8 group-hover:bg-primary group-hover:text-white transition-colors shadow-sm">
@@ -185,11 +188,11 @@ export default function LandingPage() {
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-accent font-bold text-[10px] uppercase tracking-widest border border-white/10">
                 <History className="w-3 h-3" />
-                <span>Continuous Optimization</span>
+                <span>Knowledge Layer Monitoring</span>
               </div>
-              <h2 className="text-4xl lg:text-5xl font-headline font-bold leading-tight">AI Training Sets Change. <br/><span className="text-accent">So Does Your Visibility.</span></h2>
+              <h2 className="text-4xl lg:text-5xl font-headline font-bold leading-tight">AI Training Sets are Dynamic. <br/><span className="text-accent">Visibility is Not Permanent.</span></h2>
               <p className="text-lg opacity-80 leading-relaxed font-medium">
-                Unlike traditional SEO, AI knowledge is dynamic. Periodic scans are insufficient. Our monitoring engine tracks shifts in model behavior weekly, alerting you when visibility drops or when a competitor captures a new discovery intent.
+                Unlike static SEO, AI knowledge is constantly updated. Our monitoring engine tracks shifts in model weights and recommendation patterns weekly, alerting you when visibility drops or when rivals capture new intent vectors.
               </p>
               <div className="grid grid-cols-2 gap-8 pt-4">
                 <div className="space-y-2">
@@ -197,8 +200,8 @@ export default function LandingPage() {
                   <div className="text-[11px] font-bold uppercase tracking-widest opacity-60">Drift Detection</div>
                 </div>
                 <div className="space-y-2">
-                  <div className="text-3xl font-bold text-accent">Automated</div>
-                  <div className="text-[11px] font-bold uppercase tracking-widest opacity-60">Intelligence Updates</div>
+                  <div className="text-3xl font-bold text-accent">Continuous</div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest opacity-60">Intelligence Audits</div>
                 </div>
               </div>
             </div>
@@ -206,13 +209,13 @@ export default function LandingPage() {
               <Card className="bg-white/5 border-white/10 backdrop-blur-md p-8 rounded-[2rem] space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-bold uppercase tracking-widest text-accent">Monitoring Health</div>
-                  <Badge variant="outline" className="text-white border-white/20">Active: Weekly</Badge>
+                  <Badge variant="outline" className="text-white border-white/20">Active Intelligence</Badge>
                 </div>
                 <div className="space-y-4">
                   {[
-                    { label: "Core Sector Visibility", val: 82, trend: "+2.1%" },
-                    { label: "Regional Intent Match", val: 45, trend: "-1.5%" },
-                    { label: "Competitor Share Voice", val: 31, trend: "-4.0%" },
+                    { label: "Sector Intent Visibility", val: 82, trend: "+2.1%" },
+                    { label: "Entity Resolution Accuracy", val: 88, trend: "+0.5%" },
+                    { label: "Competitive Intrusion Risk", val: 34, trend: "-4.0%" },
                   ].map((s, i) => (
                     <div key={i} className="space-y-2">
                       <div className="flex justify-between text-xs font-bold">
@@ -238,14 +241,19 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
             <div className="order-2 lg:order-1">
                <div className="grid grid-cols-2 gap-4">
-                  {[1,2,3,4].map(i => (
-                    <Card key={i} className="p-6 border-primary/5 shadow-sm group hover:border-accent/20 transition-all">
-                       <Trophy className="w-5 h-5 text-accent mb-3" />
-                       <div className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-1">Rank #{i}</div>
-                       <div className="text-lg font-bold text-primary">Market Leader {i}</div>
+                  {[
+                    { rank: 1, name: "Market Leader A", score: 94.2 },
+                    { rank: 2, name: "Market Leader B", score: 89.1 },
+                    { rank: 3, name: "Your Organization", score: 72.4 },
+                    { rank: 4, name: "Emerging Rival", score: 68.5 },
+                  ].map(org => (
+                    <Card key={org.rank} className={`p-6 border-primary/5 shadow-sm group hover:border-accent/20 transition-all ${org.rank === 3 ? 'ring-2 ring-accent bg-accent/5' : ''}`}>
+                       <Trophy className={`w-5 h-5 mb-3 ${org.rank === 3 ? 'text-accent' : 'text-slate-300'}`} />
+                       <div className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-1">Sector Rank #{org.rank}</div>
+                       <div className="text-lg font-bold text-primary">{org.name}</div>
                        <div className="mt-4 flex items-center justify-between text-[10px] font-bold">
                           <span className="text-muted-foreground">Index Score</span>
-                          <span className="text-primary">{95 - (i*4)}.2</span>
+                          <span className="text-primary">{org.score}</span>
                        </div>
                     </Card>
                   ))}
@@ -256,12 +264,12 @@ export default function LandingPage() {
                 <Trophy className="w-3 h-3 text-accent" />
                 <span>Global Benchmarking</span>
               </div>
-              <h2 className="text-4xl font-headline font-bold text-primary tracking-tight">Know Where You Stand <br/>Against the <span className="text-accent italic">Entire Sector</span></h2>
+              <h2 className="text-4xl font-headline font-bold text-primary tracking-tight">Know Exactly Where You Stand <br/>in the <span className="text-accent italic">Competitive Layer</span></h2>
               <p className="text-lg text-muted-foreground leading-relaxed font-medium">
-                Visibility metrics are meaningless without context. Our Industry Rankings allow you to benchmark your AI discoverability scores against top-tier competitors globally, identifying exactly who is winning the 'intent war' in your vertical.
+                Visibility metrics are meaningless without context. Our Industry Benchmarking allows you to compare your AI discoverability scores against global sector leaders, identifying exactly who is winning the intent war in your vertical.
               </p>
               <Link href="/rankings" className="inline-flex items-center font-bold text-primary hover:text-accent transition-colors">
-                View Live Industry Leaderboards
+                Explore Industry Leaderboards
                 <ChevronRight className="ml-1 w-5 h-5" />
               </Link>
             </div>
@@ -271,7 +279,7 @@ export default function LandingPage() {
         {/* Final CTA */}
         <section className="py-24 px-6 text-center space-y-12">
            <div className="max-w-3xl mx-auto space-y-6">
-              <h2 className="text-4xl font-headline font-bold text-primary sm:text-6xl tracking-tight">Ready for a Strategic <br/>Intelligence Audit?</h2>
+              <h2 className="text-4xl font-headline font-bold text-primary sm:text-6xl tracking-tight">Ready for a Professional <br/>Intelligence Audit?</h2>
               <p className="text-xl text-muted-foreground font-medium">Stop guessing how AI views your brand. Get the definitive visibility report today.</p>
            </div>
            <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -281,7 +289,7 @@ export default function LandingPage() {
                 </Button>
               </Link>
               <Button size="lg" variant="outline" className="h-16 px-12 text-xl border-primary text-primary hover:bg-primary/5 font-bold">
-                Contact Sales
+                Contact Strategy Team
               </Button>
            </div>
            <div className="pt-12">
@@ -292,7 +300,7 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Join 500+ Leading Enterprises</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Empowering 500+ AI-Forward Brands</p>
            </div>
         </section>
       </main>
@@ -302,44 +310,44 @@ export default function LandingPage() {
           <div className="space-y-6">
             <div className="flex items-center gap-2">
               <Search className="w-8 h-8 text-accent" />
-              <span className="text-3xl font-bold font-headline tracking-tighter">VizAI Scanner</span>
+              <span className="text-3xl font-bold font-headline tracking-tighter">VizAI Intelligence</span>
             </div>
             <p className="text-sm opacity-60 leading-relaxed font-medium">
-              The professional grade discoverability engine for the AI-first world. Measure, monitor, and optimize your presence in the knowledge layer.
+              The definitive AI Discoverability platform for B2B enterprises. Mapping the future of search and entity recommendation.
             </p>
           </div>
           <div>
-            <h4 className="font-bold text-accent uppercase tracking-widest text-xs mb-6">Intelligence</h4>
+            <h4 className="font-bold text-accent uppercase tracking-widest text-xs mb-6">Methodology</h4>
             <ul className="space-y-4 text-sm opacity-60">
-              <li><Link href="#how-it-works" className="hover:text-white transition-colors">Methodology</Link></li>
-              <li><Link href="#measures" className="hover:text-white transition-colors">Audit Vectors</Link></li>
-              <li><Link href="/rankings" className="hover:text-white transition-colors">Industry Rankings</Link></li>
-              <li><Link href="/monitoring" className="hover:text-white transition-colors">Global Monitoring</Link></li>
+              <li><Link href="#how-it-works" className="hover:text-white transition-colors">Audit Process</Link></li>
+              <li><Link href="#measures" className="hover:text-white transition-colors">Measurement Vectors</Link></li>
+              <li><Link href="/rankings" className="hover:text-white transition-colors">Global Benchmarking</Link></li>
+              <li><Link href="/monitoring" className="hover:text-white transition-colors">Active Monitoring</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="font-bold text-accent uppercase tracking-widest text-xs mb-6">Company</h4>
             <ul className="space-y-4 text-sm opacity-60">
-              <li><Link href="#" className="hover:text-white transition-colors">About VizAI</Link></li>
               <li><Link href="#" className="hover:text-white transition-colors">Advisory Board</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">Careers</Link></li>
+              <li><Link href="#" className="hover:text-white transition-colors">Strategic Insights</Link></li>
+              <li><Link href="#" className="hover:text-white transition-colors">Client Briefs</Link></li>
               <li><Link href="#" className="hover:text-white transition-colors">Contact</Link></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-bold text-accent uppercase tracking-widest text-xs mb-6">Legal & Security</h4>
+            <h4 className="font-bold text-accent uppercase tracking-widest text-xs mb-6">Compliance</h4>
             <ul className="space-y-4 text-sm opacity-60">
-              <li><Link href="#" className="hover:text-white transition-colors">Privacy Policy</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">Terms of Service</Link></li>
+              <li><Link href="#" className="hover:text-white transition-colors">Privacy Ethics</Link></li>
               <li><Link href="#" className="hover:text-white transition-colors">Data Security</Link></li>
-              <li><Link href="#" className="hover:text-white transition-colors">GDPR Compliance</Link></li>
+              <li><Link href="#" className="hover:text-white transition-colors">Terms of Intelligence</Link></li>
+              <li><Link href="#" className="hover:text-white transition-colors">GDPR / CCPA</Link></li>
             </ul>
           </div>
         </div>
         <div className="max-w-7xl mx-auto border-t border-white/10 mt-16 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs opacity-40 font-bold uppercase tracking-widest">
           <div>&copy; {new Date().getFullYear()} VizAI Consulting Group. All rights reserved.</div>
           <div className="flex gap-8">
-            <span>v1.2.4-PRO</span>
+            <span>v1.2.4-PRO-INTEL</span>
             <span>London • New York • Berlin</span>
           </div>
         </div>
