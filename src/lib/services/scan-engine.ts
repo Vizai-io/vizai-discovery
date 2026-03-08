@@ -1,9 +1,11 @@
+
 import { generateCompanyAIScanReport, GenerateCompanyAIScanReportInput, GenerateCompanyAIScanReportOutput } from "@/ai/flows/generate-company-ai-scan-report";
 import { provideAiScanRecommendations, ProvideAiScanRecommendationsOutput } from "@/ai/flows/provide-ai-scan-recommendations";
 import { QueryEngine } from "./query-engine";
-import { QueryDiscoveryData, QueryRecord } from "../types";
+import { QueryDiscoveryData, QueryRecord, IndustryQuery } from "../types";
 import { MockAdapter } from "./adapters/mock-adapter";
 import { DiscoveryContext } from "./adapters/provider-interface";
+import { QueryLibraryService } from "./query-library-service";
 
 /**
  * ScanEngine orchestrates the AI visibility analysis process.
@@ -30,7 +32,7 @@ export class ScanEngine {
     // 1. Generate core report findings (Narrative Analysis)
     const report = await generateCompanyAIScanReport(input);
     
-    // 2. Execute Multi-Vector Discovery (Signal Analysis)
+    // 2. Execute Multi-Vector Discovery (Signal Analysis) using Industry Query Library
     const context: DiscoveryContext = {
       targetCompany: input.companyName,
       industry: input.industry,
@@ -48,17 +50,21 @@ export class ScanEngine {
 
   /**
    * Performs the discovery phase across all active AI providers.
+   * Now utilizes the Industry Query Library for realistic intent vectors.
    */
   private static async performDiscovery(context: DiscoveryContext): Promise<QueryDiscoveryData> {
     const adapters = this.getActiveAdapters();
-    const queries = QueryEngine.generateIndustryQueries(context.industry, context.geography);
+    
+    // Fetch realistic queries from the industry library
+    const libraryQueries = await QueryLibraryService.getQueriesForIndustry(context.industry, 8);
+    
     const queryRecords: QueryRecord[] = [];
     let companyMentionCount = 0;
 
-    for (const queryText of queries) {
+    for (const libQuery of libraryQueries) {
       // Execute discovery across all providers for this specific query vector
       const results = await Promise.all(
-        adapters.map(adapter => adapter.executeDiscovery(queryText, context))
+        adapters.map(adapter => adapter.executeDiscovery(libQuery.text, context))
       );
 
       if (results.some(r => r.isTargetCompanyMentioned)) {
@@ -67,7 +73,7 @@ export class ScanEngine {
 
       queryRecords.push({
         id: Math.random().toString(36).substr(2, 9),
-        text: queryText,
+        text: libQuery.text,
         results
       });
     }
@@ -75,9 +81,9 @@ export class ScanEngine {
     return {
       queries: queryRecords,
       summary: {
-        totalQueries: queries.length,
+        totalQueries: libraryQueries.length,
         companyMentionCount,
-        coveragePercentage: (companyMentionCount / queries.length) * 100
+        coveragePercentage: (companyMentionCount / libraryQueries.length) * 100
       }
     };
   }

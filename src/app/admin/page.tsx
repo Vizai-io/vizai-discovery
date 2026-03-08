@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,17 +15,20 @@ import {
   Loader2,
   CheckCircle2,
   ShieldCheck,
-  RefreshCcw
+  RefreshCcw,
+  Library
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { DemoSeeder } from "@/lib/services/demo-seeder";
+import { QueryLibraryService } from "@/lib/services/query-library-service";
 import { toast } from "@/hooks/use-toast";
 import { collection, getDocs, query, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 
 export default function AdminPage() {
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isSeedingLibrary, setIsSeedingLibrary] = useState(false);
   const [stats, setStats] = useState({ orgs: 0, scans: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -56,7 +60,7 @@ export default function AdminPage() {
       
       toast({
         title: "System Seeded",
-        description: "Created 4 demo organizations with full audit histories.",
+        description: "Created demo organizations with full audit histories.",
       });
       fetchStats();
     } catch (error) {
@@ -68,6 +72,25 @@ export default function AdminPage() {
       });
     } finally {
       setIsSeeding(false);
+    }
+  };
+
+  const handleSeedLibrary = async () => {
+    setIsSeedingLibrary(true);
+    try {
+      await QueryLibraryService.seedLibrary();
+      toast({
+        title: "Library Initialized",
+        description: "Industry discovery query vectors have been seeded.",
+      });
+    } catch (error) {
+      toast({
+        title: "Library Error",
+        description: "Failed to seed query library.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSeedingLibrary(false);
     }
   };
 
@@ -84,6 +107,19 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2 border-primary/20"
+            onClick={handleSeedLibrary}
+            disabled={isSeedingLibrary}
+          >
+            {isSeedingLibrary ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Library className="w-4 h-4" />
+            )}
+            Seed Query Library
+          </Button>
           <Button 
             variant="outline" 
             className="gap-2 border-primary/20"

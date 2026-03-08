@@ -1,10 +1,12 @@
+
 import { db } from "@/lib/firebase-config";
 import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { ScanEngine } from "./scan-engine";
+import { QueryLibraryService } from "./query-library-service";
 
 /**
  * DemoSeeder provides utilities to populate the system with realistic demo data.
- * Updated to include believable scan histories for a richer demo experience.
+ * Updated to include believable scan histories and Industry Query Library seeding.
  */
 export const DEMO_PROFILES = {
   logistics: {
@@ -44,12 +46,16 @@ export const DEMO_PROFILES = {
 export class DemoSeeder {
   /**
    * Seeds the system with a demo organization and a multi-scan history.
+   * Also ensures the Industry Query Library is seeded.
    */
   static async seedDemoForIndustry(industryKey: keyof typeof DEMO_PROFILES) {
     const profile = DEMO_PROFILES[industryKey];
     const orgId = `demo_org_${industryKey}`;
 
-    // 1. Save Company Profile with monitoring enabled by default for demo
+    // 0. Ensure Query Library is seeded
+    await QueryLibraryService.seedLibrary();
+
+    // 1. Save Company Profile
     const profileRef = await addDoc(collection(db, "companyProfiles"), {
       ...profile,
       organizationId: orgId,
@@ -60,11 +66,8 @@ export class DemoSeeder {
     });
 
     // 2. Generate Scan History (Latest + 2 Historical)
-    // Historical Scan 1 (30 days ago)
     await this.createMockScan(profileRef.id, orgId, profile, 30, -8);
-    // Historical Scan 2 (15 days ago)
     await this.createMockScan(profileRef.id, orgId, profile, 15, -3);
-    // Latest Scan (Now)
     const latestScanId = await this.createMockScan(profileRef.id, orgId, profile, 0, 0);
 
     return { profileId: profileRef.id, scanId: latestScanId };
@@ -73,7 +76,6 @@ export class DemoSeeder {
   private static async createMockScan(profileId: string, orgId: string, profile: any, daysAgo: number, scoreOffset: number) {
     const scanResults = await ScanEngine.runScan(profile);
     
-    // Apply deterministic offset for historical realism
     const historicalDate = new Date();
     historicalDate.setDate(historicalDate.getDate() - daysAgo);
 

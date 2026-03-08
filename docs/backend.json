@@ -53,23 +53,22 @@
         "profileId": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
-        "results": { "type": "object" }
+        "results": { "type": "object" },
+        "queryLibraryUsed": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["id", "profileId", "status"]
     },
-    "RankingEntry": {
-      "title": "Ranking Entry",
-      "description": "A single company's rank and score within a snapshot.",
+    "IndustryQuery": {
+      "title": "Industry Query",
+      "description": "A specific discovery query within an industry library.",
       "type": "object",
       "properties": {
-        "companyName": { "type": "string" },
-        "score": { "type": "number" },
-        "rank": { "type": "integer" },
-        "change": { "type": "number" },
-        "industry": { "type": "string" },
-        "region": { "type": "string" }
+        "text": { "type": "string" },
+        "category": { "type": "string" },
+        "geoModifier": { "type": "string" },
+        "intentType": { "type": "string", "enum": ["best", "local", "comparison", "capability"] }
       },
-      "required": ["companyName", "score", "rank"]
+      "required": ["text", "category", "intentType"]
     },
     "RankingSnapshot": {
       "title": "Ranking Snapshot",
@@ -111,6 +110,10 @@
     "/rankings/{snapshotId}": {
       "schema": "RankingSnapshot",
       "description": "Snapshots of industry rankings over time."
+    },
+    "/industryQueryLibraries/{industryId}/queries/{queryId}": {
+      "schema": "IndustryQuery",
+      "description": "Library of realistic AI discovery queries by industry."
     }
   }
 }

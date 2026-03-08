@@ -30,6 +30,14 @@ export interface CompanyProfile {
   lastScanAt?: any;
 }
 
+export interface IndustryQuery {
+  id?: string;
+  text: string;
+  category: string;
+  geoModifier?: string;
+  intentType: 'best' | 'local' | 'comparison' | 'capability';
+}
+
 export interface ScanRecord {
   id: string;
   profileId: string;
@@ -37,6 +45,7 @@ export interface ScanRecord {
   status: 'pending' | 'completed' | 'failed';
   results: ScanResults;
   queryDiscovery?: QueryDiscoveryData;
+  queryLibraryUsed?: string[];
 }
 
 export interface QueryDiscoveryData {
