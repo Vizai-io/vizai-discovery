@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -22,6 +21,7 @@ import {
   Plus
 } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 export default function CompaniesPage() {
   const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
@@ -124,7 +124,7 @@ export default function CompaniesPage() {
                   <div className="flex items-center gap-2">
                     <div className={cn(
                       "w-2 h-2 rounded-full",
-                      profile.monitoringFrequency !== 'off' ? "bg-green-500 animate-pulse" : "bg-slate-300"
+                      profile.monitoringFrequency !== 'off' ? "bg-green-50 animate-pulse" : "bg-slate-300"
                     )} />
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                       {profile.monitoringFrequency !== 'off' ? `Active: ${profile.monitoringFrequency}` : 'Idle'}
