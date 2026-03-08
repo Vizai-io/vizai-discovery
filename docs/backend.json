@@ -69,37 +69,14 @@
       },
       "required": ["id", "profileId", "status"]
     },
-    "RealQueryResult": {
-      "title": "Real Query Result",
-      "description": "Actual response data from a live AI model for verification.",
+    "UsageRecord": {
+      "title": "Usage Record",
+      "description": "Tracking for rate limiting and abuse protection.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "scanId": { "type": "string" },
-        "query": { "type": "string" },
-        "model": { "type": "string" },
-        "mentions": { "type": "array", "items": { "type": "object" } },
-        "responseExcerpt": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "count": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
       }
-    },
-    "ConsultationRequest": {
-      "title": "Consultation Request",
-      "description": "A lead capture form for professional services.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "company": { "type": "string" },
-        "website": { "type": "string" },
-        "serviceInterest": { "type": "string" },
-        "notes": { "type": "string" },
-        "status": { "type": "string", "enum": ["new", "qualified", "proposal sent", "won", "lost"] },
-        "sourceScanId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["name", "email", "company", "status"]
     }
   },
   "auth": {
@@ -122,9 +99,9 @@
       "schema": "ScanRecord",
       "description": "History of AI visibility scans."
     },
-    "/consultationRequests/{requestId}": {
-      "schema": "ConsultationRequest",
-      "description": "Captured consulting leads."
+    "/usageTracking/{usageId}": {
+      "schema": "UsageRecord",
+      "description": "Rate limiting tracking data."
     }
   }
 }

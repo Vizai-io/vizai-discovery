@@ -16,13 +16,15 @@ import {
   Building2, 
   ChevronRight,
   ShieldCheck,
-  Target
+  Target,
+  ShieldAlert
 } from "lucide-react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import { ScanEngine } from "@/lib/services/scan-engine";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { validateFreeScanRequest } from "@/lib/actions/usage-actions";
 
 export default function FreeScanPage() {
   const router = useRouter();
@@ -32,18 +34,33 @@ export default function FreeScanPage() {
     website: "",
     industry: "",
     targetGeography: "",
+    email: "", // Added email for rate limiting
   });
+  const [hp, setHp] = useState(""); // Honeypot state
 
   const handleRunFreeScan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.companyName || !formData.website || !formData.industry) return;
+    if (!formData.companyName || !formData.website || !formData.industry || !formData.email) return;
 
     setLoading(true);
     try {
-      // 1. Run the limited scan logic
+      // 1. Rate Limit & Abuse Check (Server Side)
+      const validation = await validateFreeScanRequest(formData.email, hp);
+      
+      if (!validation.allowed) {
+        toast({
+          title: "Scan Restricted",
+          description: validation.reason || "Daily free scan limit reached.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 2. Run the limited scan logic
       const scanResults = await ScanEngine.runFreeScan(formData);
 
-      // 2. Save partial scan to Firestore
+      // 3. Save partial scan to Firestore
       const scanRef = await addDoc(collection(db, "scans"), {
         ...formData,
         date: serverTimestamp(),
@@ -99,12 +116,37 @@ export default function FreeScanPage() {
               </div>
               <div>
                 <CardTitle className="text-lg">Intelligence Input</CardTitle>
-                <CardDescription className="text-xs">No account required for this baseline audit.</CardDescription>
+                <CardDescription className="text-xs">Provide baseline parameters for your audit.</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-8">
             <form onSubmit={handleRunFreeScan} className="space-y-6">
+              {/* Abuse Protection: Honeypot (Hidden from humans) */}
+              <div className="hidden" aria-hidden="true">
+                <input 
+                  type="text" 
+                  name="user_verification_token" 
+                  tabIndex={-1} 
+                  autoComplete="off" 
+                  value={hp}
+                  onChange={(e) => setHp(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Business Email</Label>
+                <Input 
+                  id="email" 
+                  type="email"
+                  placeholder="name@company.com" 
+                  required 
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                />
+                <p className="text-[10px] text-muted-foreground italic">Limit: 1 free scan per day.</p>
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="companyName">Company Name</Label>
@@ -164,7 +206,7 @@ export default function FreeScanPage() {
                   disabled={loading}
                 >
                   {loading ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" /> Executing AI Simulation...</>
+                    <><Loader2 className="w-5 h-5 animate-spin" /> Validating & Auditing...</>
                   ) : (
                     <>Run Discovery Scan <ChevronRight className="w-5 h-5" /></>
                   )}
@@ -173,9 +215,9 @@ export default function FreeScanPage() {
             </form>
 
             <div className="mt-8 flex items-start gap-4 p-4 bg-muted/30 rounded-2xl border border-dashed">
-              <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <ShieldAlert className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <div className="text-[10px] text-muted-foreground leading-relaxed">
-                <strong>Standard Data Privacy</strong>: This free audit uses our Multi-Vector v1.2 engine. Your data is used only for this simulation and is stored temporarily until account finalization.
+                <strong>Fair Use Policy</strong>: To ensure system availability for all professional users, we limit free audits to 1 per email and 3 per network daily. Multiple attempts from automated tools will result in a temporary block.
               </div>
             </div>
           </CardContent>
