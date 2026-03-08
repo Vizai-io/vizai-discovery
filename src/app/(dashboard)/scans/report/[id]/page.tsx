@@ -16,40 +16,82 @@ import {
   CheckCircle2,
   FileText,
   Globe,
-  Briefcase
+  Briefcase,
+  TrendingUp,
+  FileCode,
+  Layers
 } from "lucide-react";
 import Link from "next/link";
-import { QueryDiscoveryData } from "@/lib/types";
+import { QueryDiscoveryData, StrategicRecommendation } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
+import { collection, doc, getDoc, getDocs, query, where, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase-config";
 
 export default function ClientReportPage({ params }: { params: { id: string } }) {
+  const [scanData, setScanData] = useState<any>(null);
   const [queryDiscovery, setQueryDiscovery] = useState<QueryDiscoveryData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    QueryEngine.simulateDiscovery(
-      "Acme Logistics",
-      "Third Party Logistics (3PL)",
-      "Western Europe",
-      ["FedEx", "UPS", "DHL"]
-    ).then((data) => {
-      setQueryDiscovery(data);
-      setLoading(false);
-    });
-  }, []);
+    async function fetchScan() {
+      setLoading(true);
+      try {
+        let results;
+        let discovery;
+
+        if (params.id === 'latest') {
+          const scansRef = collection(db, "scans");
+          const q = query(scansRef, where("status", "==", "completed"), limit(1));
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+            const data = snapshot.docs[0].data();
+            results = data.results;
+            discovery = data.queryDiscovery;
+          }
+        } else {
+          const docRef = doc(db, "scans", params.id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            results = data.results;
+            discovery = data.queryDiscovery;
+          }
+        }
+
+        if (results) {
+          setScanData(results);
+          setQueryDiscovery(discovery || null);
+        }
+      } catch (e) {
+        console.error("Error loading report:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchScan();
+  }, [params.id]);
 
   const handlePrint = () => {
     window.print();
   };
 
+  const results = scanData || {
+    overallScore: 72.4,
+    categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
+    priorityActions: [
+      { category: "Structured Data", title: "Deploy JSON-LD Entity Schema", description: "Implement technical schema markup to clarify business entities for AI models.", priority: "high", expectedImpact: "Accuracy gain" },
+      { category: "Content / Positioning", title: "Publish AI-Ready Capabilities Page", description: "Create a dedicated landing page designed specifically for LLM ingestion.", priority: "high", expectedImpact: "Visibility gain" },
+      { category: "Entity / Citation Signals", title: "Strengthen Authoritative Mentions", description: "Acquire high-quality backlinks from industry publications to build trust.", priority: "medium", expectedImpact: "Citation strength gain" },
+    ] as StrategicRecommendation[]
+  };
+
   const CATEGORY_SCORES = [
-    { label: "AI Presence", score: 78, icon: Search },
-    { label: "Description Accuracy", score: 88, icon: ShieldCheck },
-    { label: "Citation Strength", score: 65, icon: Target },
-    { label: "Service Coverage", score: 54, icon: Zap },
-    { label: "Market Share of Voice", score: 42, icon: Users },
+    { label: "AI Presence", score: results.categoryScores.presence, icon: Search },
+    { label: "Description Accuracy", score: results.categoryScores.descriptionAccuracy, icon: ShieldCheck },
+    { label: "Citation Strength", score: results.categoryScores.citationStrength, icon: Target },
+    { label: "Service Coverage", score: results.categoryScores.serviceCoverage, icon: Zap },
+    { label: "Market Share of Voice", score: results.categoryScores.competitorShareOfVoice, icon: Users },
   ];
 
   return (
@@ -62,7 +104,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
           </Button>
         </Link>
         <Button onClick={handlePrint} className="gap-2 bg-primary text-white shadow-lg">
-          <Printer className="w-4 h-4" /> Export / Print Report
+          <Printer className="w-4 h-4" /> Export / Print Audit
         </Button>
       </div>
 
@@ -85,42 +127,42 @@ export default function ClientReportPage({ params }: { params: { id: string } })
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-muted/30 p-6 rounded-2xl border print:p-4 print:bg-white print:border-slate-200">
           <div className="space-y-1">
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Target Company</div>
-            <div className="text-sm font-bold text-primary">Acme Logistics</div>
+            <div className="text-[10px] font-bold text-muted-foreground uppercase">Target Organization</div>
+            <div className="text-sm font-bold text-primary">Client Account</div>
           </div>
           <div className="space-y-1">
-            <div className="text-[10px] font-bold text-muted-foreground uppercase">Industry Vertical</div>
-            <div className="text-sm font-bold text-primary">3PL Logistics</div>
+            <div className="text-[10px] font-bold text-muted-foreground uppercase">Analysis Scale</div>
+            <div className="text-sm font-bold text-primary">Multi-Vector</div>
           </div>
           <div className="space-y-1">
             <div className="text-[10px] font-bold text-muted-foreground uppercase">Geography</div>
-            <div className="text-sm font-bold text-primary">Western Europe</div>
+            <div className="text-sm font-bold text-primary">Global Context</div>
           </div>
           <div className="space-y-1">
             <div className="text-[10px] font-bold text-muted-foreground uppercase">Audit Date</div>
-            <div className="text-sm font-bold text-primary">Oct 24, 2023</div>
+            <div className="text-sm font-bold text-primary">{new Date().toLocaleDateString()}</div>
           </div>
         </div>
       </header>
 
       {/* Executive Summary Section */}
       <section className="space-y-6">
-        <div className="flex items-end gap-6 border-b pb-6 print:pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-6 border-b pb-6 print:pb-4">
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-primary">Executive Summary</h2>
-            <p className="text-sm text-muted-foreground max-w-2xl">
-              This report details the AI Visibility Index for Acme Logistics. Our analysis across major LLM providers (OpenAI, Gemini, Anthropic, Perplexity) shows a stable core presence but significant gaps in high-intent regional queries where competitors are currently owning the discovery narrative.
+            <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
+              This audit details the AI Visibility Index and discoverability footprint for your organization. Current metrics indicate a baseline prominence, yet significant gaps exist in specific high-intent intents where competitors are currently capturing majority share of voice. Tactical adjustments to entity signals and capability positioning are required to regain parity.
             </p>
           </div>
-          <div className="ml-auto text-center p-4 bg-primary text-white rounded-2xl shadow-xl min-w-[140px] print:shadow-none print:border print:border-primary print:text-primary print:bg-white">
+          <div className="sm:ml-auto text-center p-4 bg-primary text-white rounded-2xl shadow-xl min-w-[140px] print:shadow-none print:border print:border-primary print:text-primary print:bg-white">
             <div className="text-[10px] font-bold uppercase tracking-widest opacity-80">Overall Score</div>
-            <div className="text-5xl font-bold">72.4</div>
+            <div className="text-5xl font-bold">{results.overallScore.toFixed(1)}</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {CATEGORY_SCORES.map((cat, i) => (
-            <div key={i} className="p-4 bg-white rounded-xl border border-slate-100 flex flex-col items-center text-center space-y-2 print:border-slate-200">
+            <div key={i} className="p-4 bg-white rounded-xl border border-slate-100 flex flex-col items-center text-center space-y-2 print:border-slate-200 shadow-sm print:shadow-none">
               <div className="p-2 rounded-lg bg-primary/5 text-primary">
                 <cat.icon className="w-5 h-5" />
               </div>
@@ -131,39 +173,48 @@ export default function ClientReportPage({ params }: { params: { id: string } })
         </div>
       </section>
 
-      {/* Key Findings Section */}
-      <section className="space-y-4 pt-4 page-break-before-auto">
+      {/* Recommendations Section */}
+      <section className="space-y-4 pt-8 print:pt-4 page-break-before-auto">
         <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-accent" />
-          Critical Diagnostic Findings
+          <Zap className="w-5 h-5 text-accent" />
+          Strategic Strategic Actions
         </h3>
-        <div className="grid md:grid-cols-2 gap-4">
-          {[
-            { title: "Service Taxonomy Drift", desc: "LLMs frequently miscategorize cold chain capabilities as general shipping, leading to lost high-value leads." },
-            { title: "Regional Invisible Zones", desc: "Presence in DACH and Benelux markets is statistically insignificant compared to local competitors." },
-            { title: "Low Citation Authority", desc: "AI models rely on 3rd party blogs for your data rather than your official whitepapers or documentation." },
-            { title: "Competitor Hijack Pattern", desc: "FedEx and DHL are consistently listed first for 'innovative logistics' queries where you should be prominent." }
-          ].map((item, i) => (
-            <div key={i} className="p-5 rounded-xl border border-slate-100 bg-slate-50/50 flex gap-4 print:bg-white print:border-slate-200">
-              <div className="w-1 h-full bg-accent rounded-full shrink-0" />
-              <div className="space-y-1">
-                <div className="font-bold text-primary text-sm">{item.title}</div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+        <div className="space-y-4">
+          {results.priorityActions.map((rec: StrategicRecommendation, i: number) => (
+            <div key={i} className="p-6 bg-white border border-slate-100 rounded-2xl flex flex-col sm:flex-row items-start gap-6 print:border-slate-200 shadow-sm print:shadow-none">
+              <div className="w-12 h-12 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-lg shrink-0 print:border print:border-primary print:text-primary print:bg-white">
+                {i + 1}
+              </div>
+              <div className="space-y-2 flex-1">
+                <div className="flex items-center gap-3">
+                   <div className="text-[10px] font-bold text-accent uppercase tracking-widest">{rec.category}</div>
+                   <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[8px] uppercase h-4 px-1 leading-none">
+                     {rec.priority} Priority
+                   </Badge>
+                </div>
+                <div className="text-lg font-bold text-primary">{rec.title}</div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{rec.description}</p>
+                <div className="pt-2">
+                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/5 text-primary text-[10px] font-bold uppercase">
+                     <TrendingUp className="w-3 h-3 text-accent" />
+                     Primary Outcome: {rec.expectedImpact}
+                   </div>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Discovery Analysis Section */}
-      <section className="space-y-4 pt-8 print:pt-4">
+      {/* Discovery Analysis Table Section */}
+      <section className="space-y-4 pt-8 print:pt-4 page-break-before-auto">
         <div className="flex justify-between items-center border-b pb-2">
           <h3 className="text-xl font-bold text-primary flex items-center gap-2">
             <Globe className="w-5 h-5 text-accent" />
-            Discovery Signal Coverage
+            Intelligence Signal Coverage
           </h3>
           <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary border-primary/20">
-            Audit of 24 Strategic Intent Vectors
+            Audit of Multi-Vector Intents
           </Badge>
         </div>
         
@@ -172,12 +223,12 @@ export default function ClientReportPage({ params }: { params: { id: string } })
             <thead className="bg-slate-50 border-b print:bg-white">
               <tr>
                 <th className="px-6 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-widest">Query Vector</th>
-                <th className="px-6 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-widest text-center">AI Coverage</th>
-                <th className="px-6 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-widest">Top Mentions</th>
+                <th className="px-6 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-widest text-center">Signal Presence</th>
+                <th className="px-6 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-widest">Dominant Mentions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {queryDiscovery?.queries.slice(0, 6).map((q, i) => {
+              {queryDiscovery?.queries.slice(0, 10).map((q, i) => {
                 const isMentioned = q.results.some(r => r.isTargetCompanyMentioned);
                 return (
                   <tr key={i} className="print:bg-white">
@@ -190,7 +241,7 @@ export default function ClientReportPage({ params }: { params: { id: string } })
                           <AlertTriangle className="w-4 h-4 text-red-400" />
                         )}
                         <span className={cn("text-[10px] font-bold uppercase", isMentioned ? "text-green-600" : "text-red-500")}>
-                          {isMentioned ? "Presence" : "Absent"}
+                          {isMentioned ? "Presence" : "Deficit"}
                         </span>
                       </div>
                     </td>
@@ -202,32 +253,6 @@ export default function ClientReportPage({ params }: { params: { id: string } })
               })}
             </tbody>
           </table>
-        </div>
-      </section>
-
-      {/* Recommendations Section */}
-      <section className="space-y-4 pt-8 print:pt-4 page-break-before-always">
-        <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-          <Zap className="w-5 h-5 text-accent" />
-          Strategic Recommendations
-        </h3>
-        <div className="space-y-3">
-          {[
-            { cat: "Entity Optimization", title: "Deploy JSON-LD Structured Data", desc: "Implement full schema markup across the site to clarify service taxonomies for AI crawlers." },
-            { cat: "Content Strategy", title: "Develop 'AI Knowledge Layer' Pages", desc: "Create high-authority, low-fluff pages specifically designed for LLM data ingestion and summarization." },
-            { cat: "Digital Presence", title: "Increase Authoritative Citations", desc: "Build mentions in industry-standard publications to increase 'Confidence Scores' in AI model weights." }
-          ].map((rec, i) => (
-            <div key={i} className="p-6 bg-white border border-slate-100 rounded-2xl flex items-start gap-6 print:border-slate-200">
-              <div className="w-12 h-12 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-lg shrink-0 print:border print:border-primary print:text-primary print:bg-white">
-                {i + 1}
-              </div>
-              <div className="space-y-1">
-                <div className="text-[10px] font-bold text-accent uppercase tracking-widest">{rec.cat}</div>
-                <div className="text-lg font-bold text-primary">{rec.title}</div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{rec.desc}</p>
-              </div>
-            </div>
-          ))}
         </div>
       </section>
 

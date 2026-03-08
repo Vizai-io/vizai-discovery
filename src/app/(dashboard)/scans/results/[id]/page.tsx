@@ -34,63 +34,102 @@ import {
   Activity,
   ChevronRight,
   Info,
-  ExternalLink
+  ExternalLink,
+  Layers,
+  FileCode,
+  Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useState, useEffect } from "react";
-import { QueryDiscoveryData, ScanResults } from "@/lib/types";
+import { QueryDiscoveryData, ScanResults, StrategicRecommendation } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-
-const MOCK_SCORE_BREAKDOWN = [
-  { name: 'Presence', score: 78, color: '#174C80' },
-  { name: 'Accuracy', score: 88, color: '#14C4E6' },
-  { name: 'Citations', score: 65, color: '#0F172A' },
-  { name: 'Coverage', score: 54, color: '#64748B' },
-  { name: 'Share of Voice', score: 42, color: '#94A3B8' },
-];
-
-const MOCK_COMPETITORS = [
-  { name: 'You (Acme)', score: 72 },
-  { name: 'FedEx', score: 84 },
-  { name: 'UPS', score: 79 },
-  { name: 'DHL', score: 65 },
-];
+import { collection, doc, getDoc, getDocs, query, where, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase-config";
 
 export default function ScanResultsPage({ params }: { params: { id: string } }) {
+  const [scanData, setScanData] = useState<any>(null);
   const [queryDiscovery, setQueryDiscovery] = useState<QueryDiscoveryData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate data fetch
-    setLoading(true);
-    QueryEngine.simulateDiscovery(
-      "Acme Logistics",
-      "Third Party Logistics (3PL)",
-      "Western Europe",
-      ["FedEx", "UPS", "DHL"]
-    ).then((data) => {
-      setQueryDiscovery(data);
-      setLoading(false);
-    });
-  }, []);
+    async function fetchScan() {
+      setLoading(true);
+      try {
+        let results;
+        let discovery;
 
-  // Mock Findings and Actions for demonstration
-  const KEY_FINDINGS = [
-    { title: "Inaccurate Service Taxonomy", desc: "LLMs frequently fail to categorize your 'Cold Chain' services correctly, often defaulting to general logistics.", severity: "high" },
-    { title: "Weak Sourcing Citations", desc: "Your official documentation is rarely cited as a primary source compared to 3rd party industry blogs.", severity: "medium" },
-    { title: "Regional Visibility Gap", desc: "Presence in DACH region queries is 40% lower than your competitors despite local operations.", severity: "high" },
-    { title: "Competitor Hijack", desc: "FedEx is consistently listed first for 'Logistics innovations' queries where your recent whitepaper should rank.", severity: "medium" }
-  ];
+        if (params.id === 'latest') {
+          const scansRef = collection(db, "scans");
+          const q = query(scansRef, where("status", "==", "completed"), limit(1));
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+            const data = snapshot.docs[0].data();
+            results = data.results;
+            discovery = data.queryDiscovery;
+          }
+        } else {
+          const docRef = doc(db, "scans", params.id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            results = data.results;
+            discovery = data.queryDiscovery;
+          }
+        }
 
-  const PRIORITY_ACTIONS = [
-    { action: "Deploy JSON-LD Entity Schema", impact: "High", timeline: "1-2 Weeks", icon: Activity },
-    { action: "Publish AI-Ready Capabilities Page", impact: "High", timeline: "3-4 Weeks", icon: Zap },
-    { action: "Aggressive Citation Building (LinkedIn/TechCrunch)", impact: "Medium", timeline: "Ongoing", icon: Target },
-    { action: "Update Knowledge Layer API", impact: "Medium", timeline: "2 Months", icon: ShieldCheck }
-  ];
+        if (results) {
+          setScanData(results);
+          setQueryDiscovery(discovery || null);
+        } else {
+          // Fallback to simulation if no DB record
+          const simulatedDiscovery = await QueryEngine.simulateDiscovery(
+            "Acme Logistics",
+            "Third Party Logistics (3PL)",
+            "Western Europe",
+            ["FedEx", "UPS", "DHL"]
+          );
+          setQueryDiscovery(simulatedDiscovery);
+        }
+      } catch (e) {
+        console.error("Error loading scan:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchScan();
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Activity className="w-12 h-12 text-primary animate-pulse" />
+        <p className="text-muted-foreground font-medium">Analyzing intelligence vectors...</p>
+      </div>
+    );
+  }
+
+  const results = scanData || {
+    overallScore: 72.4,
+    categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
+    priorityActions: [
+      { category: "Structured Data", title: "Deploy JSON-LD Entity Schema", description: "Implement technical schema markup to clarify business entities for AI models.", priority: "high", expectedImpact: "Accuracy gain" },
+      { category: "Content / Positioning", title: "Publish AI-Ready Capabilities Page", description: "Create a dedicated landing page designed specifically for LLM ingestion.", priority: "high", expectedImpact: "Visibility gain" },
+      { category: "Entity / Citation Signals", title: "Strengthen Authoritative Mentions", description: "Acquire high-quality backlinks from industry publications to build trust.", priority: "medium", expectedImpact: "Citation strength gain" },
+    ] as StrategicRecommendation[]
+  };
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'Structured Data': return FileCode;
+      case 'Content / Positioning': return FileText;
+      case 'Entity / Citation Signals': return Target;
+      case 'Competitive Visibility': return Users;
+      default: return Zap;
+    }
+  };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
@@ -99,16 +138,16 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
              <FileText className="w-3 h-3 text-accent" />
-             Report ID: {params.id === 'latest' ? 'SCAN-1024-X' : params.id} • Confidential
+             Report ID: {params.id === 'latest' ? 'SCAN-LATEST' : params.id} • Private & Confidential
           </div>
-          <h2 className="text-4xl font-headline font-bold text-primary tracking-tight">Executive Discovery Report</h2>
+          <h2 className="text-4xl font-headline font-bold text-primary tracking-tight">Intelligence Discovery Audit</h2>
           <p className="text-muted-foreground flex items-center gap-2">
-            Analysis for <strong className="text-primary font-bold">Acme Logistics</strong> • Western Europe Market • Oct 24, 2023
+            Analysis for <strong className="text-primary font-bold">Client Organization</strong> • Global Market • {new Date().toLocaleDateString()}
           </p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5">
-            <Share2 className="w-4 h-4" /> Share Dashboard
+            <Share2 className="w-4 h-4" /> Share Access
           </Button>
           <Link href={`/scans/report/${params.id}`}>
             <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20">
@@ -121,109 +160,127 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       {/* Primary KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <ScoreCard 
-          title="AI Visibility Index" 
-          score={72.4} 
+          title="Overall Visibility" 
+          score={results.overallScore} 
           trend={4.2} 
           icon={Search} 
           className="bg-primary text-white" 
-          description="Aggregated score across 4 providers"
+          description="Avg. AI prominence"
         />
         <ScoreCard 
           title="Description Accuracy" 
-          score={88.1} 
+          score={results.categoryScores.descriptionAccuracy} 
           trend={1.5} 
           icon={ShieldCheck} 
           description="Business model alignment"
         />
         <ScoreCard 
           title="Citation Strength" 
-          score={65.5} 
+          score={results.categoryScores.citationStrength} 
           trend={8.4} 
           icon={Target} 
           description="Authority of data sources"
         />
         <ScoreCard 
           title="Service Coverage" 
-          score={54.0} 
+          score={results.categoryScores.serviceCoverage} 
           trend={-0.8} 
           icon={Zap} 
           description="Completeness of offerings"
         />
         <ScoreCard 
           title="Competitor Threat" 
-          score={34.2} 
+          score={results.categoryScores.competitorShareOfVoice} 
           trend={-2.1} 
           icon={Users} 
           description="Rival share of search voice"
         />
       </div>
 
-      {/* Findings & Actions Grid */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Key Findings */}
-        <Card className="border-none shadow-sm bg-white overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30 py-4 px-6">
-            <div>
-              <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-accent" />
-                Key Diagnostic Findings
-              </CardTitle>
-              <CardDescription className="text-xs">Critical issues impacting your visibility</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {KEY_FINDINGS.map((finding, i) => (
-                <div key={i} className="p-6 flex gap-4 hover:bg-muted/10 transition-colors">
-                  <div className={cn(
-                    "w-2 h-2 rounded-full mt-2 shrink-0",
-                    finding.severity === 'high' ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]"
-                  )} />
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-primary text-sm">{finding.title}</h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{finding.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Priority Actions */}
-        <Card className="border-none shadow-sm bg-white overflow-hidden">
+      {/* Recommendations & Gaps Grid */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Strategic Next Steps */}
+        <Card className="lg:col-span-2 border-none shadow-sm bg-white overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between border-b bg-primary/5 py-4 px-6">
             <div>
               <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
                 <Lightbulb className="w-5 h-5 text-accent" />
                 Strategic Next Steps
               </CardTitle>
-              <CardDescription className="text-xs">Recommended sequence for optimization</CardDescription>
+              <CardDescription className="text-xs">Prioritized sequence for optimization based on core weaknesses</CardDescription>
             </div>
+            <Layers className="w-5 h-5 text-primary opacity-20" />
           </CardHeader>
           <CardContent className="p-6">
             <div className="space-y-4">
-              {PRIORITY_ACTIONS.map((action, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border border-transparent hover:border-accent/20 transition-all group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-primary shadow-sm group-hover:bg-accent group-hover:text-white transition-colors">
-                      <action.icon className="w-5 h-5" />
+              {results.priorityActions.map((rec: StrategicRecommendation, i: number) => {
+                const CategoryIcon = getCategoryIcon(rec.category);
+                return (
+                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-muted/20 rounded-xl border border-transparent hover:border-accent/20 transition-all group gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-primary shadow-sm group-hover:bg-accent group-hover:text-white transition-colors shrink-0">
+                        <CategoryIcon className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                           <span className="text-[10px] font-bold text-accent uppercase tracking-widest">{rec.category}</span>
+                           <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[8px] h-4 uppercase px-1">
+                             {rec.priority}
+                           </Badge>
+                        </div>
+                        <h4 className="text-sm font-bold text-primary">{rec.title}</h4>
+                        <p className="text-xs text-muted-foreground leading-relaxed max-w-md">{rec.description}</p>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-bold text-primary">{action.action}</div>
-                      <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">Timeline: {action.timeline}</div>
+                    <div className="text-right sm:shrink-0">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/5 text-primary border border-primary/10 text-[10px] font-bold uppercase">
+                        <TrendingUp className="w-3 h-3 text-accent" />
+                        {rec.expectedImpact}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 uppercase text-[8px] px-2 py-0">
-                      Impact: {action.impact}
-                    </Badge>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Missed Opportunities / Gaps */}
+        <Card className="border-none shadow-sm bg-white overflow-hidden">
+          <CardHeader className="border-b bg-red-50/30">
+            <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
+              <EyeOff className="w-5 h-5 text-red-500" />
+              Critical Visibility Gaps
+            </CardTitle>
+            <CardDescription className="text-xs">Identified zones where competitors are currently dominant</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {queryDiscovery?.queries.filter(q => !q.results.some(r => r.isTargetCompanyMentioned)).slice(0, 4).map((q, i) => (
+                <div key={i} className="p-5 space-y-3 hover:bg-red-50/10 transition-colors">
+                  <div className="text-xs font-bold text-primary italic leading-tight">"{q.text}"</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[10px] text-muted-foreground font-medium mr-1 uppercase">Top Mentions:</span>
+                    {q.results[0].mentions.slice(0, 3).map((m, idx) => (
+                      <Badge key={idx} variant="outline" className="text-[8px] bg-white text-muted-foreground border-slate-200">
+                        {m.companyName}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 uppercase tracking-tighter">
+                    <AlertTriangle className="w-3 h-3" />
+                    Visibility Deficit Identified
                   </div>
                 </div>
               ))}
-              <Button variant="ghost" className="w-full text-primary hover:text-primary hover:bg-primary/5 text-xs font-bold gap-2">
-                View Full Technical Implementation Plan
-                <ChevronRight className="w-4 h-4" />
-              </Button>
+              {(!queryDiscovery || queryDiscovery.queries.every(q => q.results.some(r => r.isTargetCompanyMentioned))) && (
+                <div className="p-12 text-center flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs text-muted-foreground italic">No significant discovery gaps found in current vector set.</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -234,15 +291,15 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b py-6 px-8">
           <div className="space-y-1">
             <CardTitle className="text-xl font-bold text-primary flex items-center gap-2">
-              <TableIcon className="w-5 h-5 text-accent" />
-              Discovery Signal Coverage
+              <Globe className="w-5 h-5 text-accent" />
+              Intelligence Signal Coverage
             </CardTitle>
-            <CardDescription>Performance benchmark across 24 simulated buyer intents</CardDescription>
+            <CardDescription>Real-time performance benchmark across multiple discovery intents</CardDescription>
           </div>
           <div className="flex items-center gap-8 pr-4">
             <div className="text-center">
-              <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Total Mentions</div>
-              <div className="text-2xl font-bold text-primary">{queryDiscovery?.summary.companyMentionCount || 0}</div>
+              <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Total Signals</div>
+              <div className="text-2xl font-bold text-primary">{queryDiscovery?.summary.totalQueries || 0}</div>
             </div>
             <div className="w-px h-10 bg-border hidden sm:block" />
             <div className="text-center">
@@ -256,9 +313,9 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-[40%] pl-8 font-bold uppercase text-[10px] tracking-widest text-muted-foreground">User Query Vector</TableHead>
+                  <TableHead className="w-[40%] pl-8 font-bold uppercase text-[10px] tracking-widest text-muted-foreground">User Intent Vector</TableHead>
                   <TableHead className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Provider Distribution</TableHead>
-                  <TableHead className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Market Share / Mentions</TableHead>
+                  <TableHead className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Market Mention Set</TableHead>
                   <TableHead className="text-right pr-8 font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Signal Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -298,11 +355,11 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                       <TableCell className="text-right pr-8">
                         {isMentioned ? (
                           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100 text-[10px] font-bold uppercase">
-                            <Eye className="w-3 h-3" /> Mentioned
+                            <Eye className="w-3 h-3" /> Prominent
                           </div>
                         ) : (
                           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100 text-[10px] font-bold uppercase">
-                            <EyeOff className="w-3 h-3" /> Absent
+                            <EyeOff className="w-3 h-3" /> Deficit
                           </div>
                         )}
                       </TableCell>
@@ -314,130 +371,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           </div>
         </CardContent>
       </Card>
-
-      {/* Detail Analysis Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Description Analysis */}
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="border-b bg-muted/10">
-            <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-accent" />
-              AI Conceptual Match
-            </CardTitle>
-            <CardDescription className="text-xs">How AI interprets your core value prop</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="text-[10px] font-bold text-muted-foreground uppercase">Alignment Score</div>
-                <div className="text-3xl font-bold text-primary">88%</div>
-              </div>
-              <div className="w-16 h-16 rounded-full border-4 border-accent/20 border-t-accent flex items-center justify-center text-xs font-bold text-primary">
-                High
-              </div>
-            </div>
-            
-            <div className="space-y-4 pt-2">
-               <div className="p-3 bg-green-50/50 rounded-lg border border-green-100 flex gap-3">
-                  <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
-                  <div className="text-xs text-green-800 leading-relaxed font-medium">Core service taxonomy (3PL, Logistics) is accurately mapped across all providers.</div>
-               </div>
-               <div className="p-3 bg-yellow-50/50 rounded-lg border border-yellow-100 flex gap-3">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
-                  <div className="text-xs text-yellow-800 leading-relaxed font-medium">Secondary 'Subscription Logistics' tier is missing in 60% of LLM descriptions.</div>
-               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Competitor Analysis */}
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="border-b bg-muted/10">
-            <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
-              <Users className="w-5 h-5 text-accent" />
-              Market Discovery Share
-            </CardTitle>
-            <CardDescription className="text-xs">Your presence relative to top rivals</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="h-[200px] w-full mb-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={MOCK_COMPETITORS}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={8}
-                    dataKey="score"
-                    stroke="none"
-                  >
-                    {MOCK_COMPETITORS.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index === 0 ? '#174C80' : '#E2E8F0'} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-                <div className="text-2xl font-bold text-primary">31%</div>
-                <div className="text-[8px] font-bold text-muted-foreground uppercase">Share</div>
-              </div>
-            </div>
-            <div className="space-y-2">
-               {MOCK_COMPETITORS.map((c, i) => (
-                 <div key={i} className="flex justify-between items-center p-2 rounded-lg hover:bg-muted/30 transition-colors">
-                    <span className="flex items-center gap-2 text-xs font-medium text-primary">
-                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: i === 0 ? '#174C80' : '#CBD5E1' }} />
-                       {c.name}
-                    </span>
-                    <span className="text-xs font-bold text-primary">{c.score}%</span>
-                 </div>
-               ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Missed Discovery Detail */}
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="border-b bg-muted/10">
-            <CardTitle className="text-lg font-bold text-primary flex items-center gap-2">
-              <EyeOff className="w-5 h-5 text-accent" />
-              Lost Opportunities
-            </CardTitle>
-            <CardDescription className="text-xs">Where competitors are owning the narrative</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-             {queryDiscovery?.queries.filter(q => !q.results.some(r => r.isTargetCompanyMentioned)).slice(0, 3).map((q, i) => (
-               <div key={i} className="space-y-2 pb-4 border-b last:border-0 last:pb-0">
-                  <div className="text-xs font-bold text-primary italic leading-tight">"{q.text}"</div>
-                  <div className="flex flex-wrap gap-1">
-                    {q.results[0].mentions.map((m, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-[8px] px-1.5 py-0 bg-red-50 text-red-700 border-red-100">
-                        {m.companyName}
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="text-[9px] font-bold text-green-600 flex items-center gap-1 uppercase">
-                    <TrendingUp className="w-3 h-3" />
-                    Strategic Fix: Update regional capability content
-                  </div>
-               </div>
-             ))}
-             {(!queryDiscovery || queryDiscovery.queries.every(q => q.results.some(r => r.isTargetCompanyMentioned))) && (
-               <div className="p-12 text-center flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <p className="text-xs text-muted-foreground italic">No significant discovery gaps found in this vector set.</p>
-               </div>
-             )}
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

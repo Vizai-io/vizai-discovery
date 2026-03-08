@@ -1,4 +1,3 @@
-
 export type UserRole = 'admin' | 'client';
 
 export interface UserProfile {
@@ -64,6 +63,14 @@ export interface CompanyMention {
   confidenceScore: number;
 }
 
+export interface StrategicRecommendation {
+  title: string;
+  description: string;
+  category: 'Structured Data' | 'Content / Positioning' | 'Entity / Citation Signals' | 'Competitive Visibility' | string;
+  priority: 'high' | 'medium' | 'low';
+  expectedImpact: string;
+}
+
 export interface ScanResults {
   overallScore: number;
   categoryScores: {
@@ -96,12 +103,7 @@ export interface ScanResults {
     reason: string;
     suggestedAction: string;
   }[];
-  priorityActions: {
-    category: string;
-    action: string;
-    impact: string;
-    priority: 'high' | 'medium' | 'low';
-  }[];
+  priorityActions: StrategicRecommendation[];
 }
 
 export interface RankingEntry {

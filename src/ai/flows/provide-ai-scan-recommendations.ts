@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for generating actionable recommendations
- * based on AI scan results for a company. It acts as a VizAI Consultant,
- * providing strategic advice to improve AI discoverability and address knowledge gaps.
+ * @fileOverview This file defines a Genkit flow for generating strategic recommendations
+ * based on AI scan results. It provides high-impact, client-facing advice grouped by
+ * specific intelligence categories.
  *
  * - provideAiScanRecommendations - A function that orchestrates the recommendation generation.
  * - ProvideAiScanRecommendationsInput - The input type for the recommendations.
@@ -21,9 +21,9 @@ const ProvideAiScanRecommendationsInputSchema = z.object({
     descriptionAccuracyScore: z.number().min(0).max(100).describe('Accuracy of AI descriptions matching the business profile (0-100).'),
     citationStrengthScore: z.number().min(0).max(100).describe('Strength of citations and references in AI responses (0-100).'),
     serviceCoverageScore: z.number().min(0).max(100).describe('Coverage of company services in AI responses (0-100).'),
-    competitorShareOfVoiceScore: z.number().min(0).max(100).describe('Company\u0027s share of voice compared to competitors in AI responses (0-100).'),
+    competitorShareOfVoiceScore: z.number().min(0).max(100).describe('Company\'s share of voice compared to competitors (0-100).'),
   }).describe('Current AI scan scores for various categories.'),
-  identifiedGaps: z.array(z.string()).describe('A list of identified knowledge gaps or missed opportunities from the scan.').optional(),
+  identifiedGaps: z.array(z.string()).describe('A list of identified knowledge gaps or missed opportunities.').optional(),
   competitors: z.array(z.string()).describe('A list of main competitors to compare against.').optional(),
 });
 
@@ -32,18 +32,16 @@ export type ProvideAiScanRecommendationsInput = z.infer<typeof ProvideAiScanReco
 const ProvideAiScanRecommendationsOutputSchema = z.object({
   recommendations: z.array(z.object({
     title: z.string().describe('A concise title for the recommendation.'),
-    description: z.string().describe('A detailed explanation and action plan for the recommendation.'),
+    description: z.string().describe('A detailed explanation and action plan.'),
     category: z.enum([
-      'Service Taxonomy',
       'Structured Data',
-      'Location Coverage',
-      'Content Strategy',
-      'Authoritative Citations',
-      'AI-Ready Knowledge Layer',
-      'Competitor Analysis',
-      'General Improvement'
-    ]).describe('The category this recommendation falls under.')
-  })).describe('A list of actionable recommendations to improve AI discoverability.'),
+      'Content / Positioning',
+      'Entity / Citation Signals',
+      'Competitive Visibility'
+    ]).describe('The strategy category.'),
+    priority: z.enum(['high', 'medium', 'low']).describe('Priority level for implementation.'),
+    expectedImpact: z.string().describe('Primary metric gain expected (e.g., Visibility gain, Accuracy gain, Citation strength gain).')
+  })).describe('A list of actionable, strategic recommendations.'),
 });
 
 export type ProvideAiScanRecommendationsOutput = z.infer<typeof ProvideAiScanRecommendationsOutputSchema>;
@@ -56,22 +54,21 @@ const recommendationsPrompt = ai.definePrompt({
   name: 'recommendationsPrompt',
   input: { schema: ProvideAiScanRecommendationsInputSchema },
   output: { schema: ProvideAiScanRecommendationsOutputSchema },
-  prompt: `You are an expert VizAI Consultant, specializing in improving a company's AI discoverability and presence in LLM and AI answer environments. Your task is to analyze the provided AI scan results and generate actionable, tailored recommendations for the company.
+  prompt: `You are a Senior VizAI Consultant. Your goal is to provide high-impact, client-facing recommendations to improve a company's visibility in AI search environments (LLMs, Perplexity, etc.).
 
-Here are the details for the company:
-Company Name: {{{companyName}}}
+Analyze the following scan data for '{{{companyName}}}':
 Industry: {{{industry}}}
-Target Geography: {{{targetGeography}}}
+Geography: {{{targetGeography}}}
 
-AI Scan Scores (0-100, higher is better):
-- AI Visibility Score: {{{currentScores.visibilityScore}}}
-- Description Accuracy Score: {{{currentScores.descriptionAccuracyScore}}}
-- Citation Strength Score: {{{currentScores.citationStrengthScore}}}
-- Service Coverage Score: {{{currentScores.serviceCoverageScore}}}
-- Competitor Share of Voice Score: {{{currentScores.competitorShareOfVoiceScore}}}
+Scores (0-100):
+- Overall Visibility: {{{currentScores.visibilityScore}}}
+- Description Accuracy: {{{currentScores.descriptionAccuracyScore}}}
+- Citation Strength: {{{currentScores.citationStrengthScore}}}
+- Service Coverage: {{{currentScores.serviceCoverageScore}}}
+- Competitor Share of Voice: {{{currentScores.competitorShareOfVoiceScore}}}
 
 {{#if identifiedGaps}}
-Identified Gaps and Missed Opportunities:
+Identified Gaps:
 {{#each identifiedGaps}}- {{{this}}}
 {{/each}}
 {{/if}}
@@ -80,20 +77,21 @@ Identified Gaps and Missed Opportunities:
 Competitors: {{#each competitors}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 {{/if}}
 
-Based on these results, provide a list of concrete, strategic recommendations to help '{{{companyName}}}' enhance its AI discoverability and address any weaknesses. Focus on the most impactful actions.
+Focus recommendations on the WEAKEST score areas first. 
 
-Consider recommendations from the following categories:
-- Add clearer service taxonomy: Ensure AI can easily understand and categorize offerings.
-- Improve structured business entity data: Enhance data like company name, address, phone, business hours, etc., in machine-readable formats.
-- Expand location coverage data: Optimize location-specific information for AI queries.
-- Publish clearer capabilities content: Make core competencies and unique selling points explicit.
-- Strengthen authoritative citations: Build more credible links and references to support claims.
-- Build an AI-ready knowledge layer: Create dedicated content for AI consumption (e.g., FAQs, knowledge bases).
-- Competitor Analysis: Recommend actions based on competitor performance.
-- General Improvement: Broader advice for overall AI presence.
+Group recommendations into these categories:
+- Structured Data: Technical schema, JSON-LD, and knowledge graph signals.
+- Content / Positioning: Capability pages, whitepapers, and service taxonomy clarity.
+- Entity / Citation Signals: Authority building, external mentions, and sourcing strength.
+- Competitive Visibility: Countering competitor share-of-voice and owning intent vectors.
 
-Format your output as a JSON array of recommendations, where each recommendation has a 'title' (string), a 'description' (string) detailing the action, and a 'category' (enum) from the list above. Ensure the descriptions are clear, actionable, and specific to the identified scores and gaps.
-`,
+For each recommendation, provide:
+1. A strategic title.
+2. A clear, actionable description.
+3. Priority (high/medium/low).
+4. Expected impact (e.g., 'Visibility gain', 'Accuracy gain', 'Citation strength gain').
+
+Format the output as a JSON object with a 'recommendations' array.`,
 });
 
 const provideAiScanRecommendationsFlow = ai.defineFlow(
@@ -105,7 +103,7 @@ const provideAiScanRecommendationsFlow = ai.defineFlow(
   async (input) => {
     const { output } = await recommendationsPrompt(input);
     if (!output) {
-      throw new Error('Failed to generate recommendations.');
+      throw new Error('Failed to generate strategic recommendations.');
     }
     return output;
   },
