@@ -21,23 +21,29 @@ export class WebsiteExtractor {
         next: { revalidate: 3600 }
       });
 
-      if (!response.ok) throw new Error("Could not fetch website");
+      if (!response.ok) {
+        throw new Error("Could not fetch website");
+      }
 
       const html = await response.text();
 
       // Simple regex-based extraction for MVP (no DOM needed)
-      const title = html.match(/<title>(.*?)<\/title>/i)?.[1] || "No Title Found";
-      const metaDescription = html.match(/<meta name="description" content="(.*?)"/i)?.[1] || "";
+      const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+      const title = titleMatch ? titleMatch[1] : "No Title Found";
+      
+      const metaMatch = html.match(/<meta name="description" content="(.*?)"/i);
+      const metaDescription = metaMatch ? metaMatch[1] : "";
+      
       const h1Tags = Array.from(html.matchAll(/<h1.*?>(.*?)<\/h1>/gi)).map(m => m[1]);
       const jsonLdDetected = html.includes('application/ld+json');
 
       // Mocked keyword detection based on typical industry terms
-      const serviceKeywords = this.detectKeywords(html, [
+      const serviceKeywords = WebsiteExtractor.detectKeywords(html, [
         'logistics', 'shipping', 'supply chain', 'warehouse', 'software', 'legal', 'consulting',
         'manufacturing', 'inventory', 'delivery', 'compliance', 'enterprise', 'SaaS'
       ]);
 
-      const locationReferences = this.detectKeywords(html, [
+      const locationReferences = WebsiteExtractor.detectKeywords(html, [
         'North America', 'USA', 'Europe', 'Germany', 'United Kingdom', 'London', 'Global', 'New York'
       ]);
 
@@ -58,9 +64,13 @@ export class WebsiteExtractor {
     }
   }
 
+  /**
+   * Helper to detect presence of keywords in a blob of text.
+   */
   private static detectKeywords(text: string, list: string[]): string[] {
+    const lowerText = text.toLowerCase();
     return list.filter(keyword => 
-      text.toLowerCase().includes(keyword.toLowerCase())
+      lowerText.includes(keyword.toLowerCase())
     );
   }
 }
