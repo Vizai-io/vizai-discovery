@@ -64,3 +64,34 @@ export function calculateWeightedScore(scores: Record<string, number>): number {
     return acc + (scoreValue * cat.weight);
   }, 0);
 }
+
+/**
+ * Simulates a projected score improvement scenario based on current weaknesses.
+ */
+export function calculateProjectedImprovement(currentScores: Record<string, number>) {
+  const projectedScores: Record<string, number> = { ...currentScores };
+  const improvements: { id: string, label: string, gain: number }[] = [];
+
+  SCORING_MODEL.forEach(cat => {
+    const currentVal = currentScores[cat.id];
+    // If a score is below 85, there's significant room for optimization
+    if (currentVal < 85) {
+      const gain = Math.min(100 - currentVal, cat.id === 'presence' ? 18 : 12);
+      projectedScores[cat.id] = currentVal + gain;
+      if (gain > 0) {
+        improvements.push({ id: cat.id, label: cat.label, gain });
+      }
+    }
+  });
+
+  const currentOverall = calculateWeightedScore(currentScores);
+  const projectedOverall = calculateWeightedScore(projectedScores);
+
+  return {
+    projectedScores,
+    currentOverall,
+    projectedOverall,
+    improvements,
+    totalGain: projectedOverall - currentOverall
+  };
+}

@@ -23,18 +23,21 @@ import {
   FileCode,
   Globe,
   Info,
-  Scale
+  Scale,
+  ArrowUpRight,
+  ChevronRight,
+  TrendingDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { QueryDiscoveryData, StrategicRecommendation } from "@/lib/types";
 import { QueryEngine } from "@/lib/services/query-engine";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { collection, doc, getDoc, getDocs, query, where, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
-import { SCORING_MODEL, calculateWeightedScore } from "@/lib/services/scoring-model";
+import { SCORING_MODEL, calculateWeightedScore, calculateProjectedImprovement } from "@/lib/services/scoring-model";
 
 export default function ScanResultsPage({ params }: { params: { id: string } }) {
   const [scanData, setScanData] = useState<any>(null);
@@ -88,6 +91,18 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     fetchScan();
   }, [params.id]);
 
+  const results = useMemo(() => scanData || {
+    overallScore: 72.4,
+    categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
+    priorityActions: [
+      { category: "Structured Data", title: "Deploy JSON-LD Entity Schema", description: "Implement technical schema markup to clarify business entities for AI models.", priority: "high", expectedImpact: "Accuracy gain" },
+      { category: "Content / Positioning", title: "Publish AI-Ready Capabilities Page", description: "Create a dedicated landing page designed specifically for LLM ingestion.", priority: "high", expectedImpact: "Visibility gain" },
+      { category: "Entity / Citation Signals", title: "Strengthen Authoritative Mentions", description: "Acquire high-quality backlinks from industry publications to build trust.", priority: "medium", expectedImpact: "Citation strength gain" },
+    ] as StrategicRecommendation[]
+  }, [scanData]);
+
+  const projection = useMemo(() => calculateProjectedImprovement(results.categoryScores), [results]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -96,16 +111,6 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
       </div>
     );
   }
-
-  const results = scanData || {
-    overallScore: 72.4,
-    categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
-    priorityActions: [
-      { category: "Structured Data", title: "Deploy JSON-LD Entity Schema", description: "Implement technical schema markup to clarify business entities for AI models.", priority: "high", expectedImpact: "Accuracy gain" },
-      { category: "Content / Positioning", title: "Publish AI-Ready Capabilities Page", description: "Create a dedicated landing page designed specifically for LLM ingestion.", priority: "high", expectedImpact: "Visibility gain" },
-      { category: "Entity / Citation Signals", title: "Strengthen Authoritative Mentions", description: "Acquire high-quality backlinks from industry publications to build trust.", priority: "medium", expectedImpact: "Citation strength gain" },
-    ] as StrategicRecommendation[]
-  };
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -187,6 +192,64 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           tooltip="Tracks how often competitors are recommended over your brand for generic intents."
         />
       </div>
+
+      {/* Optimization Scenario Section */}
+      <Card className="border-none shadow-xl bg-gradient-to-br from-primary to-[#0d2a4a] text-white overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-accent" />
+              Optimization Scenario: Projected Impact
+            </CardTitle>
+            <CardDescription className="text-white/60 text-sm">Estimated visibility gains following implementation of recommended actions</CardDescription>
+          </div>
+          <Badge className="bg-accent text-primary font-bold px-3 py-1">Strategic Projection</Badge>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid lg:grid-cols-4 gap-8">
+            <div className="flex flex-col justify-center items-center p-6 bg-white/5 rounded-2xl border border-white/10 text-center">
+              <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Current Baseline</div>
+              <div className="text-4xl font-bold mb-4">{results.overallScore.toFixed(1)}</div>
+              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-white/30" style={{ width: `${results.overallScore}%` }} />
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-center items-center">
+              <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center mb-2">
+                <ChevronRight className="w-6 h-6 text-accent" />
+              </div>
+              <div className="text-[10px] font-bold text-accent uppercase tracking-tighter">Gain: +{projection.totalGain.toFixed(1)}</div>
+            </div>
+
+            <div className="flex flex-col justify-center items-center p-6 bg-accent/10 rounded-2xl border border-accent/20 text-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-2">
+                <Zap className="w-4 h-4 text-accent animate-pulse" />
+              </div>
+              <div className="text-[10px] font-bold text-accent uppercase tracking-widest mb-1">Optimized Projection</div>
+              <div className="text-5xl font-bold text-accent mb-4">{projection.projectedOverall.toFixed(1)}</div>
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-accent" style={{ width: `${projection.projectedOverall}%` }} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="text-xs font-bold text-white/70 uppercase mb-2">Growth Vectors</div>
+              <div className="space-y-2">
+                {projection.improvements.slice(0, 3).map((imp, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs p-2 bg-white/5 rounded-lg border border-white/10">
+                    <span className="opacity-80">{imp.label}</span>
+                    <span className="text-accent font-bold">+{imp.gain}%</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-white/50 italic leading-tight">
+                *Projections assume high-priority deployment of technical entity signals and capability taxonomy clarity.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Scoring Explanation Panel */}
       <div className="grid lg:grid-cols-3 gap-6">
@@ -482,3 +545,4 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     </div>
   );
 }
+
