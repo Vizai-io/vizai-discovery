@@ -12,12 +12,17 @@ export interface ScoreCategory {
   negativeDrivers: string[];
 }
 
+/**
+ * The master configuration for the scoring engine.
+ * Adjust weights here to shift the primary drivers of the overall score.
+ * Total weights MUST sum to 1.0.
+ */
 export const SCORING_MODEL: ScoreCategory[] = [
   {
     id: 'presence',
     label: 'AI Visibility',
     weight: 0.30,
-    description: 'The frequency and prominence of your brand in AI responses across top discovery vectors.',
+    description: 'Measures the frequency and priority positioning of your brand in top-tier AI search responses.',
     positiveDrivers: ['High mention frequency', 'First-page positioning', 'Brand-entity association'],
     negativeDrivers: ['Low search prominence', 'Competitor dominance', 'Generic keyword mismatch'],
   },
@@ -25,7 +30,7 @@ export const SCORING_MODEL: ScoreCategory[] = [
     id: 'descriptionAccuracy',
     label: 'Description Accuracy',
     weight: 0.20,
-    description: 'How well AI-generated summaries match your official business model and capabilities.',
+    description: 'Measures how precisely AI-generated summaries align with your official business model and history.',
     positiveDrivers: ['Accurate service listing', 'Correct historical data', 'Clear value proposition'],
     negativeDrivers: ['Outdated info', 'Hallucinated services', 'Misleading summaries'],
   },
@@ -33,7 +38,7 @@ export const SCORING_MODEL: ScoreCategory[] = [
     id: 'citationStrength',
     label: 'Citation Strength',
     weight: 0.20,
-    description: 'The authority and diversity of external sources cited by AI to validate your claims.',
+    description: 'Evaluates the authority and reliability of external sites cited by AI models to validate your brand.',
     positiveDrivers: ['Premium industry backlinks', 'Wikipedia/Entity mentions', 'Press coverage'],
     negativeDrivers: ['Broken references', 'Low-authority sources', 'Sparse citation density'],
   },
@@ -41,7 +46,7 @@ export const SCORING_MODEL: ScoreCategory[] = [
     id: 'serviceCoverage',
     label: 'Service Coverage',
     weight: 0.15,
-    description: 'The breadth of your specific service taxonomy identified and indexed by AI models.',
+    description: 'Assesses the breadth of your service taxonomy identified and indexed within the AI knowledge layer.',
     positiveDrivers: ['Niche capability discovery', 'Cross-category indexing', 'Feature-level mentions'],
     negativeDrivers: ['Narrow service view', 'Ignored sub-capabilities', 'Taxonomy gaps'],
   },
@@ -49,37 +54,40 @@ export const SCORING_MODEL: ScoreCategory[] = [
     id: 'competitorShareOfVoice',
     label: 'Competitor Threat',
     weight: 0.15,
-    description: 'The defensive strength of your profile against rival brands capturing your search intent.',
+    description: 'Measures the risk of rivals capturing search intent and being recommended over your brand.',
     positiveDrivers: ['Low rival intrusion', 'Owned search vectors', 'Unique market positioning'],
     negativeDrivers: ['High rival share', 'Brand name confusion', 'Aggressive rival citations'],
   },
 ];
 
+/**
+ * Calculates a consolidated score based on defined weights.
+ * Note: For 'Competitor Threat', a higher score in the UI indicates a higher threat,
+ * so we use (100 - score) for the defensive weighted calculation.
+ */
 export function calculateWeightedScore(scores: Record<string, number>): number {
   return SCORING_MODEL.reduce((acc, cat) => {
-    // For Competitor Threat, a LOWER score is technically "better" for the client, 
-    // but in our UI, a 100 in "Competitor Threat" usually means "High Threat".
-    // We treat this as "Competitive Defense" for the weighted average calculation.
-    const scoreValue = cat.id === 'competitorShareOfVoice' ? (100 - scores[cat.id]) : scores[cat.id];
+    const rawValue = scores[cat.id as keyof typeof scores] || 0;
+    const scoreValue = cat.id === 'competitorShareOfVoice' ? (100 - rawValue) : rawValue;
     return acc + (scoreValue * cat.weight);
   }, 0);
 }
 
 /**
- * Simulates a projected score improvement scenario based on current weaknesses.
+ * Simulates a projected score improvement scenario based on strategic optimizations.
  */
 export function calculateProjectedImprovement(currentScores: Record<string, number>) {
   const projectedScores: Record<string, number> = { ...currentScores };
   const improvements: { id: string, label: string, gain: number }[] = [];
 
   SCORING_MODEL.forEach(cat => {
-    const currentVal = currentScores[cat.id];
-    // If a score is below 85, there's significant room for optimization
+    const currentVal = currentScores[cat.id as keyof typeof currentScores] || 0;
+    // Target a move toward 'Leader' status (85+)
     if (currentVal < 85) {
-      const gain = Math.min(100 - currentVal, cat.id === 'presence' ? 18 : 12);
-      projectedScores[cat.id] = currentVal + gain;
-      if (gain > 0) {
-        improvements.push({ id: cat.id, label: cat.label, gain });
+      const potentialGain = Math.min(100 - currentVal, cat.id === 'presence' ? 18 : 12);
+      projectedScores[cat.id] = currentVal + potentialGain;
+      if (potentialGain > 0) {
+        improvements.push({ id: cat.id, label: cat.label, gain: potentialGain });
       }
     }
   });

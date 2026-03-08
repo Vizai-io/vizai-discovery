@@ -74,6 +74,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           setScanData(results);
           setQueryDiscovery(discovery || null);
         } else {
+          // Fallback if no specific scan is found
           const simulatedDiscovery = await QueryEngine.simulateDiscovery(
             "Acme Logistics",
             "Third Party Logistics (3PL)",
@@ -122,6 +123,9 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     }
   };
 
+  // Helper to find category info from the model
+  const getModelCategory = (id: string) => SCORING_MODEL.find(m => m.id === id);
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12">
       {/* Executive Report Header */}
@@ -148,7 +152,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
-      {/* Primary KPI Row */}
+      {/* Primary KPI Row with Model-Driven Tooltips */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <ScoreCard 
           title="Overall Visibility" 
@@ -157,39 +161,39 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
           icon={Search} 
           className="bg-primary text-white" 
           description="Avg. AI prominence"
-          tooltip="Consolidated score based on a weighted average of all discovery vectors."
+          tooltip="Consolidated score based on a weighted average of all discovery vectors across the knowledge layer."
         />
         <ScoreCard 
           title="Description Accuracy" 
           score={results.categoryScores.descriptionAccuracy} 
           trend={1.5} 
           icon={ShieldCheck} 
-          description="Business model alignment"
-          tooltip="Measures how accurately AI summaries reflect your official services and capabilities."
+          description="Model alignment"
+          tooltip={getModelCategory('descriptionAccuracy')?.description}
         />
         <ScoreCard 
           title="Citation Strength" 
           score={results.categoryScores.citationStrength} 
           trend={8.4} 
           icon={Target} 
-          description="Authority of data sources"
-          tooltip="Analyzes the reliability and authority of external sites cited by AI models."
+          description="Authority sourcing"
+          tooltip={getModelCategory('citationStrength')?.description}
         />
         <ScoreCard 
           title="Service Coverage" 
           score={results.categoryScores.serviceCoverage} 
           trend={-0.8} 
           icon={Zap} 
-          description="Completeness of offerings"
-          tooltip="Assesses how many of your key services are recognized during discovery."
+          description="Indexing depth"
+          tooltip={getModelCategory('serviceCoverage')?.description}
         />
         <ScoreCard 
           title="Competitor Threat" 
           score={results.categoryScores.competitorShareOfVoice} 
           trend={-2.1} 
           icon={Users} 
-          description="Rival share of search voice"
-          tooltip="Tracks how often competitors are recommended over your brand for generic intents."
+          description="Rival share of voice"
+          tooltip={getModelCategory('competitorShareOfVoice')?.description}
         />
       </div>
 
@@ -251,7 +255,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
         </CardContent>
       </Card>
 
-      {/* Scoring Explanation Panel */}
+      {/* Why this score? - Transparent Methodology Section */}
       <div className="grid lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 border-none shadow-sm bg-white overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20 py-4 px-6">
@@ -280,7 +284,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                 </TableHeader>
                 <TableBody>
                   {SCORING_MODEL.map((cat) => {
-                    const score = results.categoryScores[cat.id as keyof typeof results.categoryScores];
+                    const score = results.categoryScores[cat.id as keyof typeof results.categoryScores] || 0;
                     return (
                       <TableRow key={cat.id}>
                         <TableCell className="pl-6 py-4">
@@ -351,7 +355,7 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
                   </div>
                   <div>
                     <h5 className="text-sm font-bold">Dynamic Weighting</h5>
-                    <p className="text-xs opacity-70">Weights are tuned based on industry vertical norms (e.g. 3PL vs Legal).</p>
+                    <p className="text-xs opacity-70">Weights are tuned based on industry vertical norms and intent classification.</p>
                   </div>
                </div>
             </div>
@@ -545,4 +549,3 @@ export default function ScanResultsPage({ params }: { params: { id: string } }) 
     </div>
   );
 }
-
