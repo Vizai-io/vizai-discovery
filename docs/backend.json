@@ -38,7 +38,9 @@
         "serviceCategories": { "type": "array", "items": { "type": "string" } },
         "targetGeography": { "type": "string" },
         "competitors": { "type": "array", "items": { "type": "string" } },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "monitoringFrequency": { "type": "string", "enum": ["off", "weekly", "biweekly", "monthly"] },
+        "nextScanAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "industry"]
     },

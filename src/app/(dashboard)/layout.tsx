@@ -1,7 +1,8 @@
+
 "use client";
 
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const menuItems = [
     { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+    { title: "Monitoring", icon: Activity, href: "/monitoring" },
     { title: "Companies", icon: Building2, href: "/companies" },
     { title: "Scans", icon: Search, href: "/scans" },
     { title: "Rankings", icon: Trophy, href: "/rankings" },
@@ -18,7 +20,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { title: "Scan History", icon: History, href: "/history" },
   ];
 
-  // We hide the sidebar and header during print for a clean report view
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">

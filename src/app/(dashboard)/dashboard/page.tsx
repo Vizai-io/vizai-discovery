@@ -1,10 +1,10 @@
+
 "use client";
 
 import { ScoreCard } from "@/components/dashboard/score-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
-  LineChart, 
   Search, 
   Target, 
   ShieldCheck, 
@@ -12,11 +12,13 @@ import {
   Zap, 
   ArrowRight,
   TrendingUp,
-  History
+  History,
+  Activity,
+  Calendar,
+  Lightbulb
 } from "lucide-react";
 import Link from "next/link";
 import { 
-  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -45,12 +47,20 @@ export default function DashboardPage() {
           <h2 className="text-2xl font-bold text-primary">Welcome back, Administrator</h2>
           <p className="text-muted-foreground">Here's an overview of your AI visibility profile.</p>
         </div>
-        <Link href="/scans/new">
-          <Button className="bg-primary hover:bg-primary/90 text-white gap-2">
-            <Zap className="w-4 h-4" />
-            Launch New Scan
-          </Button>
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/monitoring">
+            <Button variant="outline" className="gap-2 border-primary/20">
+              <Activity className="w-4 h-4" />
+              Monitoring
+            </Button>
+          </Link>
+          <Link href="/scans/new">
+            <Button className="bg-primary hover:bg-primary/90 text-white gap-2">
+              <Zap className="w-4 h-4" />
+              Launch New Scan
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Primary Score Cards */}
@@ -60,35 +70,35 @@ export default function DashboardPage() {
           score={72.4} 
           trend={4.2} 
           icon={Search} 
-          description="Avg. search ranking across 50 keywords"
+          description="Avg. search ranking"
         />
         <ScoreCard 
           title="Description Accuracy" 
           score={88.1} 
           trend={1.5} 
           icon={ShieldCheck} 
-          description="Match rate vs. official profile"
+          description="Profile match rate"
         />
         <ScoreCard 
           title="Competitor Threat" 
           score={34.2} 
           trend={-2.1} 
           icon={Users} 
-          description="Rival share of voice for your terms"
+          description="Rival share of voice"
         />
         <ScoreCard 
           title="Citation Strength" 
           score={65.5} 
           trend={8.4} 
           icon={Target} 
-          description="Authority of sourcing citations"
+          description="Authority sourcing"
         />
         <ScoreCard 
           title="Service Coverage" 
           score={54.0} 
           trend={0.8} 
           icon={Zap} 
-          description="How well AI covers your categories"
+          description="Category indexing"
         />
       </div>
 
@@ -124,37 +134,70 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Quick Recs */}
-        <Card className="border-none shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg font-bold text-primary">Top Actions</CardTitle>
-              <CardDescription>Priority steps to boost score</CardDescription>
-            </div>
-            <Lightbulb className="w-5 h-5 text-accent" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              { title: "Improve Structured Data", priority: "high", desc: "Update JSON-LD schemas for service locations." },
-              { title: "Add Capabilities Content", priority: "medium", desc: "Publish whitepapers for AI to index." },
-              { title: "Competitor Tracking", priority: "low", desc: "Monitor rival citations in Perplexity." },
-            ].map((rec, i) => (
-              <div key={i} className="p-3 bg-muted/50 rounded-xl space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-primary">{rec.title}</span>
-                  <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[10px] uppercase">
-                    {rec.priority}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">{rec.desc}</p>
+        {/* Monitoring Card */}
+        <div className="space-y-6">
+           <Card className="border-none shadow-sm bg-white overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between border-b bg-primary/5 pb-4">
+              <div>
+                <CardTitle className="text-sm font-bold text-primary">Monitoring Status</CardTitle>
+                <CardDescription className="text-[10px]">Active automated tracking</CardDescription>
               </div>
-            ))}
-            <Button variant="ghost" className="w-full text-primary hover:text-primary hover:bg-primary/5 gap-2 group">
-              View All Recommendations
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </CardContent>
-        </Card>
+              <Activity className="w-4 h-4 text-accent" />
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs font-medium">Next Scan</span>
+                 </div>
+                 <span className="text-xs font-bold text-primary">Oct 28, 2023</span>
+              </div>
+              <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs font-medium">Frequency</span>
+                 </div>
+                 <Badge variant="secondary" className="text-[10px]">Weekly</Badge>
+              </div>
+              <div className="pt-4 border-t">
+                 <div className="text-[10px] font-bold text-muted-foreground uppercase mb-2">Historical Health</div>
+                 <div className="flex gap-1">
+                    {[1,1,1,0,1,1,1].map((status, i) => (
+                      <div key={i} className={cn("h-6 w-full rounded-sm", status === 1 ? "bg-green-100" : "bg-red-100")} />
+                    ))}
+                 </div>
+              </div>
+              <Link href="/monitoring" className="block w-full">
+                <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-primary hover:bg-primary/5 h-8">
+                  Manage Schedules
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm bg-white">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-bold text-primary">Top Actions</CardTitle>
+              <Lightbulb className="w-4 h-4 text-accent" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { title: "Improve Structured Data", priority: "high", desc: "Update JSON-LD schemas." },
+                { title: "Add Capabilities Content", priority: "medium", desc: "Publish whitepapers." },
+              ].map((rec, i) => (
+                <div key={i} className="p-3 bg-muted/50 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-primary">{rec.title}</span>
+                    <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[10px]">
+                      {rec.priority}
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{rec.desc}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Recent Scans Table */}

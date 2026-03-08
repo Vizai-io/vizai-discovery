@@ -1,3 +1,4 @@
+
 export type UserRole = 'admin' | 'client';
 
 export interface UserProfile {
@@ -24,6 +25,8 @@ export interface CompanyProfile {
   targetGeography: string;
   competitors: string[];
   createdAt: any;
+  monitoringFrequency?: 'off' | 'weekly' | 'biweekly' | 'monthly';
+  nextScanAt?: any;
 }
 
 export interface ScanRecord {
