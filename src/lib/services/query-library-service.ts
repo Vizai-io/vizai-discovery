@@ -1,6 +1,18 @@
+/**
+ * @fileOverview QueryLibraryService — DEV/ADMIN ONLY — in-memory only.
+ *
+ * STATUS: DEV/ADMIN ONLY — called from admin page "Seed Library" button only.
+ * Not in any production user-facing code path.
+ *
+ * Sprint 4: Firebase removed. Firestore reads/writes stripped.
+ * seedLibrary() is now a no-op with a log message.
+ * getQueriesForIndustry() returns from MASTER_QUERY_LIBRARY in-memory only.
+ *
+ * MIGRATION BACKLOG (Sprint 5):
+ *   Migrate to IndustryQueryLibrary model (Postgres) when seeder is productionised.
+ *   Do NOT call this from production routes.
+ */
 
-import { db } from "@/lib/firebase-config";
-import { collection, getDocs, doc, setDoc, query, limit } from "firebase/firestore";
 import { IndustryQuery } from "@/lib/types";
 
 const MASTER_QUERY_LIBRARY: Record<string, Omit<IndustryQuery, 'id'>[]> = {
@@ -63,49 +75,31 @@ const MASTER_QUERY_LIBRARY: Record<string, Omit<IndustryQuery, 'id'>[]> = {
 
 export class QueryLibraryService {
   /**
-   * Seeds the industry query library into Firestore.
+   * No-op seeder — Sprint 4.
+   * Firestore writes removed. In-memory only.
+   * TODO(Sprint 5): migrate to IndustryQueryLibrary Postgres model.
    */
-  static async seedLibrary() {
-    for (const [industry, queries] of Object.entries(MASTER_QUERY_LIBRARY)) {
-      const libRef = collection(db, "industryQueryLibraries", industry, "queries");
-      for (const q of queries) {
-        const queryId = q.text.toLowerCase().replace(/\s+/g, '-').slice(0, 32);
-        await setDoc(doc(libRef, queryId), q);
-      }
-    }
+  static async seedLibrary(): Promise<void> {
+    console.log('[QueryLibraryService] seedLibrary() called — in-memory only (Firestore removed, Sprint 5 Postgres migration pending)');
   }
 
   /**
-   * Fetches a randomized subset of queries for a specific industry from the library.
+   * Fetches a randomized subset of queries for a specific industry from in-memory library.
    */
   static async getQueriesForIndustry(industry: string, count: number = 6): Promise<IndustryQuery[]> {
-    try {
-      // Normalize industry string for matching (e.g. "Third Party Logistics (3PL)" -> "logistics")
-      let industryId = industry.toLowerCase();
-      if (industryId.includes('logistics')) industryId = 'logistics';
-      else if (industryId.includes('warehousing')) industryId = 'warehousing';
-      else if (industryId.includes('manufacturing')) industryId = 'manufacturing';
-      else if (industryId.includes('legal')) industryId = 'legal';
-      else if (industryId.includes('consulting')) industryId = 'consulting';
-      else if (industryId.includes('software')) industryId = 'software';
-      else industryId = 'logistics'; // Fallback
+    // Normalize industry string
+    let industryId = industry.toLowerCase();
+    if (industryId.includes('logistics'))     industryId = 'logistics';
+    else if (industryId.includes('warehousing'))   industryId = 'warehousing';
+    else if (industryId.includes('manufacturing')) industryId = 'manufacturing';
+    else if (industryId.includes('legal'))         industryId = 'legal';
+    else if (industryId.includes('consulting'))    industryId = 'consulting';
+    else if (industryId.includes('software'))      industryId = 'software';
+    else industryId = 'logistics'; // fallback
 
-      const libRef = collection(db, "industryQueryLibraries", industryId, "queries");
-      const q = query(libRef, limit(20)); // Fetch up to 20 candidates
-      const snapshot = await getDocs(q);
-      
-      if (snapshot.empty) {
-        // Fallback to static if firestore not yet seeded
-        return (MASTER_QUERY_LIBRARY[industryId] || MASTER_QUERY_LIBRARY['logistics'])
-          .sort(() => 0.5 - Math.random())
-          .slice(0, count) as IndustryQuery[];
-      }
-
-      const allQueries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IndustryQuery));
-      return allQueries.sort(() => 0.5 - Math.random()).slice(0, count);
-    } catch (error) {
-      console.error("Error fetching query library:", error);
-      return [];
-    }
+    const library = MASTER_QUERY_LIBRARY[industryId] ?? MASTER_QUERY_LIBRARY['logistics'];
+    return library
+      .sort(() => 0.5 - Math.random())
+      .slice(0, count) as IndustryQuery[];
   }
 }

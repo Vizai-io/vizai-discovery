@@ -1,15 +1,24 @@
-
-import { db } from "@/lib/firebase-config";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { QueryDiscoveryData, DiscoveryDataEntry } from "@/lib/types";
-
 /**
- * @fileOverview DiscoveryDataService handles the long-term archival of AI discovery events.
- * This builds the "discoveryDataset" used for trend analysis and industry reporting.
+ * @fileOverview DiscoveryDataService — DEV/ADMIN ONLY — log-only no-op.
+ *
+ * STATUS: DEV/ADMIN ONLY — not in any production code path.
+ *
+ * Sprint 4: Firebase removed. Firestore writes to `discoveryDataset` collection
+ * stripped. recordDiscoveryEvents() now logs the event summary only.
+ *
+ * MIGRATION BACKLOG (Sprint 5):
+ *   If this functionality is needed in production, migrate to Postgres.
+ *   Add a DiscoveryEvent model to schema.prisma.
+ *   Do NOT call this from production code paths.
  */
+
+import { QueryDiscoveryData } from "@/lib/types";
+
 export class DiscoveryDataService {
   /**
-   * Records a set of discovery events from a scan into the long-term dataset.
+   * Log-only no-op — Sprint 4.
+   * Firestore writes removed. Logs discovery event summary for observability.
+   * TODO(Sprint 5): persist to Postgres DiscoveryEvent model.
    */
   static async recordDiscoveryEvents(
     scanId: string,
@@ -18,45 +27,19 @@ export class DiscoveryDataService {
     discoveryData: QueryDiscoveryData,
     competitorList: string[],
     targetCompanyName: string
-  ) {
-    const datasetRef = collection(db, "discoveryDataset");
+  ): Promise<void> {
+    const totalQueries    = discoveryData.queries.length;
+    const targetMentioned = discoveryData.queries.filter(q =>
+      q.results.some(r => r.isTargetCompanyMentioned)
+    ).length;
 
-    try {
-      const entries: Omit<DiscoveryDataEntry, 'id'>[] = discoveryData.queries.map(q => {
-        // Aggregate all unique company names mentioned across all providers for this query
-        const allMentions = new Set<string>();
-        q.results.forEach(res => {
-          res.mentions.forEach(m => allMentions.add(m.companyName));
-        });
-
-        const companiesMentioned = Array.from(allMentions);
-        
-        // Identify which mentioned companies are known competitors
-        const competitorsPresent = companiesMentioned.filter(name => 
-          competitorList.some(comp => comp.toLowerCase() === name.toLowerCase())
-        );
-
-        // Check if the target company was identified
-        const targetCompanyPresent = q.results.some(r => r.isTargetCompanyMentioned);
-
-        return {
-          scanId,
-          industry,
-          region,
-          queryText: q.text,
-          companiesMentioned,
-          competitorsPresent,
-          targetCompanyPresent,
-          intentType: q.intentType,
-          timestamp: serverTimestamp()
-        };
-      });
-
-      // Batch save entries
-      await Promise.all(entries.map(entry => addDoc(datasetRef, entry)));
-      
-    } catch (error) {
-      console.error("Failed to record discovery data events:", error);
-    }
+    console.log('[DiscoveryDataService] recordDiscoveryEvents — log-only (Firestore removed, Sprint 5 Postgres migration pending)', {
+      scanId,
+      industry,
+      region,
+      targetCompanyName,
+      totalQueries,
+      targetMentionedInQueries: targetMentioned,
+    });
   }
 }

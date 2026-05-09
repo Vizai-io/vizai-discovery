@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls:*)",
+      "Bash(xargs find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx firebase:*)",
+      "Bash(npm run:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(netstat -ano)",
+      "Bash(findstr :9002)",
+      "Bash(taskkill //PID 6964 //F)",
+      "Bash(npm install:*)",
+      "Bash(taskkill //PID 38120 //F)",
+      "Bash(npx next:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:9002)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://firestore.googleapis.com/v1/projects/vizai-intelligence-platform/databases/\\(default\\)/documents/test\")",
+      "Bash(curl -v \"https://firestore.googleapis.com\")",
+      "Bash(taskkill //PID 44644 //F)",
+      "Bash(npx.cmd next:*)",
+      "Bash(grep -E \"\\\\.\\(env|json\\)$\")",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(npx prisma *)",
+      "Bash(node -e ' *)",
+      "Bash(mkdir -p \"C:\\\\Projects\\\\Vizai-discovery\\\\src\\\\app\\\\api\\\\admin\\\\stats\" && mkdir -p \"C:\\\\Projects\\\\Vizai-discovery\\\\src\\\\app\\\\api\\\\admin\\\\organizations\\\\[id]\" && mkdir -p \"C:\\\\Projects\\\\Vizai-discovery\\\\src\\\\app\\\\api\\\\perception-scans\" 2>&1)",
+      "Bash(grep -v \"^$\")",
+      "Bash(node -e \"const s = require\\('stripe'\\); console.log\\(s.LATEST_API_VERSION || 'unknown'\\)\")",
+      "Bash(ls /mnt/c/Projects/Vizai-discovery/prisma/migrations/)",
+      "Bash(awk -F'\\(' '{print $1}')",
+      "Bash(del \"C:\\\\Projects\\\\Vizai-discovery\\\\src\\\\lib\\\\services\\\\real-query-engine.ts\")",
+      "Bash(npm uninstall *)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); const d = {...\\(p.dependencies||{}\\), ...\\(p.devDependencies||{}\\)}; const fb = Object.keys\\(d\\).filter\\(k => k.includes\\('firebase'\\)\\); console.log\\('Direct firebase deps:', fb.length ? fb : 'NONE'\\)\")",
+      "Bash(find /mnt/c/Projects -maxdepth 1 -type d 2>/dev/null | head -20)",
+      "Bash(ls ~/)"
+    ]
+  }
+}

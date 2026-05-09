@@ -12,9 +12,11 @@ export interface UserProfile {
 export interface Organization {
   id: string;
   name: string;
+  tier?: OrganizationTier;
   createdAt: any;
 }
 
+export type OrganizationTier = 'starter' | 'professional' | 'enterprise';
 export type ServicePackageType = 'Snapshot' | 'Foundation' | 'Growth' | 'Monitoring';
 export type ReportType = 'internal' | 'client-facing' | 'case-study';
 
@@ -37,6 +39,22 @@ export interface CompanyProfile {
   monitoringFrequency?: 'off' | 'weekly' | 'biweekly' | 'monthly';
   nextScanAt?: any;
   lastScanAt?: any;
+}
+
+export interface ScanInput {
+  companyName: string;
+  website: string;
+  industry: string;
+  targetGeography: string;
+  serviceCategories?: string[];
+  competitors?: string[];
+  foundingYear?: number;
+  employeeSize?: string;
+  googleBusinessProfileUrl?: string;
+  linkedInPageUrl?: string;
+  directoryListings?: string[] | string;
+  organizationId?: string;
+  createdAt?: any;
 }
 
 export interface WebsiteSignal {
@@ -114,20 +132,61 @@ export interface ProposalData {
   updatedAt?: any;
 }
 
+export interface DriftData {
+  previousScanId: string;
+  previousScanDate: any;
+  previousOverallScore: number;
+  overallScoreDelta: number;
+  trendDirection: 'improving' | 'declining' | 'stable';
+  categoryDeltas: {
+    presence: number;
+    descriptionAccuracy: number;
+    citationStrength: number;
+    serviceCoverage: number;
+    competitorShareOfVoice: number;
+  };
+}
+
+export interface ScoreHistoryEntry {
+  scanId: string;
+  date: any;
+  overallScore: number;
+  categoryScores: {
+    presence: number;
+    descriptionAccuracy: number;
+    citationStrength: number;
+    serviceCoverage: number;
+    competitorShareOfVoice: number;
+  };
+}
+
+export interface ProviderResultSummary {
+  providerId: string;
+  providerName: string;
+  queryCount: number;
+  error?: string | null;
+}
+
 export interface ScanRecord {
   id: string;
   profileId: string;
   organizationId: string;
   date: any;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed';
   reviewStatus?: 'draft' | 'in-review' | 'approved' | 'shared';
   internalNotes?: string;
   lastReviewedBy?: string;
   lastReviewedAt?: any;
+  currentStep?: string;
+  errorMessage?: string | null;
   results: ScanResults;
   queryDiscovery?: QueryDiscoveryData;
   queryLibraryUsed?: string[];
   realQueryResults?: RealQueryResult[];
+  // Drift & History
+  drift?: DriftData;
+  scoreHistory?: ScoreHistoryEntry[];
+  providerResults?: ProviderResultSummary[];
   // Share Settings
   shareEnabled?: boolean;
   shareCreatedAt?: any;
@@ -193,6 +252,7 @@ export interface StrategicRecommendation {
   priority: 'high' | 'medium' | 'low';
   expectedImpact: string;
   packageType?: ServicePackageType;
+  serviceLink?: string;
 }
 
 export interface ScanResults {

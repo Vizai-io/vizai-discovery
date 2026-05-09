@@ -1,14 +1,23 @@
+/**
+ * @fileOverview DemoSeeder — DEV/ADMIN ONLY — in-memory only.
+ *
+ * STATUS: DEV/ADMIN ONLY — only called from the admin page "Seed Demo Data" button.
+ * Not in any production user-facing code path.
+ *
+ * Sprint 4: Firebase removed. Firestore writes (addDoc to 'scans' collection)
+ * have been stripped. seedDemoForIndustry() now runs ScanEngine in memory only
+ * and returns the results without persisting anywhere.
+ *
+ * MIGRATION BACKLOG (Sprint 5):
+ *   Migrate to Postgres (CompanyProfileRepository + PerceptionScanRepository)
+ *   when the seeder is needed for demo environments. Remove no-op log.
+ *   Do NOT call this from production routes.
+ */
 
-import { db } from "@/lib/firebase-config";
-import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { ScanEngine } from "./scan-engine";
 import { QueryLibraryService } from "./query-library-service";
 import { CompetitorService } from "./competitor-service";
 
-/**
- * DemoSeeder provides utilities to populate the system with realistic demo data.
- * Updated to include believable scan histories and Industry Query Library seeding.
- */
 export const DEMO_PROFILES = {
   logistics: {
     companyName: "Acme Global Logistics",
@@ -56,58 +65,24 @@ export const DEMO_PROFILES = {
 
 export class DemoSeeder {
   /**
-   * Seeds the system with a demo organization and a multi-scan history.
-   * Also ensures the Industry Query Library is seeded.
+   * Runs demo scan engine in memory — Sprint 4 no-op seeder.
+   * Firestore writes removed. Results are returned but not persisted.
+   * TODO(Sprint 5): persist to Postgres (CompanyProfile + PerceptionScan).
    */
   static async seedDemoForIndustry(industryKey: keyof typeof DEMO_PROFILES) {
     const profile = DEMO_PROFILES[industryKey];
-    const orgId = `demo_org_${industryKey}`;
+    const orgId   = `demo_org_${industryKey}`;
 
-    // 0. Ensure Query Library and Competitor Profiles are seeded
+    console.log(`[DemoSeeder] seedDemoForIndustry(${industryKey}) — in-memory only (Firestore removed, Sprint 5 Postgres migration pending)`);
+
+    // In-memory only: run engine but do not persist
     await Promise.all([
       QueryLibraryService.seedLibrary(),
-      CompetitorService.seedCompetitors()
+      CompetitorService.seedCompetitors(),
     ]);
 
-    // 1. Save Company Profile
-    const profileRef = await addDoc(collection(db, "companyProfiles"), {
-      ...profile,
-      organizationId: orgId,
-      createdAt: serverTimestamp(),
-      monitoringFrequency: 'weekly',
-      nextScanAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-      lastScanAt: serverTimestamp(),
-    });
+    const scanResults = await ScanEngine.runScan(profile, orgId);
 
-    // 2. Generate Scan History (Latest + 2 Historical)
-    await this.createMockScan(profileRef.id, orgId, profile, 30, -8);
-    await this.createMockScan(profileRef.id, orgId, profile, 15, -3);
-    const latestScanId = await this.createMockScan(profileRef.id, orgId, profile, 0, 0);
-
-    return { profileId: profileRef.id, scanId: latestScanId };
-  }
-
-  private static async createMockScan(profileId: string, orgId: string, profile: any, daysAgo: number, scoreOffset: number) {
-    const scanResults = await ScanEngine.runScan(profile, profileId);
-    
-    const historicalDate = new Date();
-    historicalDate.setDate(historicalDate.getDate() - daysAgo);
-
-    const scanRef = await addDoc(collection(db, "scans"), {
-      profileId,
-      organizationId: orgId,
-      date: Timestamp.fromDate(historicalDate),
-      status: "completed",
-      results: {
-        ...scanResults,
-        overallScore: Math.max(0, scanResults.overallScore + scoreOffset),
-        categoryScores: Object.fromEntries(
-          Object.entries(scanResults.categoryScores).map(([k, v]) => [k, Math.max(0, v + scoreOffset)])
-        ),
-      },
-      queryDiscovery: scanResults.queryDiscovery,
-    });
-
-    return scanRef.id;
+    return { profileId: orgId, scanId: `mock-${industryKey}-${Date.now()}`, scanResults };
   }
 }

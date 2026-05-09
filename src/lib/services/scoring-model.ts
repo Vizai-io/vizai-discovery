@@ -73,6 +73,10 @@ export function calculateWeightedScore(scores: Record<string, number>): number {
   }, 0);
 }
 
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
 /**
  * Simulates a projected score improvement scenario based on strategic optimizations.
  */
@@ -85,7 +89,10 @@ export function calculateProjectedImprovement(currentScores: Record<string, numb
     // Target a move toward 'Leader' status (85+)
     if (currentVal < 85) {
       const potentialGain = Math.min(100 - currentVal, cat.id === 'presence' ? 18 : 12);
-      projectedScores[cat.id] = currentVal + potentialGain;
+      const nextValue = cat.id === 'competitorShareOfVoice'
+        ? clampScore(currentVal - potentialGain)
+        : clampScore(currentVal + potentialGain);
+      projectedScores[cat.id] = nextValue;
       if (potentialGain > 0) {
         improvements.push({ id: cat.id, label: cat.label, gain: potentialGain });
       }

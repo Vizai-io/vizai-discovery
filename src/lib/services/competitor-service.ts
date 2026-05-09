@@ -1,6 +1,20 @@
+/**
+ * @fileOverview CompetitorService — DEV/ADMIN ONLY — in-memory only.
+ *
+ * STATUS: DEV/ADMIN ONLY — only called from the admin page seeder buttons.
+ * Not in any production user-facing code path.
+ *
+ * Sprint 4: Firebase removed. All methods now operate on MASTER_COMPETITORS
+ * in-memory fallback only. Firestore reads/writes have been stripped.
+ *
+ * seedCompetitors() is now a no-op with a log message — calling it from
+ * the admin page will not fail but will not persist anything.
+ *
+ * MIGRATION BACKLOG (Sprint 5):
+ *   Migrate seedCompetitors() to CompetitorProfile model (Postgres) when seeder
+ *   is productionised. Do NOT call this from production routes.
+ */
 
-import { db } from "@/lib/firebase-config";
-import { collection, getDocs, doc, setDoc, query, where } from "firebase/firestore";
 import { CompetitorProfile } from "@/lib/types";
 
 const MASTER_COMPETITORS: CompetitorProfile[] = [
@@ -68,52 +82,27 @@ const MASTER_COMPETITORS: CompetitorProfile[] = [
 
 export class CompetitorService {
   /**
-   * Seeds the competitor profiles into Firestore.
+   * No-op seeder — Sprint 4.
+   * Firestore writes removed. In-memory only.
+   * TODO(Sprint 5): migrate to Postgres CompetitorProfile model.
    */
-  static async seedCompetitors() {
-    const colRef = collection(db, "competitorProfiles");
-    for (const comp of MASTER_COMPETITORS) {
-      await setDoc(doc(colRef, comp.id), comp);
-    }
+  static async seedCompetitors(): Promise<void> {
+    console.log('[CompetitorService] seedCompetitors() called — in-memory only (Firestore removed, Sprint 5 Postgres migration pending)');
   }
 
   /**
-   * Fetches competitor profiles for a specific industry.
+   * Fetches competitor profiles for a specific industry from in-memory fallback.
    */
   static async getCompetitorsByIndustry(industry: string): Promise<CompetitorProfile[]> {
-    try {
-      // Basic normalization
-      let industryQuery = industry;
-      if (industry.includes('3PL')) industryQuery = "Third Party Logistics (3PL)";
-      
-      const colRef = collection(db, "competitorProfiles");
-      const q = query(colRef, where("industry", "==", industryQuery));
-      const snapshot = await getDocs(q);
-      
-      if (snapshot.empty) {
-        // Fallback to filtering the master list if firestore isn't seeded
-        return MASTER_COMPETITORS.filter(c => c.industry === industryQuery);
-      }
-      
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CompetitorProfile));
-    } catch (error) {
-      console.error("Error fetching competitor profiles:", error);
-      return [];
-    }
+    let industryQuery = industry;
+    if (industry.includes('3PL')) industryQuery = "Third Party Logistics (3PL)";
+    return MASTER_COMPETITORS.filter(c => c.industry === industryQuery);
   }
 
   /**
-   * Fetches specific competitor profiles by name.
+   * Fetches specific competitor profiles by name from in-memory fallback.
    */
   static async getProfilesByNames(names: string[]): Promise<CompetitorProfile[]> {
-    try {
-      const colRef = collection(db, "competitorProfiles");
-      const q = query(colRef, where("name", "in", names));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CompetitorProfile));
-    } catch (e) {
-      // Fallback
-      return MASTER_COMPETITORS.filter(c => names.includes(c.name));
-    }
+    return MASTER_COMPETITORS.filter(c => names.includes(c.name));
   }
 }

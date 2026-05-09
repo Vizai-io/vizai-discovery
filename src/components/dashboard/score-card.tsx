@@ -18,8 +18,21 @@ interface ScoreCardProps {
   className?: string;
 }
 
+/**
+ * Converts a 0–100 score to a human-readable interpretation label.
+ * Satisfies Refinement 2: metrics require interpretation, never orphaned numbers.
+ */
+function interpretScore(score: number): { label: string; className: string } {
+  if (score >= 80) return { label: "Strong",      className: "text-green-600" };
+  if (score >= 60) return { label: "Good",         className: "text-blue-600" };
+  if (score >= 40) return { label: "Fair",         className: "text-amber-600" };
+  if (score > 0)   return { label: "Needs work",   className: "text-red-500" };
+  return               { label: "No data",        className: "text-muted-foreground" };
+}
+
 export function ScoreCard({ title, score, trend, icon: Icon, description, tooltip, className }: ScoreCardProps) {
   const isPositive = trend && trend > 0;
+  const interpretation = interpretScore(score);
 
   return (
     <Card className={cn("overflow-hidden border-none shadow-sm bg-white hover:shadow-xl transition-all duration-300 group", className)}>
@@ -76,9 +89,16 @@ export function ScoreCard({ title, score, trend, icon: Icon, description, toolti
             </div>
           )}
         </div>
+        {/* Interpretation — always present, tells the user what the score means */}
+        <p className={cn(
+          "text-[10px] mt-1 font-bold",
+          className?.includes('bg-primary') ? "text-white/80" : interpretation.className,
+        )}>
+          {interpretation.label}
+        </p>
         {description && (
           <p className={cn(
-            "text-[10px] mt-2 font-bold uppercase tracking-widest opacity-60",
+            "text-[10px] mt-0.5 font-bold uppercase tracking-widest opacity-50",
             className?.includes('bg-primary') ? "text-white" : "text-muted-foreground"
           )}>
             {description}

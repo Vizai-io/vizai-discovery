@@ -1,14 +1,50 @@
-
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity } from "lucide-react";
+import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity, Loader2, CreditCard } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { AuthDebugBanner } from "@/components/dev/auth-debug-banner";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, userProfile, loading, signOut } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/auth/sign-in");
+      return;
+    }
+    if (!loading && userProfile?.organizationId === "unassigned") {
+      router.replace("/onboarding");
+    }
+  }, [loading, user, userProfile, router]);
+
+  const handleLogout = async () => {
+    await signOut();
+    router.replace("/auth/sign-in");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest">Loading Intelligence Platform...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const menuItems = [
     { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
@@ -18,7 +54,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { title: "Rankings", icon: Trophy, href: "/rankings" },
     { title: "Recommendations", icon: Lightbulb, href: "/recommendations" },
     { title: "History", icon: History, href: "/history" },
+    { title: "Billing", icon: CreditCard, href: "/billing" },
   ];
+
+  const displayName = userProfile?.displayName || user.email || "User";
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <SidebarProvider>
@@ -36,8 +81,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
+                  <SidebarMenuButton
+                    asChild
                     isActive={pathname === item.href || (item.href === '/scans' && pathname.startsWith('/scans/'))}
                     tooltip={item.title}
                   >
@@ -51,16 +96,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 border-t space-y-2">
-             <SidebarMenuButton asChild>
+            {userProfile?.role === "admin" && (
+              <SidebarMenuButton asChild>
                 <Link href="/admin">
-                    <Settings className="w-4 h-4" />
-                    <span>Admin Control Center</span>
+                  <Settings className="w-4 h-4" />
+                  <span>Admin Control Center</span>
                 </Link>
-             </SidebarMenuButton>
-             <SidebarMenuButton className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                <LogOut className="w-4 h-4" />
-                <span>Logout</span>
-             </SidebarMenuButton>
+              </SidebarMenuButton>
+            )}
+            <SidebarMenuButton
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={handleLogout}
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Logout</span>
+            </SidebarMenuButton>
           </SidebarFooter>
         </Sidebar>
 
@@ -72,14 +122,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {pathname.split("/").pop() || "Dashboard"}
               </h1>
             </div>
-            <div className="flex items-center gap-4">
-               <div className="hidden sm:flex flex-col items-end">
-                  <span className="text-sm font-bold text-primary">Acme Corp</span>
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Client Profile</span>
-               </div>
-               <div className="w-8 h-8 rounded-full bg-accent text-primary flex items-center justify-center font-bold text-xs border border-primary/10">
-                  AC
-               </div>
+            <div className="flex items-center gap-3">
+              <NotificationBell />
+              <div className="hidden sm:flex flex-col items-end">
+                <span className="text-sm font-bold text-primary">{displayName}</span>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">
+                  {userProfile?.role === "admin" ? "Administrator" : "Client Profile"}
+                </span>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-accent text-primary flex items-center justify-center font-bold text-xs border border-primary/10">
+                {initials}
+              </div>
             </div>
           </header>
           <div className={cn("p-6 print:p-0 print:bg-white", pathname.includes('/report') && "print:p-0")}>
@@ -87,6 +140,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </main>
       </div>
+      {/* DEV-ONLY: auth/provisioning state banner — tree-shaken from production */}
+      <AuthDebugBanner />
     </SidebarProvider>
   );
 }

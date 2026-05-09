@@ -1,480 +1,611 @@
-
 "use client";
 
-import { ScoreCard } from "@/components/dashboard/score-card";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { 
-  Search, 
-  Target, 
-  ShieldCheck, 
-  Users, 
-  Zap, 
-  Activity,
-  ArrowRight,
-  TrendingUp,
-  History,
-  Calendar,
-  Lightbulb,
-  Loader2,
-  AlertCircle,
-  Trophy,
-  Globe,
-  BarChart3,
-  TrendingDown,
-  ArrowUpRight,
-  LineChart
-} from "lucide-react";
-import Link from "next/link";
-import { 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area 
-} from 'recharts';
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+/**
+ * @fileOverview /dashboard — Adaptive operational intelligence command center.
+ *
+ * Phase 2.0: Maturity-aware adaptive composition.
+ *
+ * Layout zones (fixed order — never reordered between maturity states):
+ *   Zone 1: Header
+ *   Zone 2: MaturityBanner   — hidden in MATURE; prominent in SETUP
+ *   Zone 3: Running scan     — conditional on scan status
+ *   Zone 4: PrimaryActionCard — always present
+ *   Zone 5: WorkflowContinuity — hidden in SETUP
+ *   Zone 6: Score cards       — hidden in SETUP (no meaningful data)
+ *   Zone 7: Chart + sidebar   — hidden in SETUP
+ *   Zone 8: Next Best Actions — hidden in SETUP
+ *   Zone 9: Recent Audits     — hidden in SETUP; auto-expanded in MATURE
+ *
+ * Data:
+ *  - GET /api/operational-state   (maturity, primary action, continuity, counts)
+ *  - GET /api/perception-scans    (scores, chart data, audit table, top recs)
+ *
+ * Density rules:
+ *  - MAX 1 primary chart
+ *  - MAX 5 top-level metrics
+ *  - Single primary operational focus (PrimaryActionCard)
+ *  - Progressive disclosure enforced by maturity
+ */
+
 import { useState, useEffect, useMemo } from "react";
-import { collection, query, orderBy, limit, getDocs, where } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
-import { ScanRecord } from "@/lib/types";
+import { useAuth } from "@/contexts/auth-context";
+import {
+  Search, ShieldCheck, Target, Brain, CheckCircle2,
+  Zap, Activity, Calendar, Lightbulb, Loader2,
+  AlertCircle, LineChart, TrendingDown,
+  ArrowRight, ArrowUpRight, Clock, ChevronDown, ChevronUp,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScoreCard } from "@/components/dashboard/score-card";
+import { PrimaryActionCard } from "@/components/dashboard/primary-action-card";
+import { WorkflowContinuity, WorkflowContinuitySkeleton } from "@/components/dashboard/workflow-continuity";
+import { MaturityBanner } from "@/components/dashboard/maturity-banner";
+import { DriftSummaryCard } from "@/components/publishing/drift-summary-card";
+import {
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, AreaChart, Area,
+} from "recharts";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { computeScanDelta } from "@/lib/services/scan-delta.service";
+import type { OperationalState } from "@/lib/services/operational-cohesion.service";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type ScanItem = {
+  id: string;
+  status: string;
+  businessName: string;
+  createdAt: string;
+  completedAt: string | null;
+  currentStep: string | null;
+  accuracyScore: number | null;
+  coverageScore: number | null;
+  entityUnderstandingScore: number | null;
+  consistencyScore: number | null;
+  consistencyLabel: string | null;
+  perceptionSummary: string | null;
+  topRecommendations: { id: string; title: string; category: string }[];
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function avgScore(s: ScanItem): number {
+  const vals = [
+    s.accuracyScore,
+    s.coverageScore,
+    s.entityUnderstandingScore,
+    s.consistencyScore,
+  ].filter((v): v is number => v != null);
+  if (vals.length === 0) return 0;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function nextRunLabel(date: Date | string | null): string {
+  if (!date) return "—";
+  const d = new Date(date);
+  const now = new Date();
+  const diffMs = d.getTime() - now.getTime();
+  if (diffMs < 0) return "Overdue";
+  const days = Math.ceil(diffMs / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days <= 7) return `In ${days} days`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const { userProfile } = useAuth();
+  const [scans, setScans] = useState<ScanItem[]>([]);
+  const [opState, setOpState] = useState<OperationalState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [scans, setScans] = useState<ScanRecord[]>([]);
+  const [auditsExpanded, setAuditsExpanded] = useState(false);
 
   useEffect(() => {
-    async function fetchDashboardData() {
-      setLoading(true);
-      try {
-        // Fetch more scans to find the first one for progress tracking
-        const q = query(
-          collection(db, "scans"), 
-          where("status", "==", "completed"),
-          orderBy("date", "desc"), 
-          limit(20)
-        );
-        const snapshot = await getDocs(q);
-        const fetchedScans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScanRecord));
-        setScans(fetchedScans);
-      } catch (error) {
-        console.error("Dashboard error:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchDashboardData();
+    let mounted = true;
+    Promise.all([
+      fetch("/api/operational-state").then((r) => r.json()),
+      fetch("/api/perception-scans?limit=20").then((r) => r.json()),
+    ])
+      .then(([opData, scanData]) => {
+        if (!mounted) return;
+        const op = opData as OperationalState;
+        setOpState(op);
+        setScans(scanData.scans ?? []);
+        // MATURE orgs care about trend history — expand audits by default
+        if (op?.maturity === "MATURE") {
+          setAuditsExpanded(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
   }, []);
 
-  const latestScan = useMemo(() => scans[0] || null, [scans]);
-  const firstScan = useMemo(() => scans[scans.length - 1] || null, [scans]);
+  // Derived scan data
+  const completedScans = useMemo(
+    () => scans.filter((s) => s.status === "COMPLETE"),
+    [scans],
+  );
+  const runningScans = useMemo(
+    () => scans.filter((s) => s.status === "RUNNING"),
+    [scans],
+  );
+  const latestScan = completedScans[0] ?? null;
+  const previousScan = completedScans[1] ?? null;
 
-  const progressMetrics = useMemo(() => {
-    if (!latestScan || !firstScan || scans.length < 2) return null;
+  const delta = useMemo(
+    () =>
+      latestScan && previousScan
+        ? computeScanDelta(latestScan, previousScan)
+        : null,
+    [latestScan, previousScan],
+  );
 
-    const totalImprovement = latestScan.results.overallScore - firstScan.results.overallScore;
-    
-    const categoryImprovements = [
-      { 
-        label: "Visibility", 
-        gain: latestScan.results.categoryScores.presence - firstScan.results.categoryScores.presence,
-        icon: Search 
-      },
-      { 
-        label: "Accuracy", 
-        gain: latestScan.results.categoryScores.descriptionAccuracy - firstScan.results.categoryScores.descriptionAccuracy,
-        icon: ShieldCheck 
-      },
-      { 
-        label: "Citation", 
-        gain: latestScan.results.categoryScores.citationStrength - firstScan.results.categoryScores.citationStrength,
-        icon: Target 
-      },
-      { 
-        label: "Coverage", 
-        gain: latestScan.results.categoryScores.serviceCoverage - firstScan.results.categoryScores.serviceCoverage,
-        icon: Zap 
-      },
-    ];
+  const overallLatest = latestScan ? avgScore(latestScan) : 0;
+  const overallDelta = delta?.overallDelta ?? 0;
 
-    return {
-      totalImprovement,
-      categoryImprovements,
-      onboardingDate: firstScan.date?.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
-    };
-  }, [latestScan, firstScan, scans]);
+  const chartData = useMemo(
+    () =>
+      [...completedScans].reverse().map((s) => ({
+        name: shortDate(s.createdAt),
+        score: parseFloat(avgScore(s).toFixed(1)),
+      })),
+    [completedScans],
+  );
 
-  const chartData = useMemo(() => {
-    return [...scans].reverse().map(s => ({
-      name: s.date?.toDate().toLocaleDateString(undefined, { month: 'short' }),
-      score: s.results.overallScore
-    }));
-  }, [scans]);
+  // Top 3 recommendations from latest scan (pre-ranked by the scan engine)
+  const topActions = useMemo(
+    () => (latestScan?.topRecommendations ?? []).slice(0, 3),
+    [latestScan],
+  );
+
+  // Maturity-driven section visibility
+  // SETUP hides sections that require data — avoids misleading empty states
+  const maturity = opState?.maturity ?? "ACTIVE";
+  const isSetup = maturity === "SETUP";
+
+  // ── Loading state ──────────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="w-12 h-12 text-primary animate-spin" />
-        <p className="text-muted-foreground font-medium">Aggregating intelligence metrics...</p>
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        <p className="text-muted-foreground text-sm font-medium">Loading intelligence…</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 animate-in fade-in duration-500">
+
+      {/* ── Zone 1: Header ── */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h2 className="text-2xl font-bold text-primary">Intelligence Command Center</h2>
-          <p className="text-muted-foreground">Strategic overview of your organization's AI discoverability footprint.</p>
+          <p className="text-muted-foreground text-sm">
+            Strategic overview of your AI perception footprint.
+          </p>
         </div>
-        <div className="flex gap-3">
-          <Link href="/monitoring">
-            <Button variant="outline" className="gap-2 border-primary/20">
-              <Activity className="w-4 h-4" />
-              Monitoring
-            </Button>
-          </Link>
-          <Link href="/scans/new">
-            <Button className="bg-primary hover:bg-primary/90 text-white gap-2 shadow-lg shadow-primary/20">
-              <Zap className="w-4 h-4" />
-              New Scan
-            </Button>
-          </Link>
+        <div className="flex gap-2">
+          {/* Monitoring — ADMIN only in ACTIVE+ (no schedule to view in SETUP) */}
+          {!isSetup && (
+            <Link href="/monitoring">
+              <Button variant="outline" size="sm" className="gap-2">
+                <Activity className="w-3.5 h-3.5" /> Monitoring
+              </Button>
+            </Link>
+          )}
+          {userProfile?.role === "admin" && (
+            <Link href="/scans/new">
+              <Button size="sm" className="gap-2">
+                <Zap className="w-3.5 h-3.5" /> New Scan
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* Discoverability Progress Section */}
-      {progressMetrics && (
-        <Card className="border-none shadow-sm bg-white overflow-hidden">
-          <CardHeader className="pb-4 border-b bg-muted/20">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">Strategy Insight • Growth Narrative</div>
-                <CardTitle className="text-lg font-black tracking-tight flex items-center gap-2 text-primary">
-                  <TrendingUp className="w-5 h-5 text-accent" />
-                  AI Discoverability Progress
-                </CardTitle>
+      {/* ── Zone 2: MaturityBanner ── */}
+      {/* Hides itself in MATURE; shrinks from prominent→compact→pill as maturity grows */}
+      {opState && (
+        <MaturityBanner
+          maturity={opState.maturity}
+          reason={opState.maturity_reason}
+          next_milestone={opState.maturity_next_milestone}
+        />
+      )}
+
+      {/* ── Zone 3: Running scan banner ── */}
+      {runningScans.length > 0 && (
+        <Card className="border-none bg-blue-50">
+          <CardContent className="py-3 px-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+              <div>
+                <div className="text-sm font-bold text-blue-800">
+                  {runningScans.length} scan{runningScans.length > 1 ? "s" : ""} in progress
+                </div>
+                <div className="text-[10px] text-blue-600">
+                  {runningScans[0]?.businessName} — {runningScans[0]?.currentStep ?? "Processing…"}
+                </div>
               </div>
-              <Badge className="bg-green-50 text-green-700 border-green-200 text-[9px] uppercase font-bold tracking-widest px-2 py-1">
-                Onboarded {progressMetrics.onboardingDate}
-              </Badge>
             </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid md:grid-cols-12 gap-8 items-center">
-              <div className="md:col-span-4 space-y-4 border-r pr-8">
-                <div className="space-y-1">
-                  <div className="text-[10px] font-bold text-muted-foreground uppercase">Total Score Yield</div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-black text-primary">+{progressMetrics.totalImprovement.toFixed(1)}</span>
-                    <span className="text-sm font-bold text-muted-foreground">Points</span>
+            <Link href={`/scans/results/${runningScans[0]?.id}`}>
+              <Button variant="outline" size="sm" className="text-[10px] font-bold border-blue-200 text-blue-700 hover:bg-blue-100">
+                View Progress
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Zone 4: Primary action card — always present ── */}
+      {opState ? (
+        <PrimaryActionCard action={opState.primary_action} />
+      ) : (
+        <PrimaryActionCard
+          action={{
+            type: "all_clear",
+            urgency: "low",
+            title: "Operations are in good shape",
+            what_happened: "No critical issues detected.",
+            why_it_matters: "Maintaining momentum keeps your AI visibility stable.",
+            what_to_do: "Continue monitoring and run scans on schedule.",
+            href: "/monitoring",
+            cta_label: "View Monitoring",
+          }}
+        />
+      )}
+
+      {/* ── Zone 5: Workflow continuity — hidden in SETUP (no workflow data yet) ── */}
+      {!isSetup && (
+        opState
+          ? <WorkflowContinuity items={opState.continuity_items} />
+          : <WorkflowContinuitySkeleton />
+      )}
+
+      {/* ── Zones 6–8: Data-dependent sections — hidden in SETUP ── */}
+      {/* Revealing these in SETUP would show empty/zero states that mislead. */}
+      {/* They unlock naturally when the org completes its first scan + schedule. */}
+      {!isSetup && (
+        <>
+          {/* ── Zone 6: 5 Metric score cards ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <ScoreCard
+              title="Overall"
+              score={overallLatest}
+              trend={delta ? parseFloat(overallDelta.toFixed(1)) : undefined}
+              icon={Search}
+              description="Avg. all signals"
+              tooltip="Average of accuracy, coverage, entity understanding, and consistency."
+            />
+            <ScoreCard
+              title="Accuracy"
+              score={latestScan?.accuracyScore ?? 0}
+              trend={delta ? parseFloat(delta.accuracyDelta.toFixed(1)) : undefined}
+              icon={ShieldCheck}
+              description="Factual alignment"
+              tooltip="How accurately AI models describe your business vs. ground truth."
+            />
+            <ScoreCard
+              title="Coverage"
+              score={latestScan?.coverageScore ?? 0}
+              trend={delta ? parseFloat(delta.coverageDelta.toFixed(1)) : undefined}
+              icon={Target}
+              description="Service indexing"
+              tooltip="How completely AI models cover your services and offerings."
+            />
+            <ScoreCard
+              title="Entity IQ"
+              score={latestScan?.entityUnderstandingScore ?? 0}
+              trend={delta ? parseFloat(delta.entityDelta.toFixed(1)) : undefined}
+              icon={Brain}
+              description="Business identity"
+              tooltip="How well AI models understand your business type and differentiators."
+            />
+            <ScoreCard
+              title="Consistency"
+              score={latestScan?.consistencyScore ?? 0}
+              trend={delta ? parseFloat(delta.consistencyDelta.toFixed(1)) : undefined}
+              icon={CheckCircle2}
+              description="Cross-model drift"
+              tooltip="How consistent AI model responses are across different providers."
+            />
+          </div>
+
+          {/* ── Zone 7: Trend chart + operational sidebar ── */}
+          <div className="grid lg:grid-cols-3 gap-5">
+            {/* Trend chart (the one chart) */}
+            <Card className="lg:col-span-2 border-none shadow-sm bg-white">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div>
+                  <CardTitle className="text-base font-bold text-primary">Perception Score Trend</CardTitle>
+                  <CardDescription className="text-[11px]">
+                    Average score over time
+                    {delta && (
+                      <span className={cn("ml-2 font-bold", overallDelta >= 0 ? "text-green-600" : "text-red-500")}>
+                        {overallDelta >= 0 ? "+" : ""}{overallDelta.toFixed(1)} since last scan
+                      </span>
+                    )}
+                  </CardDescription>
+                </div>
+                <LineChart className="w-4 h-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent className="h-[220px] w-full pt-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData.length > 0 ? chartData : [{ name: "—", score: 0 }]}>
+                    <defs>
+                      <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#174C80" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#174C80" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="name" stroke="#888" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#888" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}
+                      labelStyle={{ fontWeight: "bold", color: "#174C80" }}
+                    />
+                    <Area type="monotone" dataKey="score" stroke="#174C80" strokeWidth={2.5} fillOpacity={1} fill="url(#colorScore)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Operational sidebar */}
+            <div className="space-y-4">
+              {/* Monitoring status */}
+              <Card className="border-none shadow-sm bg-white">
+                <CardHeader className="pb-2 border-b">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-bold text-primary">Monitoring</CardTitle>
+                    <Activity className="w-3.5 h-3.5 text-accent" />
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Your AI discoverability has improved by <strong>{progressMetrics.totalImprovement.toFixed(1)} points</strong> since your initial audit.
-                  </p>
-                </div>
-                <div className="flex gap-4 pt-2">
-                   <div className="space-y-0.5">
-                      <div className="text-[9px] font-bold text-muted-foreground uppercase">First Scan</div>
-                      <div className="text-lg font-bold text-primary/60">{firstScan?.results.overallScore.toFixed(1)}</div>
-                   </div>
-                   <ArrowRight className="w-4 h-4 text-muted-foreground mt-6" />
-                   <div className="space-y-0.5">
-                      <div className="text-[9px] font-bold text-muted-foreground uppercase">Latest Scan</div>
-                      <div className="text-lg font-bold text-primary">{latestScan?.results.overallScore.toFixed(1)}</div>
-                   </div>
-                </div>
+                </CardHeader>
+                <CardContent className="pt-3 space-y-2.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Last scan
+                    </div>
+                    <span className="text-xs font-bold text-primary">
+                      {latestScan ? shortDate(latestScan.createdAt) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock className="w-3.5 h-3.5" />
+                      Next scan
+                    </div>
+                    <span className="text-xs font-bold text-primary">
+                      {opState?.next_scheduled_run
+                        ? nextRunLabel(opState.next_scheduled_run)
+                        : "None scheduled"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Total audits
+                    </div>
+                    <span className="text-xs font-bold text-primary">
+                      {opState?.completed_scan_count ?? completedScans.length}
+                    </span>
+                  </div>
+                  <Link href="/monitoring" className="block">
+                    <Button variant="ghost" size="sm" className="w-full text-[10px] font-bold uppercase h-7 text-primary hover:bg-primary/5">
+                      Manage Schedules
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+
+              {/* Open actions */}
+              <Card className="border-none shadow-sm bg-white">
+                <CardHeader className="pb-2 border-b">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-bold text-primary">Open Actions</CardTitle>
+                    <Lightbulb className="w-3.5 h-3.5 text-accent" />
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-3">
+                  {(opState?.open_high_priority_count ?? 0) === 0 ? (
+                    <p className="text-xs text-muted-foreground italic text-center py-3">
+                      {latestScan ? "No high-priority items open." : "Run a scan to see recommendations."}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-2xl font-black text-primary">
+                          {opState!.open_high_priority_count}
+                        </span>
+                        <Badge variant="outline" className="text-[9px] bg-yellow-50 text-yellow-700 border-yellow-200 font-bold">
+                          High Priority
+                        </Badge>
+                      </div>
+                      <Link href="/recommendations?priority=HIGH" className="block">
+                        <Button variant="outline" size="sm" className="w-full text-[10px] font-bold uppercase h-7 gap-1">
+                          View All <ArrowRight className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* ── Zone 8a: Drift Summary (contextual — MODERATE+ only) ── */}
+          {opState && opState.drift_level && opState.drift_level !== "NONE" && opState.drift_level !== "LOW" && (
+            <DriftSummaryCard
+              level={opState.drift_level}
+              signals={[]}
+              summary={
+                opState.drift_level === "CRITICAL"
+                  ? "AI perception has critical drift from your canonical business truth."
+                  : opState.drift_level === "HIGH"
+                    ? "AI perception has significant drift from your canonical business truth."
+                    : "AI perception is drifting from your canonical business truth."
+              }
+              recommended_action="Publish your canonical truth and run a new scan to measure improvement."
+            />
+          )}
+
+          {/* ── Zone 8b: Next Best Actions (top 3 from latest scan) ── */}
+          {topActions.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-primary uppercase tracking-widest">
+                  Next Best Actions
+                </h3>
+                <Link href="/recommendations">
+                  <Button variant="ghost" size="sm" className="text-[10px] gap-1 text-muted-foreground h-6">
+                    See all <ArrowRight className="w-3 h-3" />
+                  </Button>
+                </Link>
               </div>
-              <div className="md:col-span-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {progressMetrics.categoryImprovements.map((cat, i) => (
-                  <div key={i} className="p-4 bg-muted/30 rounded-2xl border border-transparent hover:border-primary/10 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                       <cat.icon className="w-4 h-4 text-primary opacity-40" />
-                       <div className={cn(
-                         "text-[10px] font-bold flex items-center gap-0.5",
-                         cat.gain >= 0 ? "text-green-600" : "text-red-500"
-                       )}>
-                         {cat.gain >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                         {Math.abs(cat.gain).toFixed(1)}
-                       </div>
-                    </div>
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{cat.label}</div>
-                    <div className="text-xl font-black text-primary mt-1">
-                      {latestScan?.results.categoryScores[cat.label.toLowerCase().replace(' ', '') as keyof typeof latestScan.results.categoryScores]?.toFixed(0) || "0"}%
-                    </div>
-                  </div>
+              <div className="grid sm:grid-cols-3 gap-3">
+                {topActions.map((rec, i) => (
+                  <Card key={rec.id ?? i} className="border shadow-sm bg-white hover:shadow-md transition-shadow">
+                    <CardContent className="p-4 space-y-2">
+                      <span className="text-[10px] text-muted-foreground truncate block">{rec.category}</span>
+                      <p className="text-sm font-semibold text-primary leading-snug line-clamp-2">{rec.title}</p>
+                      <Link href="/recommendations">
+                        <Button variant="ghost" size="sm" className="w-full text-[10px] h-7 gap-1 text-accent hover:text-accent/90 font-bold p-0 justify-start">
+                          View & action <ArrowRight className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </>
       )}
 
-      {/* Market Benchmarking Summary */}
-      {latestScan?.results?.benchmark && (
-        <Card className="border-none shadow-md bg-gradient-to-br from-[#174C80] to-[#0d2a4a] text-white overflow-hidden">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-               <div className="space-y-1">
-                 <div className="text-[10px] font-bold text-accent uppercase tracking-[0.2em]">Market Intelligence • Benchmarking</div>
-                 <CardTitle className="text-lg font-black tracking-tight">How You Stack Up: {latestScan.results.benchmark.industry}</CardTitle>
-               </div>
-               <Badge className="bg-white/10 text-white border-white/20 text-[8px] uppercase font-bold tracking-[0.2em] px-2 py-1">
-                 Live Sector Comparison
-               </Badge>
+      {/* ── Zone 9: Recent Audits — hidden in SETUP; auto-expanded for MATURE ── */}
+      {!isSetup && (
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader
+            className="flex flex-row items-center justify-between pb-3 cursor-pointer select-none"
+            onClick={() => setAuditsExpanded((v) => !v)}
+          >
+            <div>
+              <CardTitle className="text-base font-bold text-primary">Recent Audits</CardTitle>
+              <CardDescription className="text-[11px]">
+                {auditsExpanded
+                  ? "Latest intelligence runs"
+                  : `${completedScans.length} scan${completedScans.length !== 1 ? "s" : ""} completed`}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {!auditsExpanded && (
+                <Link
+                  href="/scans"
+                  className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  All scans <ArrowRight className="w-3 h-3 inline" />
+                </Link>
+              )}
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground">
+                {auditsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              <div className="space-y-1 border-r border-white/10">
-                <div className="text-[10px] font-bold text-white/40 uppercase">Industry Average</div>
-                <div className="text-3xl font-black text-white/90">{latestScan.results.benchmark.industryAverage.toFixed(1)}</div>
-                <div className="text-[9px] text-white/30 font-medium italic">Sector Mean Index</div>
-              </div>
-              <div className="space-y-1 border-r border-white/10">
-                <div className="text-[10px] font-bold text-white/40 uppercase">Top Performer</div>
-                <div className="text-3xl font-black text-accent">{latestScan.results.benchmark.topScore.toFixed(1)}</div>
-                <div className="text-[9px] text-accent/50 font-medium italic">Max Achieved Signal</div>
-              </div>
-              <div className="space-y-1 border-r border-white/10">
-                <div className="text-[10px] font-bold text-white/40 uppercase">Your Score</div>
-                <div className="text-3xl font-black text-white">{latestScan.results.overallScore.toFixed(1)}</div>
-                <div className="text-[9px] text-white/30 font-medium italic">Current Visibility Index</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-[10px] font-bold text-white/40 uppercase">Percentile Position</div>
-                <div className="text-3xl font-black text-white flex items-center gap-2">
-                  {latestScan.results.benchmark.percentile}th
-                  {latestScan.results.benchmark.percentile >= 75 ? (
-                    <Trophy className="w-5 h-5 text-yellow-400" />
-                  ) : latestScan.results.benchmark.percentile >= 50 ? (
-                    <TrendingUp className="w-5 h-5 text-green-400" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5 text-red-400" />
+
+          {auditsExpanded && (
+            <CardContent className="p-0">
+              {scans.length === 0 ? (
+                <div className="p-10 text-center space-y-3">
+                  <AlertCircle className="w-10 h-10 text-muted-foreground/20 mx-auto" />
+                  <p className="text-sm text-muted-foreground italic">
+                    {userProfile?.role === "admin"
+                      ? "No audits yet. Launch a scan to begin."
+                      : "No audits available yet."}
+                  </p>
+                  {userProfile?.role === "admin" && (
+                    <Link href="/scans/new">
+                      <Button variant="outline" size="sm">Initiate First Audit</Button>
+                    </Link>
                   )}
                 </div>
-                <div className="text-[9px] text-white/30 font-medium italic">Relative to {latestScan.results.benchmark.totalCompanies} rivals</div>
-              </div>
-            </div>
-          </CardContent>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-muted/50 text-muted-foreground font-bold uppercase text-[9px] tracking-widest">
+                        <tr>
+                          <th className="px-5 py-3">Date</th>
+                          <th className="px-5 py-3">Business</th>
+                          <th className="px-5 py-3 text-right">Score</th>
+                          <th className="px-5 py-3 text-right">Δ</th>
+                          <th className="px-5 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {scans.slice(0, 5).map((scan, i) => {
+                          const avg = avgScore(scan);
+                          const prev = completedScans[i + 1] ? avgScore(completedScans[i + 1]) : null;
+                          const scanDelta = prev != null ? avg - prev : null;
+                          return (
+                            <tr key={scan.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-5 py-3 font-medium text-primary text-sm">
+                                {shortDate(scan.createdAt)}
+                              </td>
+                              <td className="px-5 py-3 text-muted-foreground text-sm">{scan.businessName}</td>
+                              <td className="px-5 py-3 text-right font-bold text-primary">
+                                {scan.status === "COMPLETE" ? avg.toFixed(1) : (
+                                  <Badge variant="outline" className="text-[9px] capitalize">{scan.status.toLowerCase()}</Badge>
+                                )}
+                              </td>
+                              <td className="px-5 py-3 text-right text-xs font-bold">
+                                {scanDelta != null ? (
+                                  <span className={cn(scanDelta >= 0 ? "text-green-600" : "text-red-500")}>
+                                    {scanDelta >= 0
+                                      ? <ArrowUpRight className="w-3 h-3 inline" />
+                                      : <TrendingDown className="w-3 h-3 inline" />}
+                                    {Math.abs(scanDelta).toFixed(1)}
+                                  </span>
+                                ) : "—"}
+                              </td>
+                              <td className="px-5 py-3 text-right">
+                                <Link href={`/scans/results/${scan.id}`}>
+                                  <Button variant="ghost" size="sm" className="text-primary text-xs font-bold h-7">
+                                    View
+                                  </Button>
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-5 py-3 border-t">
+                    <Link href="/scans">
+                      <Button variant="ghost" size="sm" className="text-[10px] gap-1 text-muted-foreground h-7">
+                        All scans <ArrowRight className="w-3 h-3" />
+                      </Button>
+                    </Link>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          )}
         </Card>
       )}
-
-      {/* Primary Score Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <ScoreCard 
-          title="Overall Visibility" 
-          score={latestScan?.results?.overallScore || 72.4} 
-          trend={latestScan && firstScan ? latestScan.results.overallScore - firstScan.results.overallScore : 0} 
-          icon={Search} 
-          description="Avg. AI prominence"
-          tooltip="Consolidated score based on weighted discovery vectors."
-        />
-        <ScoreCard 
-          title="Description Accuracy" 
-          score={latestScan?.results?.categoryScores?.descriptionAccuracy || 88.1} 
-          trend={latestScan && firstScan ? latestScan.results.categoryScores.descriptionAccuracy - firstScan.results.categoryScores.descriptionAccuracy : 0} 
-          icon={ShieldCheck} 
-          description="Model alignment"
-          tooltip="Accuracy of AI-generated business summaries."
-        />
-        <ScoreCard 
-          title="Competitor Threat" 
-          score={latestScan?.results?.categoryScores?.competitorShareOfVoice || 34.2} 
-          trend={latestScan && firstScan ? latestScan.results.categoryScores.competitorShareOfVoice - firstScan.results.categoryScores.competitorShareOfVoice : 0} 
-          icon={Users} 
-          description="Rival share of voice"
-          tooltip="Aggressiveness of competitor recommendations."
-        />
-        <ScoreCard 
-          title="Citation Strength" 
-          score={latestScan?.results?.categoryScores?.citationStrength || 65.5} 
-          trend={latestScan && firstScan ? latestScan.results.categoryScores.citationStrength - firstScan.results.categoryScores.citationStrength : 0} 
-          icon={Target} 
-          description="Authority sourcing"
-          tooltip="Quality of sources cited by AI models."
-        />
-        <ScoreCard 
-          title="Service Coverage" 
-          score={latestScan?.results?.categoryScores?.serviceCoverage || 54.0} 
-          trend={latestScan && firstScan ? latestScan.results.categoryScores.serviceCoverage - firstScan.results.categoryScores.serviceCoverage : 0} 
-          icon={Zap} 
-          description="Category indexing"
-          tooltip="Depth of service taxonomy discovery."
-        />
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Trend Chart */}
-        <Card className="lg:col-span-2 border-none shadow-sm overflow-hidden bg-white">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg font-bold text-primary">Visibility Trend</CardTitle>
-              <CardDescription>Historical AI Index Performance</CardDescription>
-            </div>
-            <LineChart className="w-5 h-5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="h-[300px] w-full pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData.length > 0 ? chartData : [{ name: 'Empty', score: 0 }]}>
-                <defs>
-                  <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#174C80" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#174C80" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} domain={[0, 100]} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}
-                  labelStyle={{ fontWeight: 'bold', color: '#174C80' }}
-                />
-                <Area type="monotone" dataKey="score" stroke="#174C80" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Monitoring Card */}
-        <div className="space-y-6">
-           <Card className="border-none shadow-sm bg-white overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between border-b bg-primary/5 pb-4">
-              <div>
-                <CardTitle className="text-sm font-bold text-primary">Monitoring Status</CardTitle>
-                <CardDescription className="text-[10px]">Active automated tracking</CardDescription>
-              </div>
-              <Activity className="w-4 h-4 text-accent" />
-            </CardHeader>
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-xs font-medium">Next Scan</span>
-                 </div>
-                 <span className="text-xs font-bold text-primary">Oct 28, 2023</span>
-              </div>
-              <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-2">
-                    <History className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-xs font-medium">Frequency</span>
-                 </div>
-                 <Badge variant="secondary" className="text-[10px]">Weekly</Badge>
-              </div>
-              <div className="pt-4 border-t">
-                 <div className="text-[10px] font-bold text-muted-foreground uppercase mb-2">Historical Health</div>
-                 <div className="flex gap-1.5 h-6">
-                    {[1,1,1,1,0,1,1,1,1,1].map((status, i) => (
-                      <div 
-                        key={i} 
-                        className={cn(
-                            "flex-1 rounded-[2px] transition-opacity hover:opacity-80", 
-                            status === 1 ? "bg-green-50/80" : "bg-red-400/80"
-                        )} 
-                        title={status === 1 ? "Scan Successful" : "Scan Error Detected"}
-                      />
-                    ))}
-                 </div>
-              </div>
-              <Link href="/monitoring" className="block w-full">
-                <Button variant="ghost" className="w-full text-[10px] uppercase font-bold text-primary hover:bg-primary/5 h-8">
-                  Manage Schedules
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-bold text-primary">Top Recommendations</CardTitle>
-              <Lightbulb className="w-4 h-4 text-accent" />
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {(latestScan?.results?.priorityActions || [
-                { title: "Bridge Structured Data Gap", priority: "high", desc: "Update entity schema signals." },
-                { title: "Refine Service Taxonomy", priority: "medium", desc: "Expand capability page content." },
-              ]).slice(0, 2).map((rec: any, i: number) => (
-                <div key={i} className="p-3 bg-muted/50 rounded-xl space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-primary leading-tight">{rec.title || rec.action}</span>
-                    <Badge variant={rec.priority === 'high' ? 'destructive' : 'secondary'} className="text-[8px] uppercase px-1.5 h-4 leading-none">
-                      {rec.priority}
-                    </Badge>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground line-clamp-1">{rec.description || rec.impact}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Recent Scans Table */}
-      <Card className="border-none shadow-sm overflow-hidden bg-white">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-lg font-bold text-primary">Recent Intelligence Audits</CardTitle>
-            <CardDescription>Chronological history of your latest AI analyses</CardDescription>
-          </div>
-          <History className="w-5 h-5 text-muted-foreground" />
-        </CardHeader>
-        <CardContent className="p-0">
-          {scans.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-muted/50 text-muted-foreground font-bold uppercase text-[10px] tracking-widest">
-                  <tr>
-                    <th className="px-6 py-3">Audit Date</th>
-                    <th className="px-6 py-3">Organization Context</th>
-                    <th className="px-6 py-3 text-right">Visibility Index</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {scans.slice(0, 5).map((scan, i) => (
-                    <tr key={i} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-6 py-4 font-medium text-primary">
-                        {scan.date?.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground font-medium">
-                        {scan.results?.companyName || "Client Account"}
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold text-primary">
-                        {(scan.results?.overallScore || 0).toFixed(1)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 capitalize text-[10px] h-5">
-                          {scan.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link href={`/scans/results/${scan.id}`}>
-                          <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/5 text-xs font-bold">View Data</Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="p-12 text-center space-y-4">
-              <div className="flex justify-center">
-                <AlertCircle className="w-12 h-12 text-muted-foreground/20" />
-              </div>
-              <p className="text-muted-foreground italic">No historical audits found. Launch a new scan to begin.</p>
-              <Link href="/scans/new">
-                <Button variant="outline" size="sm">Initiate First Audit</Button>
-              </Link>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

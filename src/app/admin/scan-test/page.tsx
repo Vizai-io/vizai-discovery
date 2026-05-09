@@ -1,20 +1,27 @@
+/**
+ * @fileOverview Admin Intelligence Validator — Sprint 4 stub.
+ *
+ * Previously wrote test scans directly to Firestore `scans` collection.
+ * Now: POSTs to POST /api/scan (Postgres) instead.
+ *
+ * Stabilization note: Firestore integrity check (getDoc verify) is removed.
+ * The POST /api/scan response includes the created scanId for navigation.
+ */
+
 "use client";
 
 import { useState } from "react";
-import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
 import { ScanEngine } from "@/lib/services/scan-engine";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Zap, 
-  Loader2, 
-  CheckCircle2, 
-  ExternalLink, 
-  ChevronLeft, 
-  FileSearch, 
-  Database,
+import {
+  Zap,
+  Loader2,
+  CheckCircle2,
+  ExternalLink,
+  ChevronLeft,
+  FileSearch,
   AlertCircle
 } from "lucide-react";
 import Link from "next/link";
@@ -23,54 +30,32 @@ import { toast } from "@/hooks/use-toast";
 export default function AdminScanTestPage() {
   const [loading, setLoading] = useState(false);
   const [createdScanId, setCreatedScanId] = useState<string | null>(null);
-  const [integrity, setIntegrity] = useState<{ results: boolean; queries: boolean } | null>(null);
 
   const handleCreateTestScan = async () => {
     setLoading(true);
     setCreatedScanId(null);
-    setIntegrity(null);
 
     try {
-      // 1. Setup Mock Input
-      const testInput = {
-        companyName: "Test Diagnostic Corp",
-        website: "https://test.vizai.ai",
-        industry: "logistics",
-        targetGeography: "Diagnostic Sandbox",
-        organizationId: "org_admin_test"
-      };
-
-      // 2. Run Minimal Engine
-      const results = await ScanEngine.runScan(testInput);
-
-      // 3. Persist to Firestore
-      const scanRef = await addDoc(collection(db, "scans"), {
-        ...testInput,
-        date: serverTimestamp(),
-        status: "completed",
-        reviewStatus: "draft",
-        results: results,
-        queryDiscovery: results.queryDiscovery,
-        isTest: true
+      const res = await fetch('/api/scan', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName:     'Test Diagnostic Corp',
+          website:         'https://test.vizai.ai',
+          industry:        'logistics',
+          targetGeography: 'Diagnostic Sandbox',
+          organizationId:  'org_admin_test',
+        }),
       });
 
-      const scanId = scanRef.id;
-      setCreatedScanId(scanId);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `API error ${res.status}`);
 
-      // 4. Verify Integrity (Passive Check)
-      const verifySnap = await getDoc(doc(db, "scans", scanId));
-      if (verifySnap.exists()) {
-        const data = verifySnap.data();
-        setIntegrity({
-          results: !!data.results,
-          queries: !!data.queryDiscovery
-        });
-      }
-
-      toast({ title: "Test Scan Created", description: `ID: ${scanId}` });
+      setCreatedScanId(data.scanId ?? data.id ?? null);
+      toast({ title: 'Test Scan Created', description: `ID: ${data.scanId ?? data.id}` });
     } catch (error: any) {
-      console.error("Test Creation Failed:", error);
-      toast({ title: "Write Failed", description: error.message, variant: "destructive" });
+      console.error('Test Creation Failed:', error);
+      toast({ title: 'Scan Failed', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -99,8 +84,8 @@ export default function AdminScanTestPage() {
                 <Zap className="w-5 h-5" />
               </div>
               <div>
-                <CardTitle className="text-lg">Direct Document Injector</CardTitle>
-                <CardDescription className="text-xs">Bypasses all client-side logic to write a completed audit directly to Firestore.</CardDescription>
+                <CardTitle className="text-lg">Direct Scan Injector</CardTitle>
+                <CardDescription className="text-xs">Runs a test scan via POST /api/scan → Postgres (no Firestore).</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -108,16 +93,17 @@ export default function AdminScanTestPage() {
             <div className="p-4 bg-muted/30 rounded-2xl border border-dashed text-sm space-y-2">
               <p className="font-bold flex items-center gap-2"><AlertCircle className="w-4 h-4 text-amber-500" /> Operational Warning</p>
               <p className="text-muted-foreground text-xs leading-relaxed">
-                Clicking the button below will create a new <strong>ScanRecord</strong> in your production database. This record is used to validate that the frontend can correctly fetch and render deep-nested intelligence objects.
+                Clicking the button below will create a new <strong>PerceptionScan</strong> in Postgres.
+                This record is used to validate that the frontend can correctly fetch and render deep-nested intelligence objects.
               </p>
             </div>
 
-            <Button 
-              onClick={handleCreateTestScan} 
+            <Button
+              onClick={handleCreateTestScan}
               disabled={loading}
               className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 text-white gap-2 shadow-xl rounded-xl"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Inject Sample Completed Audit"}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Inject Sample Completed Audit'}
             </Button>
 
             {createdScanId && (
@@ -125,29 +111,17 @@ export default function AdminScanTestPage() {
                 <div className="p-6 bg-green-50 border border-green-100 rounded-3xl space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-green-700 font-bold">
-                      <CheckCircle2 className="w-5 h-5" /> Write Successful
+                      <CheckCircle2 className="w-5 h-5" /> Write Successful (Postgres)
                     </div>
                     <code className="text-[10px] bg-white px-2 py-1 rounded border font-mono">{createdScanId}</code>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-4 rounded-2xl border flex items-center justify-between">
-                      <span className="text-xs font-bold text-muted-foreground">ScanResults</span>
-                      {integrity?.results ? <Badge className="bg-green-100 text-green-700">PERSISTED</Badge> : <Badge variant="destructive">MISSING</Badge>}
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl border flex items-center justify-between">
-                      <span className="text-xs font-bold text-muted-foreground">QueryData</span>
-                      {integrity?.queries ? <Badge className="bg-green-100 text-green-700">PERSISTED</Badge> : <Badge variant="destructive">MISSING</Badge>}
-                    </div>
-                  </div>
-
                   <div className="flex flex-col gap-2">
-                    <Link href={`/scans/${createdScanId}`} target="_blank">
+                    <Link href={`/scans/results/${createdScanId}`} target="_blank">
                       <Button variant="outline" className="w-full bg-white gap-2 h-10">
                         View Analytics Dashboard <ExternalLink className="w-4 h-4" />
                       </Button>
                     </Link>
-                    <Link href={`/scans/${createdScanId}/report`} target="_blank">
+                    <Link href={`/scans/results/${createdScanId}`} target="_blank">
                       <Button variant="outline" className="w-full bg-white gap-2 h-10">
                         View Professional Report <FileSearch className="w-4 h-4" />
                       </Button>
@@ -160,7 +134,7 @@ export default function AdminScanTestPage() {
         </Card>
 
         <div className="text-center pt-8">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.3em]">VizAI Intelligence System Diagnostic v1.4</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.3em]">VizAI Intelligence System Diagnostic v2.0 — Postgres Runtime</p>
         </div>
       </div>
     </div>

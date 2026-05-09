@@ -1,11 +1,26 @@
+/**
+ * @fileOverview Admin Proposal Builder — Sprint 4 stub.
+ *
+ * Previously read scan data from Firestore `scans` collection.
+ * Now: reads from GET /api/scan/[id] (Postgres).
+ *
+ * Field mapping (Firestore ScanRecord → Postgres ScanReport jsonReport):
+ *   results.companyName       → jsonReport.companyName
+ *   results.overallScore      → jsonReport.overallScore
+ *   results.categoryScores    → jsonReport.categoryScores
+ *   results.knowledgeGaps     → jsonReport.knowledgeGaps
+ *   results.priorityActions   → jsonReport.priorityActions (recommendations)
+ *   proposal                  → not in Postgres schema (proposal builder is internal)
+ *
+ * Save path: intentionally disabled during stabilization sprint.
+ * (Refinement 3: explicit stabilization degradation notice in UI)
+ */
 
 "use client";
 
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
-import { ScanRecord, ProposalData, ServicePackageType } from "@/lib/types";
+import { ScanResults, ProposalData, ServicePackageType } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,21 +28,21 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  ChevronLeft, 
-  Briefcase, 
-  Save, 
-  Printer, 
-  Plus, 
-  Trash2, 
-  Sparkles, 
+import {
+  ChevronLeft,
+  Briefcase,
+  Printer,
+  Plus,
+  Trash2,
+  Sparkles,
   Loader2,
   TrendingUp,
   Target,
   Search,
   Activity,
   Boxes,
-  Zap
+  Zap,
+  AlertTriangle
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { PackageService } from "@/lib/services/package-service";
@@ -35,11 +50,10 @@ import { PackageService } from "@/lib/services/package-service";
 export default function ProposalBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const [scan, setScan] = useState<ScanRecord | null>(null);
+  const [scanResults, setScanResults] = useState<ScanResults | null>(null);
+  const [companyName, setCompanyName] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
 
-  // Proposal State
   const [proposal, setProposal] = useState<ProposalData>({
     summary: "",
     gaps: [],
@@ -54,33 +68,38 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
     async function fetchScan() {
       setLoading(true);
       try {
-        const docRef = doc(db, "scans", id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data() as ScanRecord;
-          setScan(data);
-          
-          if (data.proposal) {
-            setProposal(data.proposal);
-          } else {
-            const suggested = PackageService.getSuggestedPackage(data.results.categoryScores);
-            setProposal({
-              summary: `Strategy proposal for ${data.results.companyName} to improve AI discovery visibility from current index of ${data.results.overallScore.toFixed(1)}.`,
-              gaps: data.results.knowledgeGaps?.map(g => g.description) || [],
-              workstreams: data.results.priorityActions?.map(a => ({ 
-                title: a.title, 
-                description: a.description,
-                packageType: a.packageType || suggested
-              })) || [],
-              projections: `Targeting a ${ (data.results.overallScore + 15).toFixed(1) } visibility index within 90 days.`,
-              monitoringPlan: "Weekly multi-vector discovery audits and competitive intrusion alerts.",
-              estimatedInvestment: suggested === 'Growth' ? "$15,000 / quarter" : "$12,500 / quarter",
-              suggestedPackage: suggested
-            });
-          }
-        }
+        const res = await fetch(`/api/scan/${id}`);
+        if (!res.ok) throw new Error(`API error ${res.status}`);
+        const data = await res.json();
+
+        // Map Postgres scan data to proposal builder fields
+        const report   = data.scan?.scanReport;
+        const jsonRpt  = report?.jsonReport as any ?? {};
+        const results  = jsonRpt as ScanResults;
+
+        setScanResults(results);
+        setCompanyName(jsonRpt.companyName ?? 'Unknown');
+
+        const suggested = results?.categoryScores
+          ? PackageService.getSuggestedPackage(results.categoryScores)
+          : 'Snapshot';
+
+        setProposal({
+          summary: `Strategy proposal for ${jsonRpt.companyName ?? 'this company'} to improve AI discovery visibility from current index of ${results?.overallScore?.toFixed(1) ?? '0'}.`,
+          gaps: results?.knowledgeGaps?.map((g: any) => g.description) ?? [],
+          workstreams: results?.priorityActions?.map((a: any) => ({
+            title:       a.title,
+            description: a.description,
+            packageType: a.packageType ?? suggested
+          })) ?? [],
+          projections:     `Targeting a ${((results?.overallScore ?? 0) + 15).toFixed(1)} visibility index within 90 days.`,
+          monitoringPlan:  "Weekly multi-vector discovery audits and competitive intrusion alerts.",
+          estimatedInvestment: suggested === 'Growth' ? "$15,000 / quarter" : "$12,500 / quarter",
+          suggestedPackage: suggested
+        });
       } catch (e) {
-        console.error("Error loading proposal:", e);
+        console.error("Error loading proposal scan:", e);
+        toast({ title: "Load Error", description: "Could not load scan data.", variant: "destructive" });
       } finally {
         setLoading(false);
       }
@@ -88,42 +107,11 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
     fetchScan();
   }, [id]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const docRef = doc(db, "scans", id);
-      await updateDoc(docRef, {
-        proposal: {
-          ...proposal,
-          updatedAt: serverTimestamp()
-        }
-      });
-      toast({ title: "Proposal Saved", description: "Draft has been updated successfully." });
-    } catch (e) {
-      toast({ title: "Save Failed", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addGap = () => setProposal(p => ({ ...p, gaps: [...p.gaps, ""] }));
-  const updateGap = (i: number, val: string) => {
-    const next = [...proposal.gaps];
-    next[i] = val;
-    setProposal(p => ({ ...p, gaps: next }));
-  };
-  const removeGap = (i: number) => setProposal(p => ({ ...p, gaps: p.gaps.filter((_, idx) => idx !== i) }));
-
-  const addWorkstream = () => setProposal(p => ({ 
-    ...p, 
-    workstreams: [...p.workstreams, { title: "", description: "", packageType: proposal.suggestedPackage || 'Snapshot' }] 
-  }));
-  
-  const updateWorkstream = (i: number, field: any, val: string) => {
-    const next = [...proposal.workstreams];
-    next[i] = { ...next[i], [field]: val };
-    setProposal(p => ({ ...p, workstreams: next }));
-  };
+  const addGap        = () => setProposal(p => ({ ...p, gaps: [...p.gaps, ""] }));
+  const updateGap     = (i: number, val: string) => { const next = [...proposal.gaps]; next[i] = val; setProposal(p => ({ ...p, gaps: next })); };
+  const removeGap     = (i: number) => setProposal(p => ({ ...p, gaps: p.gaps.filter((_, idx) => idx !== i) }));
+  const addWorkstream = () => setProposal(p => ({ ...p, workstreams: [...p.workstreams, { title: "", description: "", packageType: proposal.suggestedPackage || 'Snapshot' }] }));
+  const updateWorkstream = (i: number, field: any, val: string) => { const next = [...proposal.workstreams]; next[i] = { ...next[i], [field]: val }; setProposal(p => ({ ...p, workstreams: next })); };
   const removeWorkstream = (i: number) => setProposal(p => ({ ...p, workstreams: p.workstreams.filter((_, idx) => idx !== i) }));
 
   if (loading) {
@@ -146,15 +134,15 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
             <Briefcase className="w-6 h-6 text-primary" />
             <div>
               <h1 className="text-lg font-bold text-primary">Strategic Proposal Builder</h1>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Client: {scan?.results.companyName}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Client: {companyName}</p>
             </div>
           </div>
         </div>
         <div className="flex gap-3">
           <div className="flex items-center gap-2 mr-4 bg-muted/50 px-3 py-1.5 rounded-lg border">
              <Boxes className="w-4 h-4 text-primary" />
-             <Select 
-               value={proposal.suggestedPackage} 
+             <Select
+               value={proposal.suggestedPackage}
                onValueChange={(val) => setProposal({...proposal, suggestedPackage: val as ServicePackageType})}
              >
                <SelectTrigger className="border-none bg-transparent h-6 focus:ring-0 text-xs font-bold p-0 min-w-[100px]">
@@ -167,8 +155,9 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
                </SelectContent>
              </Select>
           </div>
-          <Button variant="outline" className="gap-2" onClick={handleSave} disabled={saving}>
-            <Save className="w-4 h-4" /> Save Draft
+          {/* Refinement 3: save disabled during stabilization sprint */}
+          <Button variant="outline" className="gap-2 opacity-50 cursor-not-allowed" disabled title="Save disabled during stabilization sprint — Postgres proposal schema pending Sprint 5">
+            Save Draft (disabled)
           </Button>
           <Button className="gap-2 bg-primary text-white" onClick={() => window.print()}>
             <Printer className="w-4 h-4" /> Export / Print
@@ -176,17 +165,26 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
         </div>
       </header>
 
+      {/* Refinement 3: Stabilization degradation notice */}
+      <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center gap-2 text-amber-800 text-xs font-bold">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        <span>
+          Stabilization Sprint 4 — Proposal save is disabled. Data is read-only from Postgres.
+          Proposal persistence will be re-enabled in Sprint 5 once the Postgres proposal schema is finalized.
+        </span>
+      </div>
+
       <main className="max-w-4xl mx-auto p-8 space-y-12 animate-in fade-in duration-500 print:p-0 print:space-y-8">
-        {/* Proposal Print Branded Header */}
+        {/* Print Header */}
         <div className="hidden print:flex justify-between items-start border-b-4 border-primary pb-8 mb-12">
           <div className="space-y-2">
             <div className="text-[10px] font-black text-accent uppercase tracking-[0.3em]">VizAI Consulting Group</div>
             <h1 className="text-4xl font-black text-primary tracking-tighter">Strategic Optimization Proposal</h1>
-            <p className="text-muted-foreground font-medium">Prepared for: <span className="text-primary font-bold">{scan?.results.companyName}</span></p>
+            <p className="text-muted-foreground font-medium">Prepared for: <span className="text-primary font-bold">{companyName}</span></p>
           </div>
           <div className="text-right">
             <div className="text-sm font-bold text-primary">VizAI Intelligence</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">v1.4 Enterprise</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">v2.0 Enterprise</div>
           </div>
         </div>
 
@@ -215,7 +213,7 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        {/* Section: Executive Summary */}
+        {/* Executive Summary */}
         <section className="space-y-4">
           <div className="flex items-center gap-3 border-b pb-2">
             <div className="p-2 rounded-lg bg-primary/10 text-primary print:hidden">
@@ -225,8 +223,8 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
           </div>
           <Card className="border-none shadow-sm print:shadow-none print:border">
             <CardContent className="pt-6">
-              <Textarea 
-                value={proposal.summary} 
+              <Textarea
+                value={proposal.summary}
                 onChange={(e) => setProposal({ ...proposal, summary: e.target.value })}
                 className="min-h-[120px] text-base leading-relaxed border-none focus-visible:ring-0 p-0 resize-none print:min-h-0"
                 placeholder="Overarching strategy goals..."
@@ -235,7 +233,7 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
           </Card>
         </section>
 
-        {/* Section: Discovery Gaps */}
+        {/* Discovery Gaps */}
         <section className="space-y-4">
           <div className="flex items-center gap-3 border-b pb-2">
             <div className="p-2 rounded-lg bg-red-100 text-red-600 print:hidden">
@@ -248,8 +246,8 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
               <div key={i} className="flex gap-3 items-start group">
                 <Card className="flex-1 border-none shadow-sm print:shadow-none print:border bg-white">
                   <CardContent className="p-4">
-                    <Input 
-                      value={gap} 
+                    <Input
+                      value={gap}
                       onChange={(e) => updateGap(i, e.target.value)}
                       className="border-none focus-visible:ring-0 p-0 h-auto font-medium"
                       placeholder="Gap description..."
@@ -267,7 +265,7 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
           </div>
         </section>
 
-        {/* Section: Workstreams */}
+        {/* Workstreams */}
         <section className="space-y-4">
           <div className="flex items-center gap-3 border-b pb-2">
             <div className="p-2 rounded-lg bg-accent/10 text-primary print:hidden">
@@ -281,8 +279,8 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
                 <Card className="flex-1 border-none shadow-sm print:shadow-none print:border bg-white overflow-hidden border-l-4 border-l-primary">
                   <CardContent className="p-6 space-y-3">
                     <div className="flex justify-between items-start">
-                      <Input 
-                        value={ws.title} 
+                      <Input
+                        value={ws.title}
                         onChange={(e) => updateWorkstream(i, 'title', e.target.value)}
                         className="text-lg font-black text-primary border-none focus-visible:ring-0 p-0 h-auto flex-1 mr-4"
                         placeholder="Workstream Title"
@@ -291,8 +289,8 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
                         Tier: {ws.packageType || 'Core'}
                       </Badge>
                     </div>
-                    <Textarea 
-                      value={ws.description} 
+                    <Textarea
+                      value={ws.description}
                       onChange={(e) => updateWorkstream(i, 'description', e.target.value)}
                       className="text-sm text-muted-foreground border-none focus-visible:ring-0 p-0 resize-none min-h-[60px]"
                       placeholder="Technical implementation details..."
@@ -310,7 +308,7 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
           </div>
         </section>
 
-        {/* Section: Projections & Monitoring */}
+        {/* Projections & Monitoring */}
         <div className="grid md:grid-cols-2 gap-8">
           <section className="space-y-4">
             <div className="flex items-center gap-3 border-b pb-2">
@@ -321,8 +319,8 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
             </div>
             <Card className="border-none shadow-sm print:shadow-none print:border bg-white">
               <CardContent className="pt-6">
-                <Textarea 
-                  value={proposal.projections} 
+                <Textarea
+                  value={proposal.projections}
                   onChange={(e) => setProposal({ ...proposal, projections: e.target.value })}
                   className="min-h-[80px] text-sm leading-relaxed border-none focus-visible:ring-0 p-0 resize-none"
                   placeholder="Expected Visibility ROI..."
@@ -330,7 +328,6 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
               </CardContent>
             </Card>
           </section>
-
           <section className="space-y-4">
             <div className="flex items-center gap-3 border-b pb-2">
               <div className="p-2 rounded-lg bg-blue-100 text-blue-600 print:hidden">
@@ -340,8 +337,8 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
             </div>
             <Card className="border-none shadow-sm print:shadow-none print:border bg-white">
               <CardContent className="pt-6">
-                <Textarea 
-                  value={proposal.monitoringPlan} 
+                <Textarea
+                  value={proposal.monitoringPlan}
                   onChange={(e) => setProposal({ ...proposal, monitoringPlan: e.target.value })}
                   className="min-h-[80px] text-sm leading-relaxed border-none focus-visible:ring-0 p-0 resize-none"
                   placeholder="Ongoing tracking schedule..."
@@ -351,7 +348,7 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
           </section>
         </div>
 
-        {/* Section: Investment */}
+        {/* Investment */}
         <section className="space-y-4 pt-8 border-t">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-primary text-white p-8 rounded-[2rem] shadow-xl print:shadow-none print:border print:text-primary print:bg-white">
             <div className="space-y-1 text-center md:text-left">
@@ -359,8 +356,8 @@ export default function ProposalBuilderPage({ params }: { params: Promise<{ id: 
               <p className="text-sm opacity-70">Implementation and onboarding for Discovery Phase 1.</p>
             </div>
             <div className="text-center md:text-right">
-              <Input 
-                value={proposal.estimatedInvestment} 
+              <Input
+                value={proposal.estimatedInvestment}
                 onChange={(e) => setProposal({ ...proposal, estimatedInvestment: e.target.value })}
                 className="text-3xl font-black bg-transparent border-none focus-visible:ring-0 p-0 h-auto text-center md:text-right w-full"
                 placeholder="e.g. $10,000 / month"

@@ -1,46 +1,36 @@
+/**
+ * @fileOverview RankingService — STATIC UTILITY — no Firebase, no Prisma.
+ *
+ * STATUS: Sprint 4 — Firebase removed.
+ * Previously read from Firestore `rankings` collection.
+ * Now: pure in-memory deterministic simulation.
+ *
+ * Production reads are served by GET /api/rankings (Postgres + 60s TTL cache).
+ * rankings/page.tsx ("use client") calls fetch('/api/rankings') instead of
+ * calling this service directly.
+ *
+ * simulateRankings() is kept as a public static utility because:
+ *   1. GET /api/rankings uses it to generate snapshots before persisting.
+ *   2. It may be used in test fixtures or admin tooling.
+ *
+ * Refinement 1 (Sprint 4): Retention awareness is tracked in the RankingSnapshot
+ *   Prisma model (schema.prisma). See TODO there for Sprint 5 retention policy.
+ */
 
 import { RankingSnapshot, RankingEntry } from "../types";
-import { collection, query, where, getDocs, orderBy, limit, Timestamp } from "firebase/firestore";
-import { db } from "../firebase-config";
 
 /**
- * RankingService manages the retrieval and simulation of industry leaderboards.
+ * RankingService — static utility for deterministic ranking generation.
+ * All I/O (Postgres reads/writes + caching) is handled by GET /api/rankings.
  */
 export class RankingService {
   /**
-   * Fetches the latest ranking snapshot for a specific industry and region.
-   * If no snapshot exists in Firestore, it returns a mock one for demo purposes.
+   * Generates a deterministic mock ranking snapshot for a given industry + region.
+   * Output is stable for the same inputs — hash-like scoring, no randomness.
+   *
+   * Public so GET /api/rankings can call it for snapshot generation.
    */
-  static async getLatestRankings(industry: string, region: string): Promise<RankingSnapshot> {
-    try {
-      const rankingsRef = collection(db, "rankings");
-      const q = query(
-        rankingsRef,
-        where("industry", "==", industry),
-        where("region", "==", region),
-        orderBy("date", "desc"),
-        limit(1)
-      );
-
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const doc = querySnapshot.docs[0];
-        return { id: doc.id, ...doc.data() } as RankingSnapshot;
-      }
-
-      // Fallback to simulated data if none found in DB
-      return this.simulateRankings(industry, region);
-    } catch (error) {
-      console.error("Error fetching rankings:", error);
-      return this.simulateRankings(industry, region);
-    }
-  }
-
-  /**
-   * Generates deterministic mock ranking data for a given context.
-   */
-  private static simulateRankings(industry: string, region: string): RankingSnapshot {
+  static simulateRankings(industry: string, region: string): RankingSnapshot {
     const companies = [
       "Acme Logistics",
       "Global Freight Systems",
@@ -51,35 +41,32 @@ export class RankingService {
       "Summit Distribution",
       "BlueChip Logistics",
       "Horizon Cargo",
-      "Streamline Partners"
+      "Streamline Partners",
     ];
 
-    // Create stable but distinct scores based on company name hash-like logic
+    // Stable deterministic scores based on company name length — no randomness
     const entries: RankingEntry[] = companies
       .map((name) => {
         const baseScore = 60 + (name.length % 35);
-        const change = (name.length % 7) - 3; // Mock change between -3 and +3
+        const change    = (name.length % 7) - 3; // -3 to +3
         return {
           companyName: name,
-          score: baseScore,
-          rank: 0, // Will be set after sorting
+          score:       baseScore,
+          rank:        0, // set after sort
           change,
           industry,
-          region
+          region,
         };
       })
       .sort((a, b) => b.score - a.score)
-      .map((entry, index) => ({
-        ...entry,
-        rank: index + 1
-      }));
+      .map((entry, index) => ({ ...entry, rank: index + 1 }));
 
     return {
-      id: `mock-snapshot-${industry}-${region}`,
-      date: Timestamp.now(),
+      id:       `mock-snapshot-${industry}-${region}`,
+      date:     new Date(),
       industry,
       region,
-      entries
+      entries,
     };
   }
 }

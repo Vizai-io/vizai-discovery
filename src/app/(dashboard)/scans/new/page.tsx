@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,9 +26,7 @@ import {
   Briefcase
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { collection, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
-import { ScanEngine } from "@/lib/services/scan-engine";
+import { useAuth } from "@/contexts/auth-context";
 
 const STEPS = [
   { id: 1, title: "Identity", icon: Building2 },
@@ -42,6 +40,15 @@ const STEPS = [
 
 export default function NewScanWizard() {
   const router = useRouter();
+  const { userProfile } = useAuth();
+
+  // Admin-only guard
+  useEffect(() => {
+    if (userProfile && userProfile.role !== 'admin') {
+      router.replace('/dashboard');
+    }
+  }, [userProfile, router]);
+
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,52 +74,56 @@ export default function NewScanWizard() {
   const handleFinish = async () => {
     setLoading(true);
     setError(null);
-    let scanId = "";
     try {
-      const profileData = {
-        ...formData,
-        foundingYear: parseInt(formData.foundingYear) || 2010,
-        serviceCategories: formData.serviceCategories.split(",").map(s => s.trim()).filter(Boolean),
-        competitors: formData.competitors.split(",").map(c => c.trim()).filter(Boolean),
-        createdAt: serverTimestamp(),
-        organizationId: "org_default_acme"
-      };
+      const parsedServices = formData.serviceCategories.split(",").map(s => s.trim()).filter(Boolean);
+      const parsedLocations = formData.targetGeography ? [formData.targetGeography.trim()] : [];
+      const parsedIndustries = formData.industry ? [formData.industry] : [];
 
-      // 1. Create Initial Records
-      const profileRef = await addDoc(collection(db, "companyProfiles"), profileData);
-      const scanRef = await addDoc(collection(db, "scans"), {
-        profileId: profileRef.id,
-        date: serverTimestamp(),
-        status: "running",
-        organizationId: "org_default_acme",
-        reviewStatus: "draft",
-        results: { companyName: formData.companyName, industry: formData.industry, overallScore: 0 }
-      });
-      scanId = scanRef.id;
-
-      // 2. Generate Deterministic Mock Data
-      const scanOutput = await ScanEngine.runScan(profileData, profileRef.id, scanId);
-
-      // 3. Persist Completed Results
-      await updateDoc(doc(db, "scans", scanId), {
-        status: "completed",
-        results: scanOutput,
-        queryDiscovery: scanOutput.queryDiscovery,
-        realQueryResults: []
+      // 1. Create company profile in Postgres
+      const profileRes = await fetch("/api/company-profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_name: formData.companyName,
+          website_url: formData.website || undefined,
+          official_services: parsedServices,
+          official_locations: parsedLocations,
+          official_industries: parsedIndustries,
+        }),
       });
 
-      toast({ title: "Scan Completed", description: "Audit generated successfully." });
-      router.push(`/scans/${scanId}`);
+      const profileData = await profileRes.json();
+      if (!profileRes.ok) {
+        throw new Error(profileData.error || "Failed to create company profile");
+      }
+
+      // 2. Run perception scan
+      const scanRes = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_name: formData.companyName,
+          website_url: formData.website || undefined,
+          company_profile_id: profileData.id,
+          ground_truth: {
+            official_services: parsedServices,
+            official_locations: parsedLocations,
+            official_industries: parsedIndustries,
+          },
+        }),
+      });
+
+      const scanData = await scanRes.json();
+      if (!scanRes.ok) {
+        throw new Error(scanData.error || "Scan failed");
+      }
+
+      toast({ title: "Scan Completed", description: "AI visibility audit generated successfully." });
+      router.push(`/scans/results/${scanData.scan_id}`);
     } catch (err: any) {
       console.error("Scan Execution Error:", err);
-      const message = err.message || "Execution failure in minimal path.";
+      const message = err.message || "Scan execution failed.";
       setError(message);
-      if (scanId) {
-        await updateDoc(doc(db, "scans", scanId), { 
-          status: "failed", 
-          errorMessage: message 
-        }).catch(console.warn);
-      }
       toast({ title: "Scan Failed", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -238,7 +249,7 @@ export default function NewScanWizard() {
               </div>
               <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 text-xs opacity-80">
                  <Sparkles className="w-5 h-5 text-accent" />
-                 <p>Initiating minimal deterministic audit. This path guarantees completion by bypassing optional live model verification steps.</p>
+                 <p>Launching multi-provider AI visibility audit. Your brand will be queried across Gemini, OpenAI, and other AI models to measure real discoverability.</p>
               </div>
             </div>
           )}
@@ -249,7 +260,7 @@ export default function NewScanWizard() {
               <Button onClick={nextStep} className="bg-primary text-white" disabled={!formData.companyName || !formData.website}>Continue</Button>
             ) : (
               <Button onClick={handleFinish} disabled={loading} className="bg-accent text-primary font-bold shadow-lg min-w-[200px]">
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Writing Audit...</> : "Launch Guaranteed Scan"}
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Running AI Scan...</> : "Launch AI Visibility Scan"}
               </Button>
             )}
           </div>

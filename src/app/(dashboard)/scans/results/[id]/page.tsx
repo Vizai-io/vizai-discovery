@@ -1,16 +1,15 @@
 
 "use client";
 
+import { use, useState, useEffect, useMemo } from "react";
 import { ScoreCard } from "@/components/dashboard/score-card";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ShieldCheck, 
-  Target, 
-  Users, 
-  Search, 
-  Zap, 
-  Share2,
+import {
+  ShieldCheck,
+  Target,
+  Search,
+  Zap,
   FileText,
   Lightbulb,
   ExternalLink,
@@ -20,206 +19,204 @@ import {
   ArrowUpRight,
   GitCompare,
   Radar,
-  FileSearch,
   Lock,
-  Copy,
   AlertCircle,
-  Sparkles
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogTrigger
-} from "@/components/ui/dialog";
-import { use, useState, useEffect, useMemo } from "react";
-import { StrategicRecommendation, ScanResults, ScanRecord } from "@/lib/types";
-import { AIResponseParser } from "@/lib/services/ai-response-parser";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
-import { calculateProjectedImprovement } from "@/lib/services/scoring-model";
-import { toast } from "@/hooks/use-toast";
 import { ConsultationRequestDialog } from "@/components/consultation/consultation-request-dialog";
+import { ScanFailureCard } from "@/components/scans/scan-failure-card";
 
-export default function ScanResultsPage({ params }: { params: Promise<{ id: string }> }) {
+// ── Inline types ──────────────────────────────────────────────────────────────
+
+type Recommendation = {
+  id: string;
+  priority: "high" | "medium" | "low";
+  category: string;
+  title: string;
+  reason: string;
+  recommended_action: string;
+  service_link: string | null;
+  is_actioned: boolean;
+};
+
+type ModelSummary = {
+  model_id: string;
+  provider: string;
+  summary: string | null;
+  business_type: string | null;
+  services: string[];
+  industries: string[];
+  locations: string[];
+  customers: string[];
+  differentiators: string[];
+  latency_ms: number | null;
+};
+
+type ScanStatus = "PENDING" | "RUNNING" | "COMPLETE" | "PARTIAL" | "FAILED" | "TIMEOUT";
+
+type PerceptionScanResult = {
+  scan_id: string;
+  status: ScanStatus;
+  business_name: string | null;
+  website_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+  error_message: string | null;
+  accuracy_score: number | null;
+  coverage_score: number | null;
+  entity_understanding_score: number | null;
+  consistency_score: number | null;
+  consistency_label: string | null;
+  perception_summary: string | null;
+  comparison: {
+    agreements: unknown[];
+    differences: unknown[];
+    conflicts: unknown[];
+  } | null;
+  consistency_notes: string[];
+  recommendations: Recommendation[];
+  model_summaries: ModelSummary[];
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function ScanResultsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
-  const [scanRecord, setScanRecord] = useState<ScanRecord | null>(null);
+  const [scan, setScan] = useState<PerceptionScanResult | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchScan() {
+    async function load() {
       setLoading(true);
+      setFetchError(null);
       try {
-        if (id === 'latest') {
-          const scansRef = collection(db, "scans");
-          const q = query(scansRef, where("status", "==", "completed"), orderBy("date", "desc"), limit(1));
-          const snapshot = await getDocs(q);
-          if (!snapshot.empty) {
-            setScanRecord({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ScanRecord);
-          }
-        } else {
-          const docRef = doc(db, "scans", id);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setScanRecord({ id: docSnap.id, ...docSnap.data() } as ScanRecord);
-          }
+        const res = await fetch(`/api/scan/${id}`);
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setFetchError(data.error || `Request failed (${res.status})`);
+          return;
         }
-      } catch (e) {
-        console.error("Error loading scan:", e);
+        const data = await res.json();
+        setScan(data);
+      } catch (e: any) {
+        setFetchError(e.message || "Failed to load scan");
       } finally {
         setLoading(false);
       }
     }
-    fetchScan();
+    load();
   }, [id]);
 
-  const results = useMemo(() => scanRecord?.results || {
-    overallScore: 72.4,
-    categoryScores: { presence: 78, descriptionAccuracy: 88, citationStrength: 65, serviceCoverage: 54, competitorShareOfVoice: 42 },
-    priorityActions: [] as StrategicRecommendation[]
-  } as ScanResults, [scanRecord]);
+  const overallScore = useMemo(() => {
+    if (!scan) return 0;
+    const scores = [
+      scan.accuracy_score,
+      scan.coverage_score,
+      scan.entity_understanding_score,
+      scan.consistency_score,
+    ].filter((s): s is number => s !== null && s !== undefined);
+    if (scores.length === 0) return 0;
+    return Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length);
+  }, [scan]);
 
-  const queryDiscovery = useMemo(() => scanRecord?.queryDiscovery || null, [scanRecord]);
-  const realQueryResults = useMemo(() => scanRecord?.realQueryResults || [], [scanRecord]);
-
-  const projection = useMemo(() => calculateProjectedImprovement(results.categoryScores), [results]);
-
-  const validationComparisons = useMemo(() => {
-    if (!realQueryResults || !queryDiscovery) return [];
-    return realQueryResults.map(real => {
-      const simulated = queryDiscovery.queries.find(q => q.text === real.query);
-      return AIResponseParser.generateComparison(real, simulated);
-    });
-  }, [realQueryResults, queryDiscovery]);
-
-  const aggregateAccuracy = useMemo(() => {
-    return AIResponseParser.calculateAggregateAccuracy(validationComparisons);
-  }, [validationComparisons]);
-
-  const opportunities = useMemo(() => {
-    if (!queryDiscovery) return [];
-
-    return queryDiscovery.queries
-      .filter(q => !q.results.some(r => r.isTargetCompanyMentioned))
-      .map(q => {
-        const competitors = Array.from(new Set(
-          q.results.flatMap(r => r.mentions.map(m => m.companyName))
-        )).filter(name => name !== (results?.companyName || "Acme Logistics"));
-
-        let priority: 'high' | 'medium' | 'low' = 'low';
-        if (q.intentType === 'best' || q.intentType === 'comparison') priority = 'high';
-        else if (q.intentType === 'capability') priority = 'medium';
-
-        return {
-          id: q.id,
-          query: q.text,
-          competitors,
-          category: q.category || 'Discovery Intent',
-          intentType: q.intentType || 'Generic',
-          priority,
-          potential: priority === 'high' ? 'Significant Visibility Uplift' : priority === 'medium' ? 'Targeted Share of Voice' : 'Niche Authority'
-        };
-      })
-      .sort((a, b) => {
-        const order = { high: 0, medium: 1, low: 2 };
-        return order[a.priority] - order[b.priority];
-      });
-  }, [queryDiscovery, results]);
-
-  const copyShareLink = () => {
-    const url = `${window.location.origin}/share/${scanRecord?.id}`;
-    navigator.clipboard.writeText(url);
-    toast({
-      title: "Link Copied",
-      description: "External presentation URL copied to clipboard.",
-    });
+  const priorityStyle = (priority: string) => {
+    if (priority === "high") return "bg-red-50 text-red-700 border-red-200";
+    if (priority === "medium") return "bg-amber-50 text-amber-700 border-amber-200";
+    return "bg-muted text-muted-foreground border-border";
   };
 
+  // ── Loading ───────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="w-12 h-12 text-primary animate-spin" />
-        <p className="text-muted-foreground font-medium">Reconstructing intelligence knowledge graph...</p>
+        <p className="text-muted-foreground font-medium">
+          Reconstructing intelligence knowledge graph...
+        </p>
       </div>
     );
   }
 
-  const isLowVisibility = results.overallScore < 40;
-  const isHighCompetitorThreat = results.categoryScores.competitorShareOfVoice > 50;
+  // ── Fetch error / not found ───────────────────────────────
+  if (fetchError || !scan) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <AlertCircle className="w-12 h-12 text-destructive" />
+        <p className="text-muted-foreground font-medium">
+          {fetchError || "Scan not found"}
+        </p>
+      </div>
+    );
+  }
+
+  // ── TIMEOUT — calm, structured, no results to show ────────
+  if (scan.status === "TIMEOUT") {
+    return (
+      <div className="max-w-2xl mx-auto pt-12">
+        <ScanFailureCard
+          status="TIMEOUT"
+          errorMessage={scan.error_message}
+          scanId={id}
+          businessName={scan.business_name}
+        />
+      </div>
+    );
+  }
+
+  // ── FAILED — calm, structured, no results to show ─────────
+  if (scan.status === "FAILED") {
+    return (
+      <div className="max-w-2xl mx-auto pt-12">
+        <ScanFailureCard
+          status="FAILED"
+          errorMessage={scan.error_message}
+          scanId={id}
+          businessName={scan.business_name}
+        />
+      </div>
+    );
+  }
+
+  const isLowVisibility = overallScore < 40;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 animate-in fade-in duration-700">
-      {/* Executive Report Header */}
+
+      {/* ── Executive Report Header ────────────────────────────── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b pb-8">
         <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
-               <FileText className="w-3 h-3 text-accent" />
-               Report Identifier: {id === 'latest' ? 'SCAN-LATEST' : `SCAN-${id.slice(0,8).toUpperCase()}`}
-            </div>
-            {scanRecord?.reviewStatus && (
-              <Badge 
-                variant={scanRecord.reviewStatus === 'approved' ? 'default' : 'secondary'}
-                className={cn(
-                  "text-[9px] uppercase font-bold tracking-widest h-5",
-                  scanRecord.reviewStatus === 'approved' ? "bg-green-50 text-green-700 border-green-200" : "bg-muted text-muted-foreground"
-                )}
-              >
-                {scanRecord.reviewStatus === 'approved' ? <Lock className="w-3 h-3 mr-1" /> : <FileSearch className="w-3 h-3 mr-1" />}
-                Review: {scanRecord.reviewStatus}
-              </Badge>
-            )}
+          <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+            <FileText className="w-3 h-3 text-accent" />
+            Report Identifier: SCAN-{id.slice(0, 8).toUpperCase()}
           </div>
-          <h2 className="text-4xl font-headline font-black text-primary tracking-tighter">Discovery Intelligence Audit</h2>
+          <h2 className="text-4xl font-headline font-black text-primary tracking-tighter">
+            Discovery Intelligence Audit
+          </h2>
           <p className="text-muted-foreground flex items-center gap-2">
-            Subject: <strong className="text-primary font-black">{results.companyName || "Client Account"}</strong> • {results.industry || "Global Market"} • {new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}
+            Subject:{" "}
+            <strong className="text-primary font-black">
+              {scan.business_name || "Client Account"}
+            </strong>{" "}
+            •{" "}
+            {new Date().toLocaleDateString(undefined, { dateStyle: "long" })}
           </p>
         </div>
         <div className="flex gap-3">
-          {scanRecord?.shareEnabled ? (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 rounded-full">
-                  <Share2 className="w-4 h-4" /> Shared Access
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>External Presentation Link</DialogTitle>
-                  <DialogDescription>
-                    This audit has been approved for external sharing. Anyone with this link can view the read-only presentation.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex items-center space-x-2 pt-4">
-                  <div className="grid flex-1 gap-2">
-                    <label htmlFor="link" className="sr-only">Link</label>
-                    <div className="flex items-center gap-2 bg-muted/50 p-3 rounded-xl">
-                      <span className="text-xs font-medium truncate flex-1">
-                        {`${window.location.origin}/share/${scanRecord.id}`}
-                      </span>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={copyShareLink}>
-                        <Copy className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center pt-4 border-t mt-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  <span>View Count: {scanRecord.viewCount || 0}</span>
-                  <span>Last Viewed: {scanRecord.lastViewedAt ? scanRecord.lastViewedAt.toDate().toLocaleDateString() : 'Never'}</span>
-                </div>
-              </DialogContent>
-            </Dialog>
-          ) : (
-            <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 rounded-full opacity-50 cursor-not-allowed" disabled>
-              <Lock className="w-4 h-4" /> Share Access
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            className="gap-2 border-primary/20 hover:bg-primary/5 rounded-full opacity-50 cursor-not-allowed"
+            disabled
+          >
+            <Lock className="w-4 h-4" /> Share Access
+          </Button>
           <Link href={`/scans/report/${id}`}>
             <Button className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 rounded-full px-6">
               <ExternalLink className="w-4 h-4" /> Presentation View
@@ -228,7 +225,17 @@ export default function ScanResultsPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* Critical CTA Interventions */}
+      {/* ── PARTIAL notice — some models unavailable, results still usable ── */}
+      {scan.status === "PARTIAL" && (
+        <ScanFailureCard
+          status="PARTIAL"
+          scanId={id}
+          businessName={scan.business_name}
+          showPartialLink={false}
+        />
+      )}
+
+      {/* ── Critical Visibility CTA ────────────────────────────── */}
       {isLowVisibility && (
         <Card className="border-none shadow-lg bg-destructive/5 border-l-4 border-l-destructive overflow-hidden">
           <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -237,15 +244,21 @@ export default function ScanResultsPage({ params }: { params: Promise<{ id: stri
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <CardTitle className="text-lg font-bold text-destructive">Critical Visibility Deficit Detected</CardTitle>
-                <p className="text-sm text-muted-foreground font-medium">Your organization is largely invisible to primary AI discovery vectors. Strategic optimization is required.</p>
+                <p className="text-lg font-bold text-destructive">
+                  Critical Visibility Deficit Detected
+                </p>
+                <p className="text-sm text-muted-foreground font-medium">
+                  Your organization is largely invisible to primary AI discovery
+                  vectors. Strategic optimization is required.
+                </p>
               </div>
             </div>
-            <ConsultationRequestDialog 
-              sourceScanId={scanRecord?.id} 
+            <ConsultationRequestDialog
+              sourceScanId={scan.scan_id}
               trigger={
                 <Button className="bg-destructive hover:bg-destructive/90 text-white font-bold px-8 rounded-full h-12 shadow-lg shadow-destructive/20 gap-2">
-                  Request Emergency Optimization Plan <ArrowRight className="w-4 h-4" />
+                  Request Emergency Optimization Plan{" "}
+                  <ArrowRight className="w-4 h-4" />
                 </Button>
               }
             />
@@ -253,70 +266,247 @@ export default function ScanResultsPage({ params }: { params: Promise<{ id: stri
         </Card>
       )}
 
-      {/* Metric Pillars */}
+      {/* ── Score Cards ───────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <ScoreCard title="Overall Visibility" score={results.overallScore} trend={4.2} icon={Search} className="bg-primary text-white" description="Avg. AI prominence" />
-        <ScoreCard title="Description Accuracy" score={results.categoryScores.descriptionAccuracy} trend={1.5} icon={ShieldCheck} description="Model alignment" />
-        <ScoreCard title="Citation Strength" score={results.categoryScores.citationStrength} trend={8.4} icon={Target} description="Authority sourcing" />
-        <ScoreCard title="Service Coverage" score={results.categoryScores.serviceCoverage} trend={-0.8} icon={Zap} description="Indexing depth" />
-        <ScoreCard title="Competitor Threat" score={results.categoryScores.competitorShareOfVoice} trend={-2.1} icon={Users} description="Rival prominence" />
+        <ScoreCard
+          title="Overall Visibility"
+          score={overallScore}
+          trend={0}
+          icon={Search}
+          className="bg-primary text-white"
+          description="Avg. perception score"
+        />
+        <ScoreCard
+          title="Accuracy"
+          score={scan.accuracy_score ?? 0}
+          trend={0}
+          icon={ShieldCheck}
+          description="Factual alignment"
+        />
+        <ScoreCard
+          title="Coverage"
+          score={scan.coverage_score ?? 0}
+          trend={0}
+          icon={Zap}
+          description="Service & offering depth"
+        />
+        <ScoreCard
+          title="Entity Understanding"
+          score={scan.entity_understanding_score ?? 0}
+          trend={0}
+          icon={Target}
+          description="Business identity clarity"
+        />
+        <ScoreCard
+          title="Consistency"
+          score={scan.consistency_score ?? 0}
+          trend={0}
+          icon={GitCompare}
+          description="Cross-model agreement"
+        />
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-6">
-         {/* Simulation Accuracy Card */}
-         <Card className="lg:col-span-4 border-none shadow-md bg-white overflow-hidden">
-            <CardHeader className="pb-4 border-b bg-muted/20">
-              <CardTitle className="text-sm font-black text-primary flex items-center gap-2">
-                <Radar className="w-4 h-4 text-accent" />
-                Simulation Accuracy
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-8 space-y-6 text-center">
-              <div className="relative inline-flex items-center justify-center">
-                <svg className="w-32 h-32 transform -rotate-90">
-                  <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-muted/30" />
-                  <circle
-                    cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent"
-                    strokeDasharray={364.4}
-                    strokeDashoffset={364.4 - (364.4 * (aggregateAccuracy || results.simulationAccuracy || 74)) / 100}
-                    className="text-accent transition-all duration-1000 ease-out"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute flex flex-col items-center">
-                  <span className="text-3xl font-black text-primary">{(aggregateAccuracy || results.simulationAccuracy || 74).toFixed(0)}%</span>
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Fidelity Score</span>
-                </div>
-              </div>
-            </CardContent>
-         </Card>
+      {/* ── Perception Summary ────────────────────────────────── */}
+      {scan.perception_summary && (
+        <Card className="border-none shadow-md bg-white overflow-hidden">
+          <CardHeader className="pb-4 border-b bg-muted/20">
+            <CardTitle className="text-sm font-black text-primary flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-accent" />
+              Perception Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {scan.perception_summary}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-         {/* Real AI Validation Table */}
-         <Card className="lg:col-span-8 border-none shadow-md bg-white overflow-hidden border-l-4 border-l-accent">
-            <CardHeader className="flex flex-row items-center justify-between bg-accent/5 py-4 px-8">
-              <CardTitle className="text-lg font-black text-primary flex items-center gap-2 tracking-tight">
-                <GitCompare className="w-5 h-5 text-accent" /> Real AI Validation
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="grid divide-y">
-                {(validationComparisons.length > 0 ? validationComparisons : []).slice(0, 2).map((comp, i) => (
-                  <div key={i} className="p-6 grid md:grid-cols-12 gap-6">
-                    <div className="md:col-span-6 space-y-2">
-                       <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Vector: "{comp.query}"</div>
-                       <div className="flex items-center gap-3">
-                          <div className="text-xs font-bold text-primary">Alignment</div>
-                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                             <div className="h-full bg-accent" style={{ width: `${comp.alignmentScore}%` }} />
-                          </div>
-                          <span className="text-xs font-black text-primary">{comp.alignmentScore.toFixed(0)}%</span>
-                       </div>
-                    </div>
-                  </div>
+      {/* ── Consistency Gauge + Model Responses ──────────────── */}
+      <div className="grid lg:grid-cols-12 gap-6">
+
+        {/* Model Consistency */}
+        <Card className="lg:col-span-4 border-none shadow-md bg-white overflow-hidden">
+          <CardHeader className="pb-4 border-b bg-muted/20">
+            <CardTitle className="text-sm font-black text-primary flex items-center gap-2">
+              <Radar className="w-4 h-4 text-accent" />
+              Model Consistency
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-8 space-y-6 text-center">
+            <div className="relative inline-flex items-center justify-center">
+              <svg className="w-32 h-32 transform -rotate-90">
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="58"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="transparent"
+                  className="text-muted/30"
+                />
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="58"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="transparent"
+                  strokeDasharray={364.4}
+                  strokeDashoffset={
+                    364.4 - (364.4 * (scan.consistency_score ?? 0)) / 100
+                  }
+                  className="text-accent transition-all duration-1000 ease-out"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center">
+                <span className="text-3xl font-black text-primary">
+                  {scan.consistency_score ?? 0}%
+                </span>
+                <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Consistency
+                </span>
+              </div>
+            </div>
+            {scan.consistency_label && (
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                {scan.consistency_label.replace(/_/g, " ")}
+              </p>
+            )}
+            {scan.consistency_notes.length > 0 && (
+              <div className="text-left space-y-2 pt-2 border-t">
+                {scan.consistency_notes.slice(0, 2).map((note, i) => (
+                  <p key={i} className="text-xs text-muted-foreground">
+                    {note}
+                  </p>
                 ))}
               </div>
-            </CardContent>
-         </Card>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Model Responses */}
+        <Card className="lg:col-span-8 border-none shadow-md bg-white overflow-hidden border-l-4 border-l-accent">
+          <CardHeader className="flex flex-row items-center justify-between bg-accent/5 py-4 px-8">
+            <CardTitle className="text-lg font-black text-primary flex items-center gap-2 tracking-tight">
+              <GitCompare className="w-5 h-5 text-accent" /> Model Responses
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid divide-y">
+              {scan.model_summaries.length === 0 ? (
+                <p className="p-6 text-sm text-muted-foreground">
+                  No model responses recorded.
+                </p>
+              ) : (
+                scan.model_summaries.slice(0, 3).map((model, i) => (
+                  <div key={i} className="p-6 space-y-2">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                      {model.model_id}
+                    </div>
+                    <p className="text-sm text-primary leading-relaxed line-clamp-3">
+                      {model.summary || "No summary available."}
+                    </p>
+                    {model.services.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {model.services.slice(0, 4).map((s, j) => (
+                          <Badge
+                            key={j}
+                            variant="secondary"
+                            className="text-[10px]"
+                          >
+                            {s}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Recommendations ───────────────────────────────────── */}
+      {scan.recommendations.length > 0 && (
+        <Card className="border-none shadow-md bg-white overflow-hidden">
+          <CardHeader className="pb-4 border-b bg-muted/20">
+            <CardTitle className="text-sm font-black text-primary flex items-center gap-2">
+              <Lightbulb className="w-4 h-4 text-accent" />
+              Strategic Recommendations
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-3">
+            {scan.recommendations.map((rec) => (
+              <div
+                key={rec.id}
+                className="flex items-start gap-4 p-4 rounded-xl bg-muted/30 border"
+              >
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "shrink-0 text-[10px] uppercase font-bold tracking-wider",
+                    priorityStyle(rec.priority),
+                  )}
+                >
+                  {rec.priority}
+                </Badge>
+                <div className="space-y-1 flex-1 min-w-0">
+                  <p className="text-sm font-bold text-primary">{rec.title}</p>
+                  <p className="text-xs text-muted-foreground">{rec.reason}</p>
+                  <p className="text-xs text-muted-foreground font-medium mt-1">
+                    {rec.recommended_action}
+                  </p>
+                </div>
+                {rec.service_link && (
+                  <a
+                    href={rec.service_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0"
+                  >
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ArrowUpRight className="w-4 h-4" />
+                    </Button>
+                  </a>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Guidance bar — next step after reviewing results ── */}
+      <div className="rounded-lg border border-border bg-card p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-primary/5 shrink-0">
+            <Lightbulb className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              Ready to act on these findings?
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Track your progress, mark recommendations complete, and improve your AI visibility score.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Link href={`/recommendations?scanId=${id}`}>
+            <Button size="sm" className="gap-1.5 text-xs">
+              View Recommendations
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </Link>
+          <Link href="/dashboard">
+            <Button variant="outline" size="sm" className="text-xs">
+              Back to Dashboard
+            </Button>
+          </Link>
+        </div>
       </div>
     </div>
   );

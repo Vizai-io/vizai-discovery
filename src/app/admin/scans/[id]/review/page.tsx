@@ -1,180 +1,102 @@
+/**
+ * @fileOverview Admin Scan Review — Sprint 4 stub.
+ *
+ * Previously read/wrote scan data from Firestore `scans` collection.
+ * Now: reads from GET /api/scan/[id] (Postgres).
+ *
+ * Refinement 3 (Sprint 4): Explicit stabilization degradation notice in UI.
+ * Save path INTENTIONALLY DISABLED during stabilization sprint.
+ * Rationale: The Postgres scan data model uses ScanReport + Recommendation rows,
+ * not the flat ScanRecord shape this page was designed for. The review/approval
+ * workflow must be redesigned for the new schema before re-enabling saves.
+ * This is flagged in the UI so the admin knows the page is read-only.
+ *
+ * Field mapping (Firestore ScanRecord → Postgres):
+ *   results.companyName     → jsonReport.companyName
+ *   results.overview        → scanReport.perceptionSummary
+ *   results.priorityActions → recommendations table
+ *   results.categoryScores  → jsonReport.categoryScores
+ *   internalNotes           → (not in Postgres schema — Sprint 5)
+ *   reviewStatus            → (not in Postgres schema — Sprint 5)
+ *   shareEnabled            → (not in Postgres schema — Sprint 5)
+ */
 
 "use client";
 
-import { use, useState, useEffect, useMemo } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
-import { ScanRecord, StrategicRecommendation, ReportType } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  FileSearch, 
-  ChevronLeft, 
-  ShieldCheck, 
-  Save, 
-  CheckCircle2, 
+import {
+  FileSearch,
+  ChevronLeft,
+  ShieldCheck,
   Loader2,
-  Trash2,
-  Plus,
-  StickyNote,
-  Share2,
-  Copy,
-  Eye,
-  Calendar,
+  AlertTriangle,
   Briefcase,
-  Boxes,
-  Zap,
-  Shield,
-  UserCheck
+  StickyNote
 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { PackageService } from "@/lib/services/package-service";
+import { cn } from "@/lib/utils";
+
+type ScanData = {
+  id:          string;
+  companyName: string;
+  status:      string;
+  overallScore?: number;
+  categoryScores?: Record<string, number>;
+  overview?:   string;
+  recommendations?: Array<{
+    id:       string;
+    title:    string;
+    priority: string;
+    category: string;
+    reason:   string;
+  }>;
+};
 
 export default function ScanReviewPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const router = useRouter();
-  const [scan, setScan] = useState<ScanRecord | null>(null);
+  const { id }  = use(params);
+  const router  = useRouter();
+  const [scan,  setScan]    = useState<ScanData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  // Form states
-  const [overview, setOverview] = useState("");
-  const [internalNotes, setInternalNotes] = useState("");
-  const [reviewStatus, setReviewStatus] = useState<ScanRecord['reviewStatus']>('draft');
-  const [recommendations, setRecommendations] = useState<StrategicRecommendation[]>([]);
-  const [shareEnabled, setShareEnabled] = useState(false);
-  
-  // New: White Label & Anonymization
-  const [reportType, setReportType] = useState<ReportType>('internal');
-  const [anonymizeSubject, setAnonymizeSubject] = useState(false);
-  const [anonymizeCompetitors, setAnonymizeCompetitors] = useState(false);
-  const [caseStudyTitle, setCaseStudyTitle] = useState("");
 
   useEffect(() => {
     async function fetchScan() {
       setLoading(true);
       try {
-        const docRef = doc(db, "scans", id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data() as ScanRecord;
-          setScan(data);
-          setOverview(data.results.overview || "");
-          setInternalNotes(data.internalNotes || "");
-          setReviewStatus(data.reviewStatus || 'draft');
-          setRecommendations(data.results.priorityActions || []);
-          setShareEnabled(data.shareEnabled || false);
-          
-          setReportType(data.reportType || 'internal');
-          setAnonymizeSubject(data.anonymizeSubject || false);
-          setAnonymizeCompetitors(data.anonymizeCompetitors || false);
-          setCaseStudyTitle(data.caseStudyTitle || "");
-        }
+        const res = await fetch(`/api/scan/${id}`);
+        if (!res.ok) throw new Error(`API error ${res.status}`);
+        const data = await res.json();
+
+        const s       = data.scan;
+        const report  = s?.scanReport;
+        const jsonRpt = report?.jsonReport as any ?? {};
+
+        setScan({
+          id:           s.id,
+          companyName:  jsonRpt.companyName ?? s.companyProfile?.businessName ?? 'Unknown',
+          status:       s.status,
+          overallScore: jsonRpt.overallScore,
+          categoryScores: jsonRpt.categoryScores,
+          overview:     report?.perceptionSummary,
+          recommendations: s.recommendations?.map((r: any) => ({
+            id:       r.id,
+            title:    r.title,
+            priority: r.priority,
+            category: r.category,
+            reason:   r.reason,
+          })) ?? [],
+        });
       } catch (e) {
         console.error("Error fetching scan for review:", e);
-        toast({
-          title: "Error",
-          description: "Could not load scan data.",
-          variant: "destructive",
-        });
       } finally {
         setLoading(false);
       }
     }
     fetchScan();
   }, [id]);
-
-  const suggestedPackage = useMemo(() => {
-    if (!scan) return null;
-    return PackageService.getSuggestedPackage(scan.results.categoryScores);
-  }, [scan]);
-
-  const handleSave = async (isApproval = false) => {
-    setSaving(true);
-    try {
-      const docRef = doc(db, "scans", id);
-      const updates: Partial<ScanRecord> = {
-        internalNotes,
-        reviewStatus: isApproval ? 'approved' : reviewStatus,
-        lastReviewedBy: "System Admin",
-        lastReviewedAt: serverTimestamp(),
-        shareEnabled,
-        reportType,
-        anonymizeSubject,
-        anonymizeCompetitors,
-        caseStudyTitle,
-        results: {
-          ...scan!.results,
-          overview,
-          priorityActions: recommendations
-        }
-      };
-
-      if (shareEnabled && !scan?.shareCreatedAt) {
-        updates.shareCreatedAt = serverTimestamp();
-        updates.viewCount = 0;
-      }
-
-      await updateDoc(docRef, updates);
-      
-      toast({
-        title: isApproval ? "Audit Approved" : "Draft Saved",
-        description: isApproval ? "This scan is now locked for client sharing." : "Internal changes have been persisted.",
-      });
-
-      if (isApproval) router.push("/admin");
-      else {
-        setScan(prev => prev ? { ...prev, ...updates } : null);
-      }
-    } catch (e) {
-      toast({
-        title: "Save Failed",
-        description: "Error updating Firestore record.",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleAddRecommendation = () => {
-    setRecommendations([...recommendations, {
-      title: "New Action Item",
-      description: "Brief description of the recommendation...",
-      category: "Strategy",
-      priority: "medium",
-      expectedImpact: "Visibility gain",
-      packageType: 'Snapshot'
-    }]);
-  };
-
-  const handleUpdateRecommendation = (index: number, field: keyof StrategicRecommendation, value: any) => {
-    const updated = [...recommendations];
-    updated[index] = { ...updated[index], [field]: value };
-    setRecommendations(updated);
-  };
-
-  const handleRemoveRecommendation = (index: number) => {
-    setRecommendations(recommendations.filter((_, i) => i !== index));
-  };
-
-  const copyShareLink = () => {
-    const url = `${window.location.origin}/share/${id}`;
-    navigator.clipboard.writeText(url);
-    toast({
-      title: "Link Copied",
-      description: "Share URL copied to clipboard.",
-    });
-  };
 
   if (loading) {
     return (
@@ -185,9 +107,14 @@ export default function ScanReviewPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  if (!scan) return null;
-
-  const isApproved = reviewStatus === 'approved';
+  if (!scan) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <p className="text-muted-foreground font-medium">Scan not found.</p>
+        <Button variant="outline" onClick={() => router.back()}>Go Back</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20 animate-in fade-in duration-500">
@@ -197,8 +124,8 @@ export default function ScanReviewPage({ params }: { params: Promise<{ id: strin
           <div className="flex items-center gap-2">
             <FileSearch className="w-6 h-6 text-primary" />
             <div>
-              <h1 className="text-lg font-bold text-primary">Intelligence Review: {scan.results.companyName}</h1>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Human Review Workflow • Stage: {reviewStatus}</p>
+              <h1 className="text-lg font-bold text-primary">Intelligence Review: {scan.companyName}</h1>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Human Review Workflow • Status: {scan.status}</p>
             </div>
           </div>
         </div>
@@ -209,289 +136,109 @@ export default function ScanReviewPage({ params }: { params: Promise<{ id: strin
               Build Proposal
             </Button>
           </Link>
-          <Button variant="outline" className="gap-2" onClick={() => handleSave(false)} disabled={saving}>
-            <Save className="w-4 h-4" /> Save Draft
+          {/* Refinement 3: Save disabled during stabilization sprint */}
+          <Button variant="outline" className="gap-2 opacity-50 cursor-not-allowed" disabled
+            title="Save disabled during stabilization sprint — review schema migration pending Sprint 5">
+            Save Draft (disabled)
           </Button>
-          <Button className="gap-2 bg-primary text-white" onClick={() => handleSave(true)} disabled={saving || isApproved}>
-            <CheckCircle2 className="w-4 h-4" /> {isApproved ? 'Approved & Locked' : 'Approve & Lock'}
+          <Button className="gap-2 bg-primary/50 text-white cursor-not-allowed" disabled
+            title="Approval disabled during stabilization sprint">
+            Approve & Lock (disabled)
           </Button>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto p-8 grid lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-8 space-y-8">
-          {/* Presentation & Privacy Control Center */}
-          <Card className="border-none shadow-sm overflow-hidden bg-white border-l-4 border-l-accent">
-            <CardHeader className="bg-accent/5 border-b">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Shield className="w-4 h-4 text-accent" />
-                Presentation & Privacy Settings
-              </CardTitle>
-              <CardDescription className="text-xs">Control report visibility and anonymization for sharing.</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-6">
-              <div className="grid sm:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase text-muted-foreground">Report Tier</Label>
-                  <Select value={reportType} onValueChange={(val) => setReportType(val as ReportType)}>
-                    <SelectTrigger className="bg-muted/30 border-none">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="internal">Internal Analysis</SelectItem>
-                      <SelectItem value="client-facing">Client Deliverable</SelectItem>
-                      <SelectItem value="case-study">Anonymized Case Study</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {reportType === 'case-study' && (
-                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Case Study Placeholder Title</Label>
-                    <Input 
-                      placeholder="e.g. Global 3PL Giant" 
-                      value={caseStudyTitle}
-                      onChange={(e) => setCaseStudyTitle(e.target.value)}
-                      className="bg-muted/30 border-none"
-                    />
-                  </div>
-                )}
-              </div>
+      {/* Refinement 3: Stabilization degradation notice */}
+      <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center gap-2 text-amber-800 text-xs font-bold">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        <span>
+          Stabilization Sprint 4 — Review page is read-only. Save, approval, and share management are disabled.
+          The full review workflow will be re-enabled in Sprint 5 once the Postgres review schema is finalized.
+        </span>
+      </div>
 
-              <div className="grid sm:grid-cols-2 gap-8 pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-bold">Anonymize Subject</Label>
-                    <p className="text-[10px] text-muted-foreground">Hide actual company name in report</p>
-                  </div>
-                  <Switch checked={anonymizeSubject} onCheckedChange={setAnonymizeSubject} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-bold">Anonymize Rivals</Label>
-                    <p className="text-[10px] text-muted-foreground">Mask competitor names (e.g. Rival A)</p>
-                  </div>
-                  <Switch checked={anonymizeCompetitors} onCheckedChange={setAnonymizeCompetitors} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <main className="max-w-5xl mx-auto p-8 space-y-8">
+        {/* Overview */}
+        <Card className="border-none shadow-sm overflow-hidden bg-white">
+          <CardHeader className="border-b bg-muted/10">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-primary" />
+              Executive Summary / Key Findings
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {scan.overview || 'No overview available.'}
+            </p>
+          </CardContent>
+        </Card>
 
-          {/* Executive Summary Editor */}
-          <Card className="border-none shadow-sm overflow-hidden bg-white">
+        {/* Scores */}
+        {scan.overallScore !== undefined && (
+          <Card className="border-none shadow-sm bg-white">
             <CardHeader className="border-b bg-muted/10">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-primary" />
-                Executive Summary / Key Findings
-              </CardTitle>
+              <CardTitle className="text-sm font-bold">Visibility Scores</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              <Textarea 
-                value={overview}
-                onChange={(e) => setOverview(e.target.value)}
-                placeholder="Strategic overview of the AI scan report findings..."
-                className="min-h-[200px] text-sm leading-relaxed"
-              />
-            </CardContent>
-          </Card>
-
-          {/* Strategic Recommendations Editor */}
-          <Card className="border-none shadow-sm overflow-hidden bg-white">
-            <CardHeader className="border-b bg-muted/10 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Plus className="w-4 h-4 text-accent" />
-                Strategic Priority Actions
-              </CardTitle>
-              <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold" onClick={handleAddRecommendation}>
-                Add Action
-              </Button>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-4">
-              {recommendations.map((rec, i) => (
-                <div key={i} className="p-4 bg-muted/20 rounded-xl border space-y-3 relative group">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
-                    onClick={() => handleRemoveRecommendation(i)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                  <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-6 space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label>
-                      <Input 
-                        value={rec.title} 
-                        onChange={(e) => handleUpdateRecommendation(i, 'title', e.target.value)}
-                        className="h-8 text-xs font-bold"
-                      />
-                    </div>
-                    <div className="col-span-3 space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Impact</Label>
-                      <Input 
-                        value={rec.expectedImpact} 
-                        onChange={(e) => handleUpdateRecommendation(i, 'expectedImpact', e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                    <div className="col-span-3 space-y-1.5">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Package Mapping</Label>
-                      <Select 
-                        value={rec.packageType || 'Snapshot'} 
-                        onValueChange={(val) => handleUpdateRecommendation(i, 'packageType', val)}
-                      >
-                        <SelectTrigger className="h-8 text-[10px] font-bold bg-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.keys(PackageService.PACKAGES).map(p => (
-                            <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Action Description</Label>
-                    <Textarea 
-                      value={rec.description} 
-                      onChange={(e) => handleUpdateRecommendation(i, 'description', e.target.value)}
-                      className="text-xs min-h-[60px]"
-                    />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar: Internal Context & Intelligence */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Package Intelligence */}
-          <Card className="border-none shadow-sm overflow-hidden bg-primary text-white">
-            <CardHeader className="bg-white/10 pb-4">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                <Boxes className="w-4 h-4 text-accent" />
-                Package Intelligence
-              </CardTitle>
-              <CardDescription className="text-white/60 text-[10px]">Internal alignment suggestion</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10">
-                <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center text-primary">
-                  <Zap className="w-5 h-5 fill-current" />
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold uppercase text-accent">Recommended Tier</div>
-                  <div className="text-lg font-black">{suggestedPackage}</div>
-                </div>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="text-5xl font-black text-primary">{scan.overallScore?.toFixed(1)}</div>
+                <div className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Overall Score</div>
               </div>
-              <div className="space-y-2">
-                <div className="text-[9px] font-bold uppercase text-white/40 tracking-tighter">Tier Focus Areas</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {suggestedPackage && PackageService.getPackageInfo(suggestedPackage).focus.map(f => (
-                    <Badge key={f} variant="outline" className="text-[8px] bg-white/5 border-white/10 text-white font-medium">
-                      {f}
-                    </Badge>
+              {scan.categoryScores && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(scan.categoryScores).map(([key, val]) => (
+                    <div key={key} className="p-4 bg-muted/20 rounded-xl">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
+                      <div className="text-2xl font-black text-primary mt-1">{typeof val === 'number' ? val.toFixed(1) : val}</div>
+                    </div>
                   ))}
-                </div>
-              </div>
-              <p className="text-[10px] leading-relaxed italic opacity-70 border-t border-white/10 pt-3">
-                Mapping recommendations to the <strong>{suggestedPackage}</strong> tier will improve conversion during the strategy briefing.
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Share Management Center */}
-          <Card className={cn(
-            "border-none shadow-sm overflow-hidden bg-white",
-            !isApproved && "opacity-60 grayscale pointer-events-none"
-          )}>
-            <CardHeader className="border-b bg-accent/5">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2 text-primary">
-                <Share2 className="w-3 h-3 text-accent" />
-                Share Management center
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-[10px] font-bold uppercase">Public Share Link</Label>
-                  <p className="text-[9px] text-muted-foreground">Enable external presentation access</p>
-                </div>
-                <Switch 
-                  checked={shareEnabled} 
-                  onCheckedChange={setShareEnabled} 
-                  disabled={!isApproved}
-                />
-              </div>
-
-              {shareEnabled && (
-                <div className="space-y-3 animate-in slide-in-from-top-2">
-                  <div className="flex gap-2">
-                    <Input 
-                      readOnly 
-                      value={`${window.location.origin}/share/${id}`} 
-                      className="h-8 text-[10px] bg-muted/30 border-none"
-                    />
-                    <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={copyShareLink}>
-                      <Copy className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                  
-                  <div className="p-3 bg-muted/30 rounded-xl space-y-2">
-                    <div className="flex items-center gap-2 text-[9px] font-black text-primary uppercase">
-                      <UserCheck className="w-3 h-3" /> External Presentation Profile
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                       <div className="space-y-0.5">
-                          <div className="text-[8px] font-bold text-muted-foreground uppercase">Identity</div>
-                          <div className="text-[10px] font-bold truncate">{anonymizeSubject ? (caseStudyTitle || 'Anonymized') : scan?.results.companyName}</div>
-                       </div>
-                       <div className="space-y-0.5">
-                          <div className="text-[8px] font-bold text-muted-foreground uppercase">Rivals</div>
-                          <div className="text-[10px] font-bold">{anonymizeCompetitors ? 'Masked' : 'Transparent'}</div>
-                       </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-3 bg-muted/30 rounded-xl space-y-1">
-                      <div className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                        <Eye className="w-2.5 h-2.5" /> Views
-                      </div>
-                      <div className="text-sm font-black text-primary">{scan?.viewCount || 0}</div>
-                    </div>
-                    <div className="p-3 bg-muted/30 rounded-xl space-y-1">
-                      <div className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                        <Calendar className="w-2.5 h-2.5" /> Last Viewed
-                      </div>
-                      <div className="text-[9px] font-bold text-primary truncate">
-                        {scan?.lastViewedAt ? scan.lastViewedAt.toDate().toLocaleDateString() : 'Never'}
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
+        )}
 
-          <Card className="border-none shadow-sm bg-white overflow-hidden">
-            <CardHeader className="border-b bg-muted/20">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <StickyNote className="w-3 h-3" />
-                Internal Admin Notes
-              </CardTitle>
+        {/* Recommendations */}
+        {(scan.recommendations?.length ?? 0) > 0 && (
+          <Card className="border-none shadow-sm overflow-hidden bg-white">
+            <CardHeader className="border-b bg-muted/10">
+              <CardTitle className="text-sm font-bold">Strategic Priority Actions</CardTitle>
+              <CardDescription className="text-xs">Read-only during stabilization sprint.</CardDescription>
             </CardHeader>
-            <CardContent className="pt-4">
-              <Textarea 
-                value={internalNotes}
-                onChange={(e) => setInternalNotes(e.target.value)}
-                placeholder="Private review context..."
-                className="text-xs min-h-[120px]"
-              />
+            <CardContent className="pt-6 space-y-4">
+              {scan.recommendations!.map((rec) => (
+                <div key={rec.id} className="p-4 bg-muted/20 rounded-xl border space-y-2">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className={cn(
+                      "text-[9px] font-black uppercase",
+                      rec.priority === 'HIGH'   ? 'border-red-200 text-red-700 bg-red-50'
+                      : rec.priority === 'MEDIUM' ? 'border-amber-200 text-amber-700 bg-amber-50'
+                      : 'border-green-200 text-green-700 bg-green-50'
+                    )}>
+                      {rec.priority}
+                    </Badge>
+                    <span className="text-[10px] font-bold text-accent uppercase tracking-widest">{rec.category}</span>
+                  </div>
+                  <div className="font-bold text-primary text-sm">{rec.title}</div>
+                  <p className="text-xs text-muted-foreground">{rec.reason}</p>
+                </div>
+              ))}
             </CardContent>
           </Card>
-        </div>
+        )}
+
+        {/* Internal Notes — read-only placeholder */}
+        <Card className="border-none shadow-sm bg-white overflow-hidden opacity-60">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <StickyNote className="w-3 h-3" />
+              Internal Admin Notes (Sprint 5)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground italic">Internal notes are not yet stored in Postgres. Will be re-enabled in Sprint 5.</p>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

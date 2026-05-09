@@ -1,26 +1,49 @@
-
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Search, Loader2, ShieldCheck, Mail, Lock } from "lucide-react";
+import { Search, Loader2, ShieldCheck, Mail, Lock, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
 export default function SignInPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const { user, loading: authLoading, signIn } = useAuth();
 
-  const handleMockLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard");
+    }
+  }, [authLoading, user, router]);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate login delay
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      await signIn(email, password);
       router.push("/dashboard");
-    }, 800);
+    } catch (err: any) {
+      // Supabase error messages (err.message) replace Firebase error codes
+      const msg = (err?.message ?? "").toLowerCase();
+      if (msg.includes("invalid login") || msg.includes("invalid credentials") || msg.includes("email not confirmed")) {
+        setError("Invalid email or password.");
+      } else if (msg.includes("rate limit") || msg.includes("too many")) {
+        setError("Too many attempts. Please try again later.");
+      } else {
+        setError("Sign in failed. Please try again.");
+      }
+      setLoading(false);
+    }
   };
 
   return (
@@ -40,27 +63,49 @@ export default function SignInPage() {
           <CardDescription className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Professional Discovery Console</CardDescription>
         </CardHeader>
         <CardContent className="p-8">
-          <form onSubmit={handleMockLogin} className="space-y-6">
+          <form onSubmit={handleSignIn} className="space-y-6">
+            {error && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Professional Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input id="email" type="email" placeholder="name@company.com" className="pl-10" required />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@company.com"
+                  className="pl-10"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Security Key</Label>
-                <button type="button" className="text-[10px] font-bold text-primary hover:underline">Forgot Key?</button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input id="password" type="password" className="pl-10" placeholder="••••••••" required />
+                <Input
+                  id="password"
+                  type="password"
+                  className="pl-10"
+                  placeholder="••••••••"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
             </div>
-            
-            <Button 
-              type="submit" 
+
+            <Button
+              type="submit"
               className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold gap-2 shadow-lg shadow-primary/20"
               disabled={loading}
             >
@@ -71,11 +116,11 @@ export default function SignInPage() {
           <div className="mt-8 pt-6 border-t text-center space-y-4">
             <p className="text-xs text-muted-foreground">New to VizAI Intelligence?</p>
             <div className="flex gap-3 justify-center">
-              <Link href="/free-scan">
-                <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase tracking-widest h-8 px-4">Run Free Scan</Button>
+              <Link href="/auth/register">
+                <Button variant="outline" size="sm" className="text-[10px] font-bold uppercase tracking-widest h-8 px-4">Create Account</Button>
               </Link>
-              <Link href="/demo">
-                <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest h-8 px-4">Launch Demo</Button>
+              <Link href="/free-scan">
+                <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest h-8 px-4">Run Free Scan</Button>
               </Link>
             </div>
           </div>

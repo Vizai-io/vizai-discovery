@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { RankingService } from "@/lib/services/ranking-service";
 import { RankingSnapshot, RankingEntry } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -39,9 +38,18 @@ export default function RankingsPage() {
   useEffect(() => {
     async function loadRankings() {
       setLoading(true);
-      const data = await RankingService.getLatestRankings(industry, region);
-      setSnapshot(data);
-      setLoading(false);
+      try {
+        const params = new URLSearchParams({ industry, region });
+        const res = await fetch(`/api/rankings?${params}`);
+        if (!res.ok) throw new Error(`Rankings API returned ${res.status}`);
+        const data = await res.json();
+        setSnapshot(data.snapshot);
+      } catch (err) {
+        console.error('[rankings] Failed to load rankings:', err);
+        setSnapshot(null);
+      } finally {
+        setLoading(false);
+      }
     }
     loadRankings();
   }, [industry, region]);
