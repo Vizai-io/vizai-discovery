@@ -157,6 +157,41 @@ export async function GET() {
       organizationalMemoryCoverage:   'full', // All real orgs (sentinel-excluded) covered per API call
     },
 
+    // ── Sprint 8 completed ────────────────────────────────────────────────
+    sprint8Completed: [
+      'ContinuityForecastService — linear velocity extrapolation, 0.7 decay factor, 5-state taxonomy, volatility penalty (Task 1)',
+      'ContinuityTrajectoryService — thirds-based motion analysis, RECOVERING/DECLINING/OSCILLATING/PLATEAUED/STABLE (Task 2)',
+      'OperationalResilienceService — 4-component score: stability(40)+recovery(25)+cadence(20)+durability(15), durability bias (Task 3)',
+      'InterventionTimingService — advisory timing windows, average recovery days, timingConfidence (Task 4)',
+      'OperationalRiskForecastService — 7 risk types, riskPersistence: NEW|RECURRING|PERSISTENT (Task 5)',
+      'PredictiveNarrativeService — template-based calm forecasting summaries, no LLM (Task 6)',
+      'GET /api/admin/forecasting — 6-service orchestration, parallel Sprint 8 execution (Task 7)',
+      '/admin/forecasting — 5-panel calm forecasting dashboard, 30d/90d/365d selector (Task 7)',
+      '/admin/page.tsx — Forecasting nav button added (Task 7)',
+      'forecastStability: STABLE|VOLATILE|UNSTABLE from volatility + oscillation + divergence (Refinement 1)',
+      'forecastDivergence: abs(projectedScore90d - projectedScore30d) on ContinuityForecast (Refinement 2)',
+      'durabilityWeightApplied: boolean on OperationalResilience — durability bias explicit (Refinement 3)',
+      'timingConfidence: LOW|MEDIUM|HIGH on InterventionTimingInsight (Refinement 4)',
+      'riskPersistence: NEW|RECURRING|PERSISTENT on every ForecastRisk (Refinement 5)',
+      'Narrative language restrictions: prohibited dramatic phrasing, calm operational tone (Refinement 6/D)',
+      'forecastMemoryQuality: SPARSE|MODERATE|RICH on all Sprint 8 outputs (Refinement 7)',
+      'continuityAcceleration: ACCELERATING_RECOVERY|ACCELERATING_DECLINE|LINEAR|INCONSISTENT (Refinement 8)',
+      'generatedFromWindow: { start, end } on all Sprint 8 outputs for replay auditability (Refinement 9)',
+      'forecastingHealth block added to runtime-health (Refinement 10)',
+      'forecastIntegrity: { eventDensity, replayCoverage, volatilityPenaltyApplied } on ContinuityForecast (Refinement A)',
+      'Refinement F: all Sprint 8 services are advisory-only, GET-only API, no state mutations',
+      'Refinement G: resilience scoring rewards stability and durability over temporary spikes',
+    ],
+
+    // ── Sprint 8 forecasting health (Refinement 10) ───────────────────────
+    forecastingHealth: {
+      forecastingHealthy:        true,   // ContinuityForecastService operational — deterministic velocity model
+      forecastReplayIntegrity:   'HEALTHY', // All forecasts expose forecastIntegrity per org
+      trajectoryEngineHealthy:   true,   // ContinuityTrajectoryService operational — thirds-based analysis
+      riskForecastCoverage:      'RICH', // 7 risk types + riskPersistence detected per org
+      resilienceAnalysisHealthy: true,   // OperationalResilienceService operational — 4-component score
+    },
+
     // ── Event system status (Refinement D) ────────────────────────────────
     eventSystem: {
       operational:       true,

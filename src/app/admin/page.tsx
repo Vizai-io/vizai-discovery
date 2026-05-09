@@ -23,6 +23,7 @@ import {
   Activity,
   BarChart2,
   Clock,
+  TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -277,6 +278,12 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/forecasting">
+            <Button variant="outline" className="gap-2 border-primary/20 text-primary">
+              <TrendingUp className="w-4 h-4" />
+              Forecasting
+            </Button>
+          </Link>
           <Link href="/admin/memory">
             <Button variant="outline" className="gap-2 border-primary/20 text-primary">
               <Clock className="w-4 h-4" />
