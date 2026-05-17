@@ -278,6 +278,18 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/health-center">
+            <Button variant="default" className="gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              Health Center
+            </Button>
+          </Link>
+          <Link href="/admin/intelligence">
+            <Button variant="outline" className="gap-2 border-primary/20 text-primary">
+              <Network className="w-4 h-4" />
+              Intelligence
+            </Button>
+          </Link>
           <Link href="/admin/forecasting">
             <Button variant="outline" className="gap-2 border-primary/20 text-primary">
               <TrendingUp className="w-4 h-4" />

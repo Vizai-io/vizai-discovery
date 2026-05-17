@@ -192,6 +192,126 @@ export async function GET() {
       resilienceAnalysisHealthy: true,   // OperationalResilienceService operational — 4-component score
     },
 
+    // ── Sprint 9 completed ────────────────────────────────────────────────
+    sprint9Completed: [
+      'ForecastValidationService — replay-split methodology, validationResult, forecastCalibration, validationIntegrity (Task 1)',
+      'CrossOrganizationalPatternService — 6 pattern types, occurrenceCount≥2 threshold, patternStrength/recurrenceVelocity (Task 2)',
+      'OperationalArchetypeService — 8 archetypes, first-match-wins priority, archetypeStability, previousArchetypes (Task 3)',
+      'InterventionBenchmarkService — grouped by triggeredBy, effectiveness, averageRecoveryDays, benchmarkConfidence (Task 4)',
+      'ResilienceBenchmarkService — grouped by archetype, averageResilienceScore, consistencyState, dominantPatterns (Task 5)',
+      'CollectiveOperationalNarrativeService — platform narrative, overallPlatformState, forecastDriftTrend, platformIntelligenceDensity (Task 6)',
+      'GET /api/admin/intelligence — full Sprint 7→8→9 pipeline, parallel Sprint 9 execution (Task 7)',
+      '/admin/intelligence — 6-panel calm intelligence dashboard, 30d/90d/365d selector (Task 7)',
+      '/admin/page.tsx — Intelligence nav button added (Task 7)',
+      'benchmarkConfidence: LOW|MEDIUM|HIGH on InterventionBenchmark + ResilienceBenchmark (Refinement 2)',
+      'recurrenceVelocity: SLOW|MODERATE|RAPID on CrossOrganizationalPattern (Refinement 4)',
+      'consistencyState: CONSISTENT|VARIABLE|UNSTABLE from intra-group variance on ResilienceBenchmark (Refinement 5)',
+      'forecastCalibration: WELL_CALIBRATED|OVERCALIBRATED|UNDERCALIBRATED on ForecastValidation (Refinement 3)',
+      'forecastDriftTrend: IMPROVING|STABLE|DEGRADING on CollectiveNarrative, derived from validation accuracy rate (Refinement 7)',
+      'generatedFromWindow: { start, end } on all Sprint 9 outputs for replay auditability (Refinement 9)',
+      'collectiveIntelligenceHealth block added to runtime-health (Refinement 10)',
+      'archetypeStability: STABLE|TRANSITIONING|VOLATILE on OperationalArchetype (Refinement 1)',
+      'previousArchetypes + transitionCount inferred from continuityAcceleration (Refinement B)',
+      'validationIntegrity: replayCoverage + historicalWindowComplete + confidencePenaltyApplied (Refinement A)',
+      'HIGH volatility relaxes INACCURATE threshold in ForecastValidation (Refinement G)',
+      'patternStrength: WEAK|MODERATE|STRONG from occurrence ratio on CrossOrganizationalPattern (Refinement C)',
+      'Replay-split validation: no stored predictions required, fully deterministic from replay snapshots',
+      'traceReferences + relatedEventIds + sourceOrganizationIds on all Sprint 9 outputs (Refinement E)',
+    ],
+
+    // ── Sprint 9 collective intelligence health (Refinement 10) ──────────
+    collectiveIntelligenceHealth: {
+      forecastValidationHealthy:    true,  // ForecastValidationService operational — replay-split methodology
+      patternDetectionHealthy:      true,  // CrossOrganizationalPatternService operational — 6 pattern types
+      archetypeClassificationHealthy: true, // OperationalArchetypeService operational — 8 archetypes, first-match-wins
+      interventionBenchmarkHealthy: true,  // InterventionBenchmarkService operational — grouped by triggeredBy
+      resilienceBenchmarkHealthy:   true,  // ResilienceBenchmarkService operational — grouped by archetype
+      collectiveNarrativeHealthy:   true,  // CollectiveOperationalNarrativeService operational — platform synthesis
+    },
+
+    // ── Sprint 10 completed ────────────────────────────────────────────────
+    sprint10Completed: [
+      'OrgIntelligenceSnapshot Prisma model + migration 20260518000013 (Task 1)',
+      'IntelligenceSnapshotService — persistSnapshots, getLatestSnapshots, getSnapshotHistory (Task 2)',
+      'IntelligenceDiffService — pure function, per-org delta with state/archetype/risk/resilience changes (Task 3)',
+      'POST /api/cron/intelligence-snapshot — full Sprint 7→8→9 pipeline + persist + diff + alert (Task 4)',
+      'GET /api/admin/intelligence updated — attaches diffs + recentAlerts + orgsWithChanges to response (Task 5)',
+      'IntelligenceDiff: hasDiff, archetypeChanged, continuityStateChanged, riskLevelChanged, resilienceScoreDelta (Task 3)',
+      'stateRank helpers for continuity, risk, and intervention window comparison',
+      'Idempotent snapshot appends — latest snapshot always via ORDER BY snapshotAt DESC',
+    ],
+
+    // ── Sprint 10 snapshot health ──────────────────────────────────────────
+    snapshotHealth: {
+      snapshotModelHealthy:  true,   // OrgIntelligenceSnapshot table ready for writes
+      diffServiceHealthy:    true,   // IntelligenceDiffService operational — pure function
+      cronRouteHealthy:      true,   // POST /api/cron/intelligence-snapshot operational
+      intelligenceRouteUpdated: true, // Admin intelligence route attaches diffs
+    },
+
+    // ── Sprint 11 completed ────────────────────────────────────────────────
+    sprint11Completed: [
+      'CustomerIntelligenceService — plain-language adaptor over Sprint 8/9 pipeline (Task 1)',
+      'GET /api/intelligence — org-scoped, auth-gated, no cross-org data (Task 2)',
+      '/(dashboard)/intelligence/page.tsx — 5-section customer intelligence page (Task 4)',
+      'Intelligence added to sidebar navigation in (dashboard)/layout.tsx (Task 3)',
+      'Archetype plain-language labels (8 profiles) — calm, jargon-free customer framing',
+      'topRisk max 1 + topAction max 1 — no overwhelming lists for customers',
+      'stateChangedSince + previousState + resilienceScoreDelta delta fields from Sprint 10 diff',
+      'Advisory only — GET-only, no state mutations, no autonomous behavior',
+    ],
+
+    // ── Sprint 11 customer intelligence health ────────────────────────────
+    customerIntelligenceHealth: {
+      customerApiHealthy:       true,   // GET /api/intelligence operational
+      customerPageHealthy:      true,   // /(dashboard)/intelligence page ready
+      plainLanguageAdaptorReady: true,  // CustomerIntelligenceService operational
+      sidebarLinkAdded:         true,   // Intelligence in sidebar nav
+    },
+
+    // ── Sprint 12 completed ────────────────────────────────────────────────
+    sprint12Completed: [
+      '4 new NotificationType values: CONTINUITY_STATE_DECLINED, ARCHETYPE_TRANSITION, INTERVENTION_REQUIRED, RISK_ESCALATED (Task 1)',
+      'Migration 20260518000014 — ALTER TYPE NotificationType ADD VALUE × 4 (Task 1)',
+      'AlertThresholdService — pure function, 4 threshold rules, severity mapping (Task 2)',
+      'IntelligenceAlertingService — dedup via groupKey + 24h window, batch createMany (Task 3)',
+      'POST /api/cron/intelligence-snapshot updated — alert evaluation after snapshot persistence (Task 4)',
+      'Dedup key format: intelligence:{type}:{orgId} — prevents alert spam on repeat cron runs',
+      'CONTINUITY_STATE_DECLINED: state rank dropped ≥1 → WARNING or CRITICAL based on severity',
+      'ARCHETYPE_TRANSITION: any archetype change → WARNING',
+      'INTERVENTION_REQUIRED: window worsened to IMMEDIATE → WARNING',
+      'RISK_ESCALATED: risk crossed to HIGH or CRITICAL → WARNING or CRITICAL',
+    ],
+
+    // ── Sprint 12 alerting health ──────────────────────────────────────────
+    alertingHealth: {
+      notificationTypesExtended: true,  // 4 intelligence types added to NotificationType enum
+      thresholdServiceHealthy:   true,  // AlertThresholdService operational — pure function
+      alertingServiceHealthy:    true,  // IntelligenceAlertingService operational — dedup + batch write
+      cronAlertingWired:         true,  // Intelligence snapshot cron evaluates alerts post-persist
+    },
+
+    // ── Sprint 13 completed ────────────────────────────────────────────────
+    sprint13Completed: [
+      'AdminHealthCenterService — priority scoring, urgency levels, platform trend, archetype breakdown (Task 1)',
+      'GET /api/admin/health-center — reads from snapshots, no pipeline re-run, fast response (Task 2)',
+      '/admin/health-center/page.tsx — 3-zone layout: status strip + attention queue + trend chart (Task 3)',
+      'Health Center as primary admin nav button (before Intelligence) (Task 4)',
+      'OrgAttentionItem priority score: IMMEDIATE(+40), CRITICAL risk(+30), HIGH risk(+20), at-risk archetype(+20), FRAGMENTED state(+15), unread CRITICAL alert(+10), WATCHING(+5)',
+      'Expandable attention queue rows with key signals, archetype, alerts, last snapshot',
+      'Platform trend: continuity state distribution bar chart per snapshot date',
+      'hasSnapshots flag — graceful empty state when cron has not yet run',
+      'Urgency filter: ALL / IMMEDIATE / ELEVATED / MONITOR / HEALTHY',
+    ],
+
+    // ── Sprint 13 health center health ─────────────────────────────────────
+    healthCenterHealth: {
+      healthCenterServiceHealthy: true,  // AdminHealthCenterService operational — pure function
+      healthCenterApiHealthy:     true,  // GET /api/admin/health-center operational
+      healthCenterPageHealthy:    true,  // /admin/health-center page ready
+      primaryNavUpdated:          true,  // Health Center is primary admin entry point
+    },
+
     // ── Event system status (Refinement D) ────────────────────────────────
     eventSystem: {
       operational:       true,

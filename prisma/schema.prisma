@@ -83,6 +83,11 @@ enum NotificationType {
   BILLING_PAYMENT_FAILED
   BILLING_WARNING
   CONSULTATION_REQUEST_SUBMITTED
+  // ── Sprint 12: Intelligence alerting ─────────────────────────────────────
+  CONTINUITY_STATE_DECLINED   // org continuity state rank dropped ≥1
+  ARCHETYPE_TRANSITION        // org moved to an at-risk operational archetype
+  INTERVENTION_REQUIRED       // intervention window reached IMMEDIATE
+  RISK_ESCALATED              // risk level crossed to HIGH or CRITICAL
 }
 
 enum NotificationSeverity {
@@ -115,23 +120,24 @@ model Organization {
   // ── Billing (Stripe) ─────────────────────────────────────
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
-  subscriptionStatus   String?   // "active" | "trialing" | "past_due" | "canceled" | "incomplete" | "unpaid"
+  subscriptionStatus   String? // "active" | "trialing" | "past_due" | "canceled" | "incomplete" | "unpaid"
   currentPeriodEnd     DateTime?
 
   // ── GitHub publishing (optional — push-only) ──────────
   githubRepoUrl       String?
-  githubDefaultBranch String?   // defaults to "main" when used
+  githubDefaultBranch String? // defaults to "main" when used
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  users                User[]
-  companyProfiles      CompanyProfile[]
-  competitorProfiles   CompetitorProfile[]
-  consultationRequests ConsultationRequest[]
-  scanSchedules        ScanSchedule[]
-  notifications        Notification[]
-  truthPublishRecords  TruthPublishRecord[]
+  users                    User[]
+  companyProfiles          CompanyProfile[]
+  competitorProfiles       CompetitorProfile[]
+  consultationRequests     ConsultationRequest[]
+  scanSchedules            ScanSchedule[]
+  notifications            Notification[]
+  truthPublishRecords      TruthPublishRecord[]
+  orgIntelligenceSnapshots OrgIntelligenceSnapshot[]
 
   @@map("organizations")
 }
@@ -141,7 +147,7 @@ model Organization {
 // ─────────────────────────────────────────────────
 
 model User {
-  id             String    @id           // = Supabase auth.users.id (UUID)
+  id             String    @id // = Supabase auth.users.id (UUID)
   email          String    @unique
   displayName    String?
   role           UserRole  @default(CLIENT)
@@ -169,18 +175,18 @@ model CompanyProfile {
   isActive       Boolean @default(true)
 
   // Ground truth fields
-  officialDescription      String?  @db.Text
-  officialBusinessType     String?
-  officialServices         String[] @default([])
-  officialLocations        String[] @default([])
-  officialIndustries       String[] @default([])
-  officialDifferentiators  String[] @default([])
-  officialCustomerTypes    String[] @default([])
+  officialDescription     String?  @db.Text
+  officialBusinessType    String?
+  officialServices        String[] @default([])
+  officialLocations       String[] @default([])
+  officialIndustries      String[] @default([])
+  officialDifferentiators String[] @default([])
+  officialCustomerTypes   String[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   perceptionScans     PerceptionScan[]
   competitorProfiles  CompetitorProfile[]
   scanSchedules       ScanSchedule[]
@@ -212,7 +218,7 @@ model PerceptionScan {
   currentStep      String?
   errorMessage     String?
   isSimulated      Boolean    @default(false)
-  sourceType       String?    // "FREE_SCAN" | "DEMO_SEED" | "MANAGED" | "TRIAL"
+  sourceType       String? // "FREE_SCAN" | "DEMO_SEED" | "MANAGED" | "TRIAL"
 
   createdAt   DateTime  @default(now())
   startedAt   DateTime?
@@ -239,12 +245,12 @@ model PerceptionScan {
 model ModelResult {
   id               String  @id @default(cuid())
   perceptionScanId String
-  modelId          String  // "openai:gpt-4o"
-  provider         String  // "openai"
+  modelId          String // "openai:gpt-4o"
+  provider         String // "openai"
   success          Boolean
 
-  rawResponse   String? @db.Text
-  summary       String? @db.Text
+  rawResponse String? @db.Text
+  summary     String? @db.Text
 
   // Structured perception output
   businessDescription      String?  @db.Text
@@ -310,25 +316,25 @@ model ScanReport {
 // ─────────────────────────────────────────────────
 
 model Recommendation {
-  id               String               @id @default(cuid())
-  perceptionScanId String
-  priority         Priority
-  category         String
-  title            String
-  reason           String               @db.Text
-  recommendedAction String              @db.Text
-  serviceLink      String?
-  isActioned       Boolean              @default(false)
-  actionedAt       DateTime?
+  id                String    @id @default(cuid())
+  perceptionScanId  String
+  priority          Priority
+  category          String
+  title             String
+  reason            String    @db.Text
+  recommendedAction String    @db.Text
+  serviceLink       String?
+  isActioned        Boolean   @default(false)
+  actionedAt        DateTime?
 
   // Workflow status (Phase 1.7)
-  status           RecommendationStatus @default(OPEN)
-  openedAt         DateTime?
-  inProgressAt     DateTime?
-  completedAt      DateTime?
-  dismissedAt      DateTime?
+  status       RecommendationStatus @default(OPEN)
+  openedAt     DateTime?
+  inProgressAt DateTime?
+  completedAt  DateTime?
+  dismissedAt  DateTime?
 
-  createdAt        DateTime             @default(now())
+  createdAt DateTime @default(now())
 
   perceptionScan PerceptionScan @relation(fields: [perceptionScanId], references: [id], onDelete: Cascade)
 
@@ -343,12 +349,12 @@ model Recommendation {
 // ─────────────────────────────────────────────────
 
 model CompetitorProfile {
-  id               String  @id @default(cuid())
+  id               String   @id @default(cuid())
   organizationId   String
   companyProfileId String?
   businessName     String
   websiteUrl       String?
-  notes            String? @db.Text
+  notes            String?  @db.Text
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -364,14 +370,14 @@ model CompetitorProfile {
 // ─────────────────────────────────────────────────
 
 model ConsultationRequest {
-  id              String  @id @default(cuid())
+  id              String   @id @default(cuid())
   organizationId  String
   contactName     String
   contactEmail    String
   contactPhone    String?
-  message         String  @db.Text
+  message         String   @db.Text
   serviceInterest String?
-  status          String  @default("pending") // pending | reviewed | closed
+  status          String   @default("pending") // pending | reviewed | closed
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -437,11 +443,11 @@ model Notification {
   createdAt      DateTime             @default(now())
 
   // Optional context links
-  relatedScanId             String?
-  relatedRecommendationId   String?
+  relatedScanId           String?
+  relatedRecommendationId String?
 
   // Grouping key — groups related events in the UI (e.g. "scan:cuid", "billing", "onboarding")
-  groupKey  String?
+  groupKey String?
 
   // Lifecycle
   // archivedAt is set when a notification ages out (>90 days, not unread CRITICAL)
@@ -461,7 +467,7 @@ model Notification {
 // ─────────────────────────────────────────────────
 
 model ProcessedStripeEvent {
-  id          String   @id  // Stripe event ID (evt_xxx) — natural unique key
+  id          String   @id // Stripe event ID (evt_xxx) — natural unique key
   type        String
   processedAt DateTime @default(now())
 
@@ -480,16 +486,16 @@ model TruthPublishRecord {
   status           TruthPublishStatus @default(DRAFT)
 
   // Canonical truth snapshot at publish time — deterministic, hash-stable
-  exportPayload    Json
+  exportPayload Json
   // SHA-256 of normalized payload — dedup: same hash = no new publish needed
-  payloadHash      String
+  payloadHash   String
 
-  publishedAt      DateTime?
-  confirmedAt      DateTime?
-  notes            String?            @db.Text
+  publishedAt DateTime?
+  confirmedAt DateTime?
+  notes       String?   @db.Text
 
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   companyProfile CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Restrict)
@@ -528,12 +534,12 @@ model OperationalEvent {
   id             String    @id @default(cuid())
   organizationId String?
   userId         String?
-  eventType      String    // from EVENT_TYPES constant
-  severity       String    // INFO | WARNING | ERROR | CRITICAL
-  source         String    // from EVENT_SOURCES constant
+  eventType      String // from EVENT_TYPES constant
+  severity       String // INFO | WARNING | ERROR | CRITICAL
+  source         String // from EVENT_SOURCES constant
   traceId        String
-  entityType     String?   // 'scan' | 'user' | 'org' | 'ranking' | 'notification' | 'schedule'
-  entityId       String?   // cuid of the related entity
+  entityType     String? // 'scan' | 'user' | 'org' | 'ranking' | 'notification' | 'schedule'
+  entityId       String? // cuid of the related entity
   message        String
   // metadataJson supports: { parentTraceId, relatedEntityIds, replayKey, ...custom }
   // Refinement B: parentTraceId + relatedEntityIds enable future causal trace graphs
@@ -577,16 +583,70 @@ model RankingSnapshot {
   snapshotDate DateTime @default(now())
 
   // Full leaderboard snapshot — matches RankingSnapshot shape from @/lib/types
-  entriesJson  Json
+  entriesJson Json
 
   // Metadata for lineage, replayability, and debugging
   // Fields: generationSeed, algorithmVersion, entryCount
-  metadataJson Json     @default("{}")
+  metadataJson Json @default("{}")
 
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([industry, region, snapshotDate(sort: Desc)])
   @@map("ranking_snapshots")
+}
+
+// ─────────────────────────────────────────────────
+// INTELLIGENCE SNAPSHOT (Sprint 10)
+// ─────────────────────────────────────────────────
+// Point-in-time record of per-org intelligence outputs.
+// Written by /api/cron/intelligence-snapshot on each run.
+// Enables: archetype transition history, real forecast validation,
+// delta views in admin dashboards, and alert threshold evaluation.
+
+model OrgIntelligenceSnapshot {
+  id             String   @id @default(cuid())
+  organizationId String
+  snapshotAt     DateTime @default(now())
+  windowDays     Int      // 30 | 90 | 365
+
+  // Archetype (Sprint 9 Task 3)
+  archetype           String  // OperationalArchetypeType
+  archetypeStability  String  // STABLE | TRANSITIONING | VOLATILE
+  archetypeConfidence String  // LOW | MEDIUM | HIGH
+
+  // Continuity state (Sprint 8 Task 1)
+  continuityState   String  // OPTIMIZING | STABLE | WATCHING | FRAGMENTED | CRITICAL
+  projectedState30d String
+  projectedState90d String
+  continuityTrend   String  // IMPROVING | STABLE | DECLINING
+  forecastStability String  // STABLE | VOLATILE | UNSTABLE
+
+  // Resilience (Sprint 8 Task 3)
+  resilienceScore Int
+  resilienceState String  // RESILIENT | RECOVERING | FRAGILE | UNSTABLE
+
+  // Risk (Sprint 8 Task 5)
+  riskLevel String  // LOW | MEDIUM | HIGH | CRITICAL
+
+  // Trajectory (Sprint 8 Task 2)
+  trajectoryType String
+  momentum       String
+
+  // Intervention (Sprint 8 Task 4)
+  interventionWindow String  // IMMEDIATE | SHORT_TERM | MONITOR | LOW_PRIORITY
+
+  // Validation (Sprint 9 Task 1) — nullable, populated when replay data is sufficient
+  validationResult    String?  // ACCURATE | PARTIALLY_ACCURATE | INACCURATE
+  forecastCalibration String?  // WELL_CALIBRATED | OVERCALIBRATED | UNDERCALIBRATED
+  divergenceScore     Int?
+
+  forecastVersion String @default("v1")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, snapshotAt(sort: Desc)])
+  @@index([organizationId, windowDays, snapshotAt(sort: Desc)])
+  @@map("org_intelligence_snapshots")
 }
 
 // ─────────────────────────────────────────────────
@@ -596,7 +656,7 @@ model RankingSnapshot {
 model ScanEmbedding {
   id               String   @id @default(cuid())
   perceptionScanId String
-  modelName        String   // "text-embedding-3-small"
+  modelName        String // "text-embedding-3-small"
   inputText        String   @db.Text
   // embedding     Unsupported("vector(1536)")?  // uncomment when pgvector is active
   createdAt        DateTime @default(now())

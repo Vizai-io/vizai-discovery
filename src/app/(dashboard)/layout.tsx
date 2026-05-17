@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity, Loader2, CreditCard } from "lucide-react";
+import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity, Loader2, CreditCard, Network } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AuthDebugBanner } from "@/components/dev/auth-debug-banner";
 import Link from "next/link";
@@ -47,14 +47,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const menuItems = [
-    { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-    { title: "Monitoring", icon: Activity, href: "/monitoring" },
-    { title: "Companies", icon: Building2, href: "/companies" },
-    { title: "Scans", icon: Search, href: "/scans" },
-    { title: "Rankings", icon: Trophy, href: "/rankings" },
-    { title: "Recommendations", icon: Lightbulb, href: "/recommendations" },
-    { title: "History", icon: History, href: "/history" },
-    { title: "Billing", icon: CreditCard, href: "/billing" },
+    { title: "Dashboard",       icon: LayoutDashboard, href: "/dashboard" },
+    { title: "Intelligence",    icon: Network,         href: "/intelligence" },
+    { title: "Monitoring",      icon: Activity,        href: "/monitoring" },
+    { title: "Companies",       icon: Building2,       href: "/companies" },
+    { title: "Scans",           icon: Search,          href: "/scans" },
+    { title: "Rankings",        icon: Trophy,          href: "/rankings" },
+    { title: "Recommendations", icon: Lightbulb,       href: "/recommendations" },
+    { title: "History",         icon: History,         href: "/history" },
+    { title: "Billing",         icon: CreditCard,      href: "/billing" },
   ];
 
   const displayName = userProfile?.displayName || user.email || "User";
