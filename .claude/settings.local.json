@@ -36,7 +36,8 @@
       "Bash(ls -la \"C:\\\\Projects\\\\Vizai-discovery\\\\\" | grep -i \"env\\\\|\\\\.next\")",
       "Bash(dir \"C:\\\\Projects\\\\Vizai-discovery\" /a:h /b)",
       "Bash(findstr /i env)",
-      "Bash(cmd /c \"dir /a /b C:\\\\Projects\\\\Vizai-discovery | findstr /i env\")"
+      "Bash(cmd /c \"dir /a /b C:\\\\Projects\\\\Vizai-discovery | findstr /i env\")",
+      "Bash(cmd /c \"type C:\\\\Projects\\\\Vizai-discovery\\\\node_modules\\\\@prisma\\\\adapter-pg\\\\dist\\\\index.js\")"
     ]
   }
 }

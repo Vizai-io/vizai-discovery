@@ -82,9 +82,10 @@ type Props = {
 };
 
 export function PrimaryActionCard({ action, loading }: Props) {
-  if (loading) return <PrimaryActionCardSkeleton />;
+  if (loading || !action) return <PrimaryActionCardSkeleton />;
 
   const config = URGENCY_CONFIG[action.urgency];
+  if (!config) return <PrimaryActionCardSkeleton />;
   const Icon = config.icon;
 
   return (

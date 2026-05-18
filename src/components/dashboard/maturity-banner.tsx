@@ -90,6 +90,7 @@ export function MaturityBanner({ maturity, reason, next_milestone }: Props) {
   if (maturity === "MATURE") return null;
 
   const cfg = MATURITY_CFG[maturity];
+  if (!cfg) return null; // guard: unexpected maturity value (e.g. API error / unknown state)
   const Icon = cfg.icon;
 
   // ── OPTIMIZING: minimal inline pill ──────────────────────────────────────────

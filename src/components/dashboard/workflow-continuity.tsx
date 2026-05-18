@@ -57,7 +57,7 @@ type Props = {
 };
 
 export function WorkflowContinuity({ items }: Props) {
-  if (items.length === 0) return null;
+  if (!items || items.length === 0) return null;
 
   return (
     <div className="space-y-1.5">
@@ -67,6 +67,7 @@ export function WorkflowContinuity({ items }: Props) {
       <div className="flex flex-wrap gap-2">
         {items.map((item) => {
           const config = ITEM_CONFIG[item.type];
+          if (!config) return null;
           const Icon = config.icon;
 
           return (
