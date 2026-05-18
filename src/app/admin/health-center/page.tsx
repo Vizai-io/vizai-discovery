@@ -23,6 +23,8 @@ import {
   Loader2,
   RefreshCcw,
   Clock,
+  AlertTriangle,
+  Activity,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +71,30 @@ interface HealthCenterData {
   orgsAtRisk:         number;
   orgsHealthy:        number;
   generatedAt:        string;
+  // Sprint 15 — staleness
+  staleSnapshotCount: number;
+  oldestSnapshotAt:   string | null;
+  staleOrgs:          { orgId: string; name: string; snapshotAt: string }[];
+}
+
+interface PipelineRun {
+  id:                 string;
+  traceId:            string;
+  ranAt:              string;
+  severity:           string;
+  message:            string;
+  orgsProcessed:      number | null;
+  persisted:          number | null;
+  skipped:            number | null;
+  alertsFired:        number | null;
+  alertsDeduplicated: number | null;
+  durationMs:         number | null;
+}
+
+interface PipelineData {
+  lastRunAt:    string | null;
+  runsThisWeek: number;
+  runs:         PipelineRun[];
 }
 
 // ── Badge helpers ─────────────────────────────────────────────────────────────
@@ -181,13 +207,20 @@ function AttentionItem({ item }: { item: OrgAttentionItem }) {
               </ul>
             </div>
           )}
-          {/* Last snapshot */}
-          {item.lastSnapshotAt && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              Last snapshot: {new Date(item.lastSnapshotAt).toLocaleString()}
-            </p>
-          )}
+          {/* Last snapshot + detail link */}
+          <div className="flex items-center justify-between">
+            {item.lastSnapshotAt && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Last snapshot: {new Date(item.lastSnapshotAt).toLocaleString()}
+              </p>
+            )}
+            <Link href={`/admin/org/${item.organizationId}`} className="ml-auto">
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-primary/20 text-primary hover:bg-primary/5">
+                View Detail →
+              </Button>
+            </Link>
+          </div>
         </div>
       )}
     </div>
@@ -197,20 +230,26 @@ function AttentionItem({ item }: { item: OrgAttentionItem }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HealthCenterPage() {
-  const [data, setData]         = useState<HealthCenterData | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState<string | null>(null);
-  const [window, setWindow]     = useState<WindowDays>(90);
-  const [filter, setFilter]     = useState<UrgencyLevel | 'ALL'>('ALL');
+  const [data, setData]             = useState<HealthCenterData | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+  const [window, setWindow]         = useState<WindowDays>(90);
+  const [filter, setFilter]         = useState<UrgencyLevel | 'ALL'>('ALL');
+  const [pipeline, setPipeline]     = useState<PipelineData | null>(null);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res  = await fetch(`/api/admin/health-center?window=${window}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Load failed');
-      setData(json);
+      const [hcRes, plRes] = await Promise.all([
+        fetch(`/api/admin/health-center?window=${window}`),
+        fetch('/api/admin/pipeline-health?limit=10'),
+      ]);
+      const hcJson = await hcRes.json();
+      if (!hcRes.ok) throw new Error(hcJson.error ?? 'Load failed');
+      setData(hcJson);
+      if (plRes.ok) setPipeline(await plRes.json());
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -276,6 +315,23 @@ export default function HealthCenterPage() {
 
       {!loading && !error && data && (
         <>
+          {/* Staleness warning — Sprint 15 */}
+          {data.staleSnapshotCount > 0 && (
+            <div className="flex items-start gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3">
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-amber-800">
+                  {data.staleSnapshotCount} org{data.staleSnapshotCount !== 1 ? 's' : ''} with stale snapshots (&gt;25h)
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  {data.staleOrgs.slice(0, 5).map((o) => o.name).join(', ')}
+                  {data.staleOrgs.length > 5 && ` +${data.staleOrgs.length - 5} more`}
+                  {' '}— run the intelligence snapshot cron to refresh.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* No snapshots yet */}
           {!data.hasSnapshots && (
             <Card className="border-border/50">
@@ -321,6 +377,11 @@ export default function HealthCenterPage() {
               {data.alertSummary.unread > 0 && (
                 <span className="text-foreground font-medium">{data.alertSummary.unread} unread</span>
               )}
+              <Link href="/admin/alerts" className="ml-auto">
+                <Button variant="outline" size="sm" className="h-6 text-xs border-primary/20 text-primary gap-1">
+                  Manage Alerts →
+                </Button>
+              </Link>
             </div>
           )}
 
@@ -445,6 +506,84 @@ export default function HealthCenterPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* ── Zone 4: Pipeline Health — Sprint 15 ───────────────────────── */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-0">
+              <button
+                className="flex items-center justify-between w-full text-left"
+                onClick={() => setPipelineOpen((o) => !o)}
+              >
+                <div>
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary/60" />
+                    Pipeline Health
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    {pipeline
+                      ? `${pipeline.runsThisWeek} run${pipeline.runsThisWeek !== 1 ? 's' : ''} this week · last run ${pipeline.lastRunAt ? new Date(pipeline.lastRunAt).toLocaleString() : 'never'}`
+                      : 'Intelligence snapshot cron execution history'}
+                  </CardDescription>
+                </div>
+                {pipelineOpen
+                  ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+            </CardHeader>
+
+            {pipelineOpen && (
+              <CardContent className="pt-4">
+                {!pipeline || pipeline.runs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No cron runs recorded yet. The first run will appear here after{' '}
+                    <code className="bg-slate-100 px-1 rounded text-xs">POST /api/cron/intelligence-snapshot</code>.
+                  </p>
+                ) : (
+                  <div className="space-y-0 divide-y divide-border/30">
+                    {/* Column headers */}
+                    <div className="grid grid-cols-5 gap-2 pb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <span>Ran At</span>
+                      <span className="text-center">Persisted</span>
+                      <span className="text-center">Alerts</span>
+                      <span className="text-center">Duration</span>
+                      <span className="text-right">Status</span>
+                    </div>
+                    {pipeline.runs.map((run) => (
+                      <div key={run.id} className="grid grid-cols-5 gap-2 py-2.5 text-xs items-center">
+                        <span className="text-muted-foreground">
+                          {new Date(run.ranAt).toLocaleString(undefined, {
+                            month: 'short', day: 'numeric',
+                            hour: 'numeric', minute: '2-digit',
+                          })}
+                        </span>
+                        <span className="text-center font-medium text-foreground">
+                          {run.persisted != null ? `${run.persisted}/${(run.persisted ?? 0) + (run.skipped ?? 0)}` : '—'}
+                        </span>
+                        <span className="text-center text-foreground">
+                          {run.alertsFired != null ? run.alertsFired : '—'}
+                          {run.alertsDeduplicated != null && run.alertsDeduplicated > 0 && (
+                            <span className="text-muted-foreground ml-1">({run.alertsDeduplicated} dedup)</span>
+                          )}
+                        </span>
+                        <span className="text-center text-muted-foreground">
+                          {run.durationMs != null ? `${(run.durationMs / 1000).toFixed(1)}s` : '—'}
+                        </span>
+                        <span className="text-right">
+                          <Badge variant="outline" className={`text-[10px] font-bold ${
+                            run.severity === 'INFO'     ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            run.severity === 'WARNING'  ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            'bg-red-50 text-red-700 border-red-200'
+                          }`}>
+                            {run.severity.toLowerCase()}
+                          </Badge>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Card>
 
           <p className="text-xs text-muted-foreground text-center pb-4">
             Updated {new Date(data.generatedAt).toLocaleString()} · reads from persisted snapshots

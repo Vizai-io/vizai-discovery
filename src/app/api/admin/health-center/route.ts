@@ -88,7 +88,28 @@ export async function GET(req: NextRequest) {
 
     const hasSnapshots = snapshots.size > 0;
 
-    // ── 3. Compute health center ───────────────────────────────────────────────
+    // ── 3. Snapshot staleness (Sprint 15) ─────────────────────────────────────
+    // An org's snapshot is stale if it is >25h old (cron should run daily).
+    const staleThreshold = Date.now() - 25 * 60 * 60 * 1000;
+    const staleOrgs: { orgId: string; name: string; snapshotAt: string }[] = [];
+    let   oldestSnapshotAt: string | null = null;
+
+    for (const orgId of orgIds) {
+      const snap = snapshots.get(orgId);
+      if (!snap) {
+        staleOrgs.push({
+          orgId,
+          name:       orgMetaMap.get(orgId)?.name ?? orgId,
+          snapshotAt: 'never',
+        });
+      } else if (snap.snapshotAt.getTime() < staleThreshold) {
+        const iso = snap.snapshotAt.toISOString();
+        staleOrgs.push({ orgId, name: orgMetaMap.get(orgId)?.name ?? orgId, snapshotAt: iso });
+        if (!oldestSnapshotAt || iso < oldestSnapshotAt) oldestSnapshotAt = iso;
+      }
+    }
+
+    // ── 4. Compute health center ───────────────────────────────────────────────
     const healthCenter = AdminHealthCenterService.compute(
       orgIds, orgMetaMap, snapshots, snapshotHistory, recentAlerts,
     );
@@ -97,6 +118,9 @@ export async function GET(req: NextRequest) {
       traceId,
       windowDays,
       hasSnapshots,
+      staleSnapshotCount: staleOrgs.length,
+      oldestSnapshotAt,
+      staleOrgs,
       ...healthCenter,
     });
 

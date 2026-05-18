@@ -231,6 +231,7 @@ export class OrganizationalDriftService {
     // Recs grouped by org (join through perceptionScan)
     const recsByOrg = new Map<string, typeof allRecommendations>();
     for (const rec of allRecommendations) {
+      if (!rec.perceptionScan) continue;
       const orgId   = rec.perceptionScan.organizationId;
       const existing = recsByOrg.get(orgId) ?? [];
       existing.push(rec);

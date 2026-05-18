@@ -255,6 +255,25 @@ export default function ContinuityDashboard() {
             </span>
           )}
         </div>
+        {/* Tab nav */}
+        <div className="flex items-center gap-1">
+          {[
+            { label: "Overview",    href: "/admin/intelligence", active: false },
+            { label: "Continuity",  href: "/admin/continuity",  active: true },
+            { label: "Forecasting", href: "/admin/forecasting", active: false },
+            { label: "Memory",      href: "/admin/memory",      active: false },
+          ].map((tab) => (
+            <Link key={tab.label} href={tab.href}>
+              <button className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
+                tab.active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-primary/70 hover:bg-muted/40"
+              }`}>
+                {tab.label}
+              </button>
+            </Link>
+          ))}
+        </div>
         <div className="flex items-center gap-2">
           {/* Window selector */}
           <div className="flex rounded-md border border-primary/20 overflow-hidden text-xs font-bold">

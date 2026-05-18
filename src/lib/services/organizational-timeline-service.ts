@@ -244,6 +244,7 @@ export class OrganizationalTimelineService {
     const scansByOrg    = groupBy(scans,    (s) => s.organizationId);
     const recsByOrg     = new Map<string, typeof recs>();
     for (const r of recs) {
+      if (!r.perceptionScan) continue;
       const oid = r.perceptionScan.organizationId;
       const existing = recsByOrg.get(oid) ?? [];
       existing.push(r);
@@ -316,8 +317,8 @@ export class OrganizationalTimelineService {
           sourceTable:   'recommendations',
           sourceId:      rec.id,
           traceReferences:  [],
-          relatedEventIds:  [rec.perceptionScan.id],
-          sourceEntityIds:  [rec.id, rec.perceptionScan.id],
+          relatedEventIds:  rec.perceptionScan ? [rec.perceptionScan.id] : [],
+          sourceEntityIds:  rec.perceptionScan ? [rec.id, rec.perceptionScan.id] : [rec.id],
         });
         allSourceEntityIds.push(rec.id);
       }

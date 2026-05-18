@@ -290,22 +290,10 @@ export default function AdminPage() {
               Intelligence
             </Button>
           </Link>
-          <Link href="/admin/forecasting">
+          <Link href="/admin/alerts">
             <Button variant="outline" className="gap-2 border-primary/20 text-primary">
-              <TrendingUp className="w-4 h-4" />
-              Forecasting
-            </Button>
-          </Link>
-          <Link href="/admin/memory">
-            <Button variant="outline" className="gap-2 border-primary/20 text-primary">
-              <Clock className="w-4 h-4" />
-              Memory
-            </Button>
-          </Link>
-          <Link href="/admin/continuity">
-            <Button variant="outline" className="gap-2 border-primary/20 text-primary">
-              <BarChart2 className="w-4 h-4" />
-              Continuity
+              <AlertTriangle className="w-4 h-4" />
+              Alerts
             </Button>
           </Link>
           <Link href="/admin/operations">

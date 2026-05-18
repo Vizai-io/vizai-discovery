@@ -285,6 +285,7 @@ export class WorkflowContinuityService {
     // Recommendations per org (all-time)
     const allRecsByOrg: Map<string, typeof allRecommendations> = new Map();
     for (const rec of allRecommendations) {
+      if (!rec.perceptionScanId) continue; // skip intelligence-sourced recs
       const orgId = allScanIdToOrgId.get(rec.perceptionScanId);
       if (!orgId) continue;
       const existing = allRecsByOrg.get(orgId) ?? [];

@@ -139,6 +139,7 @@ export class OnboardingIntelligenceService {
     // Actioned rec count per org
     const actionedRecsByOrg = new Map<string, string[]>();
     for (const rec of actionedRecs) {
+      if (!rec.perceptionScan) continue;
       const oid = rec.perceptionScan.organizationId;
       const existing = actionedRecsByOrg.get(oid) ?? [];
       existing.push(rec.id);

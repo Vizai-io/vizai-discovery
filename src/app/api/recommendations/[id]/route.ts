@@ -36,14 +36,17 @@ export async function PATCH(
     // Verify the recommendation belongs to this org
     const existing = await db.recommendation.findUnique({
       where: { id },
-      include: {
+      select: {
+        organizationId: true,
         perceptionScan: { select: { organizationId: true } },
       },
     });
     if (!existing) {
       return NextResponse.json({ error: "Recommendation not found." }, { status: 404 });
     }
-    if (existing.perceptionScan.organizationId !== auth.organizationId) {
+    // Org derived from scan (scan-sourced) or direct field (intelligence-sourced)
+    const recOrgId = existing.perceptionScan?.organizationId ?? existing.organizationId;
+    if (recOrgId !== auth.organizationId) {
       return NextResponse.json({ error: "Access denied." }, { status: 403 });
     }
 

@@ -54,6 +54,9 @@ import { IntelligenceDiffService }       from '@/lib/services/intelligence-diff-
 import { AlertThresholdService }         from '@/lib/services/alert-threshold-service';
 import { IntelligenceAlertingService }   from '@/lib/services/intelligence-alerting-service';
 
+// Sprint 17 services
+import { IntelligenceRecommendationService } from '@/lib/services/intelligence-recommendation-service';
+
 import { OperationalEventService, EVENT_TYPES, EVENT_SOURCES } from '@/lib/services/operational-event-service';
 
 export const maxDuration = 300;
@@ -71,12 +74,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // ── Optional single-org mode (e.g. triggered by scan completion) ─────────────
+  const body           = await req.json().catch(() => ({}));
+  const singleOrgId    = typeof body?.orgId === 'string' ? body.orgId : null;
+
   const startedAt = Date.now();
 
   try {
     // ── 1. Load real organizations ─────────────────────────────────────────────
     const orgs = await db.organization.findMany({
-      where:   { id: { notIn: SENTINEL_IDS }, isActive: true },
+      where: {
+        isActive: true,
+        // Single-org mode: caller guarantees orgId is never a sentinel
+        id: singleOrgId
+          ? singleOrgId
+          : { notIn: SENTINEL_IDS },
+      },
       select:  { id: true, name: true, slug: true, tier: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
@@ -168,15 +181,20 @@ export async function POST(req: NextRequest) {
       timingMap,
     );
 
-    // ── 10. Log completion ─────────────────────────────────────────────────────
+    // ── 10. Generate intelligence-sourced recommendations (Sprint 17) ──────────
+    const recsCreated = await IntelligenceRecommendationService.generateForOrgs(
+      orgIds, archetypeMap, riskMap, timingMap,
+    );
+
+    // ── 11. Log completion ─────────────────────────────────────────────────────
     const durationMs = Date.now() - startedAt;
     await OperationalEventService.emit({
       eventType:     EVENT_TYPES.INTELLIGENCE_SNAPSHOT_COMPLETED,
       severity:      'INFO',
       source:        EVENT_SOURCES.CRON_INTELLIGENCE_SNAPSHOT,
       traceId,
-      message:       `Intelligence snapshot completed: ${persisted} orgs persisted, ${alertResult.fired} alerts fired in ${durationMs}ms.`,
-      metadata:      { persisted, skipped, alertsFired: alertResult.fired, alertsDeduplicated: alertResult.deduplicated, durationMs },
+      message:       `Intelligence snapshot completed: ${persisted} orgs persisted, ${alertResult.fired} alerts fired, ${recsCreated} recs created in ${durationMs}ms.`,
+      metadata:      { persisted, skipped, alertsFired: alertResult.fired, alertsDeduplicated: alertResult.deduplicated, recsCreated, durationMs },
     });
 
     return NextResponse.json({
@@ -186,8 +204,9 @@ export async function POST(req: NextRequest) {
       orgsProcessed: orgIds.length,
       persisted,
       skipped,
-      alertsFired:  alertResult.fired,
+      alertsFired:        alertResult.fired,
       alertsDeduplicated: alertResult.deduplicated,
+      recsCreated,
       durationMs,
     });
 

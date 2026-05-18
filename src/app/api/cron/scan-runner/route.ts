@@ -133,6 +133,30 @@ export async function POST(request: NextRequest) {
         computeNextRunAt(schedule.interval),
       );
 
+      // ── Trigger single-org intelligence snapshot (non-blocking) ───────────
+      // Refreshes intelligence state immediately after a scan completes,
+      // rather than waiting for the next nightly cron window.
+      void (async () => {
+        try {
+          const cronSecret = process.env.CRON_SECRET;
+          if (cronSecret) {
+            const baseUrl = process.env.NEXTAUTH_URL ?? process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : 'http://localhost:3000';
+            await fetch(`${baseUrl}/api/cron/intelligence-snapshot`, {
+              method:  'POST',
+              headers: {
+                'Content-Type':  'application/json',
+                'Authorization': `Bearer ${cronSecret}`,
+              },
+              body: JSON.stringify({ orgId: schedule.organizationId }),
+            });
+          }
+        } catch (intelErr) {
+          console.error('[cron/scan-runner] Intelligence snapshot trigger failed (non-fatal):', intelErr);
+        }
+      })();
+
       // ── Persist operational notifications ─────────────────
       // Fire-and-forget block — notification failures must not abort the run
       void (async () => {

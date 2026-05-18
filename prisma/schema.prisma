@@ -317,7 +317,7 @@ model ScanReport {
 
 model Recommendation {
   id                String    @id @default(cuid())
-  perceptionScanId  String
+  perceptionScanId  String?   // nullable — intelligence-sourced recs have no scan
   priority          Priority
   category          String
   title             String
@@ -326,6 +326,12 @@ model Recommendation {
   serviceLink       String?
   isActioned        Boolean   @default(false)
   actionedAt        DateTime?
+
+  // ── Sprint 17: intelligence-sourced recommendations ──────────────────────
+  // source: "SCAN" (default) | "INTELLIGENCE"
+  // organizationId: required for INTELLIGENCE source (no scan to derive from)
+  source         String?
+  organizationId String?
 
   // Workflow status (Phase 1.7)
   status       RecommendationStatus @default(OPEN)
@@ -336,9 +342,10 @@ model Recommendation {
 
   createdAt DateTime @default(now())
 
-  perceptionScan PerceptionScan @relation(fields: [perceptionScanId], references: [id], onDelete: Cascade)
+  perceptionScan PerceptionScan? @relation(fields: [perceptionScanId], references: [id], onDelete: Cascade)
 
   @@index([perceptionScanId])
+  @@index([organizationId, source, status])
   @@index([priority])
   @@index([status])
   @@map("recommendations")
@@ -454,11 +461,18 @@ model Notification {
   // Archived notifications are excluded from default queries.
   archivedAt DateTime?
 
+  // Sprint 16 — Alert resolution workflow
+  acknowledgedAt  DateTime?
+  resolvedAt      DateTime?
+  resolvedBy      String?    // admin userId
+  resolutionNote  String?    @db.Text
+
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, isRead])
   @@index([organizationId, createdAt])
   @@index([organizationId, archivedAt])
+  @@index([organizationId, resolvedAt])
   @@map("notifications")
 }
 

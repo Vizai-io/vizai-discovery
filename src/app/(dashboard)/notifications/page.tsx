@@ -90,6 +90,7 @@ const SEVERITY_CFG: Record<
 function groupLabel(groupKey: string | null): string {
   if (!groupKey) return "General";
   if (groupKey.startsWith("scan:")) return "Scan Event";
+  if (groupKey.startsWith("intelligence:")) return "AI Intelligence";
   if (groupKey === "scan_failed") return "Scan Failure";
   if (groupKey === "billing") return "Billing";
   if (groupKey === "onboarding") return "Onboarding";
@@ -140,6 +141,12 @@ function getResolutionAction(
       return { label: "View recommendations", href: "/recommendations" };
     case "ONBOARDING_COMPLETE":
       return { label: "Go to dashboard", href: "/dashboard" };
+    // ── Intelligence alert types (Sprint 12/17) ─────────────────────────────
+    case "CONTINUITY_STATE_DECLINED":
+    case "ARCHETYPE_TRANSITION":
+    case "INTERVENTION_REQUIRED":
+    case "RISK_ESCALATED":
+      return { label: "View AI Health", href: "/dashboard" };
     default:
       return null;
   }

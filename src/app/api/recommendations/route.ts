@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
     const formatted = recs.map((r) => ({
       id: r.id,
       perception_scan_id: r.perceptionScanId,
-      scan_created_at: r.perceptionScan.createdAt,
-      business_name: r.perceptionScan.companyProfile.businessName,
+      scan_created_at: r.perceptionScan?.createdAt ?? null,
+      business_name: r.perceptionScan?.companyProfile.businessName ?? null,
       priority: r.priority,
       category: r.category,
       title: r.title,

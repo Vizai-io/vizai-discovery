@@ -148,7 +148,7 @@ export const RecommendationRepository = {
         id: string;
         createdAt: Date;
         companyProfile: { businessName: string };
-      };
+      } | null;
     })[]
   > {
     return db.recommendation.findMany({

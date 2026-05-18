@@ -108,18 +108,21 @@ export default function DashboardPage() {
   const [opState, setOpState] = useState<OperationalState | null>(null);
   const [loading, setLoading] = useState(true);
   const [auditsExpanded, setAuditsExpanded] = useState(false);
+  const [intel, setIntel] = useState<any>(null);
 
   useEffect(() => {
     let mounted = true;
     Promise.all([
       fetch("/api/operational-state").then((r) => r.json()),
       fetch("/api/perception-scans?limit=20").then((r) => r.json()),
+      fetch("/api/intelligence").then((r) => r.ok ? r.json() : null).catch(() => null),
     ])
-      .then(([opData, scanData]) => {
+      .then(([opData, scanData, intelData]) => {
         if (!mounted) return;
         const op = opData as OperationalState;
         setOpState(op);
         setScans(scanData.scans ?? []);
+        if (intelData && !intelData.error) setIntel(intelData);
         // MATURE orgs care about trend history — expand audits by default
         if (op?.maturity === "MATURE") {
           setAuditsExpanded(true);
@@ -271,6 +274,68 @@ export default function DashboardPage() {
         opState
           ? <WorkflowContinuity items={opState.continuity_items} />
           : <WorkflowContinuitySkeleton />
+      )}
+
+      {/* ── Zone 5.5: Intelligence Summary Panel — hidden in SETUP + requires snapshot ── */}
+      {!isSetup && intel && (
+        <Card className="border-none shadow-sm bg-white">
+          <CardContent className="py-4 px-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span className="text-xs font-bold text-primary uppercase tracking-wider">Operational Intelligence</span>
+                  {intel.continuityState && (
+                    <Badge variant="outline" className={cn("text-[10px] font-bold h-5 px-2",
+                      intel.continuityState === 'Optimizing'               ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      intel.continuityState === 'Needs Immediate Attention' ? 'bg-red-50 text-red-700 border-red-200' :
+                      intel.continuityState === 'Needs Attention'           ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                      'bg-blue-50 text-blue-700 border-blue-200'
+                    )}>
+                      {intel.continuityState}
+                    </Badge>
+                  )}
+                  {intel.operationalProfile && (
+                    <span className="text-xs text-muted-foreground">{intel.operationalProfile}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-5 flex-wrap">
+                  {intel.resilienceScore != null && (
+                    <div>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Resilience</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-lg font-black text-primary">{intel.resilienceScore}</span>
+                        <span className="text-[10px] text-muted-foreground">/100</span>
+                        <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden ml-1">
+                          <div className={cn("h-full rounded-full",
+                            intel.resilienceScore >= 70 ? 'bg-emerald-400' :
+                            intel.resilienceScore >= 45 ? 'bg-amber-400' : 'bg-orange-400'
+                          )} style={{ width: `${intel.resilienceScore}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {intel.topRisk && (
+                    <div>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Risk Signal</span>
+                      <p className="text-xs font-medium text-orange-700 mt-0.5">{intel.topRisk}</p>
+                    </div>
+                  )}
+                  {!intel.topRisk && (
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="text-xs text-muted-foreground">No active risk signals</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Link href="/intelligence" className="shrink-0">
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1 border-primary/20 text-primary">
+                  Full report <ArrowRight className="w-3 h-3" />
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Zones 6–8: Data-dependent sections — hidden in SETUP ── */}

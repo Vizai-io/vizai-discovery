@@ -142,6 +142,7 @@ export class ContinuityReplayService {
     const scansByOrg  = groupByOrg(scans, (s) => s.organizationId);
     const recsByOrg   = new Map<string, typeof allRecs>();
     for (const rec of allRecs) {
+      if (!rec.perceptionScan) continue;
       const oid = rec.perceptionScan.organizationId;
       const existing = recsByOrg.get(oid) ?? [];
       existing.push(rec);

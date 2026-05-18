@@ -261,6 +261,26 @@ export default function ForecastingPage() {
         </div>
       </div>
 
+      {/* Tab nav */}
+      <div className="flex items-center gap-1 border-b border-border/50 -mx-6 px-6 pb-0">
+        {[
+          { label: "Overview",    href: "/admin/intelligence", active: false },
+          { label: "Continuity",  href: "/admin/continuity",  active: false },
+          { label: "Forecasting", href: "/admin/forecasting", active: true },
+          { label: "Memory",      href: "/admin/memory",      active: false },
+        ].map((tab) => (
+          <Link key={tab.label} href={tab.href}>
+            <button className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+              tab.active
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-primary"
+            }`}>
+              {tab.label}
+            </button>
+          </Link>
+        ))}
+      </div>
+
       {/* Loading / Error */}
       {loading && (
         <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground text-sm">

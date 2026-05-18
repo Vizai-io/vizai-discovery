@@ -125,7 +125,7 @@ export class RecommendationImpactService {
     if (completedRecs.length === 0) return [];
 
     // ── 2. Fetch all completed scans with reports for relevant orgs ───────────
-    const relevantOrgIds = [...new Set(completedRecs.map((r) => r.perceptionScan.organizationId))];
+    const relevantOrgIds = [...new Set(completedRecs.filter((r) => r.perceptionScan).map((r) => r.perceptionScan!.organizationId))];
 
     const allScans = await db.perceptionScan.findMany({
       where: {
@@ -178,6 +178,7 @@ export class RecommendationImpactService {
     const results: RecommendationImpact[] = [];
 
     for (const rec of completedRecs) {
+      if (!rec.perceptionScan) continue; // intelligence-sourced recs have no scan to compare
       const orgId       = rec.perceptionScan.organizationId;
       const sourceScan  = rec.perceptionScan;
       const completedAt = rec.completedAt!;
