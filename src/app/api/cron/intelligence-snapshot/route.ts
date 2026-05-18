@@ -54,7 +54,7 @@ import { IntelligenceDiffService }       from '@/lib/services/intelligence-diff-
 import { AlertThresholdService }         from '@/lib/services/alert-threshold-service';
 import { IntelligenceAlertingService }   from '@/lib/services/intelligence-alerting-service';
 
-import { OperationalEventService } from '@/lib/services/operational-event-service';
+import { OperationalEventService, EVENT_TYPES, EVENT_SOURCES } from '@/lib/services/operational-event-service';
 
 export const maxDuration = 300;
 
@@ -171,12 +171,12 @@ export async function POST(req: NextRequest) {
     // ── 10. Log completion ─────────────────────────────────────────────────────
     const durationMs = Date.now() - startedAt;
     await OperationalEventService.emit({
-      eventType:     'INTELLIGENCE_SNAPSHOT_COMPLETED',
+      eventType:     EVENT_TYPES.INTELLIGENCE_SNAPSHOT_COMPLETED,
       severity:      'INFO',
-      source:        'cron.intelligence-snapshot',
+      source:        EVENT_SOURCES.CRON_INTELLIGENCE_SNAPSHOT,
       traceId,
       message:       `Intelligence snapshot completed: ${persisted} orgs persisted, ${alertResult.fired} alerts fired in ${durationMs}ms.`,
-      metadataJson:  { persisted, skipped, alertsFired: alertResult.fired, alertsDeduplicated: alertResult.deduplicated, durationMs },
+      metadata:      { persisted, skipped, alertsFired: alertResult.fired, alertsDeduplicated: alertResult.deduplicated, durationMs },
     });
 
     return NextResponse.json({

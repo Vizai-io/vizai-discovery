@@ -58,6 +58,9 @@ export const EVENT_TYPES = {
   // Sprint 6 — Operational cognition events
   ORGANIZATIONAL_CONTINUITY_RISK: 'ORGANIZATIONAL_CONTINUITY_RISK',  // Refinement B
   OPERATIONAL_SILENCE_DETECTED:   'OPERATIONAL_SILENCE_DETECTED',    // Refinement 6
+
+  // Sprint 10 — Intelligence snapshot cron
+  INTELLIGENCE_SNAPSHOT_COMPLETED: 'INTELLIGENCE_SNAPSHOT_COMPLETED',
 } as const;
 
 export type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES];
@@ -74,8 +77,9 @@ export const EVENT_SOURCES = {
   SCAN_API:        'api:scan',
   ONBOARDING_API:  'api:onboarding',
   AUTH_API:        'api:auth/me',
-  ADMIN_USERS_API: 'api:admin/users',
-  SYSTEM_INTERNAL: 'system:internal',  // assertion escalation, meta-health
+  ADMIN_USERS_API:              'api:admin/users',
+  SYSTEM_INTERNAL:              'system:internal',  // assertion escalation, meta-health
+  CRON_INTELLIGENCE_SNAPSHOT:   'cron:intelligence-snapshot',
 } as const;
 
 export type EventSource = (typeof EVENT_SOURCES)[keyof typeof EVENT_SOURCES];

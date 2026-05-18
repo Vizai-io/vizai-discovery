@@ -12,7 +12,8 @@
  * the Sprint 7→8→9 service pipeline before this service is called.
  */
 
-import { db } from '@/lib/db';
+import { Prisma } from '@prisma/client';
+import { db }    from '@/lib/db';
 import type { ContinuityForecast }      from './continuity-forecast-service';
 import type { ContinuityTrajectory }    from './continuity-trajectory-service';
 import type { OperationalResilience }   from './operational-resilience-service';
@@ -39,7 +40,7 @@ export class IntelligenceSnapshotService {
     archetypes:   Map<string, OperationalArchetype>,
     validations:  Map<string, ForecastValidation>,
   ): Promise<{ persisted: number; skipped: number }> {
-    const rows: Parameters<typeof db.orgIntelligenceSnapshot.createMany>[0]['data'] = [];
+    const rows: Prisma.OrgIntelligenceSnapshotCreateManyInput[] = [];
 
     for (const orgId of orgIds) {
       const f  = forecasts.get(orgId);
