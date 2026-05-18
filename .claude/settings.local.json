@@ -32,7 +32,11 @@
       "Bash(npm ls *)",
       "Bash(node -e \"const p = require\\('./package.json'\\); const d = {...\\(p.dependencies||{}\\), ...\\(p.devDependencies||{}\\)}; const fb = Object.keys\\(d\\).filter\\(k => k.includes\\('firebase'\\)\\); console.log\\('Direct firebase deps:', fb.length ? fb : 'NONE'\\)\")",
       "Bash(find /mnt/c/Projects -maxdepth 1 -type d 2>/dev/null | head -20)",
-      "Bash(ls ~/)"
+      "Bash(ls ~/)",
+      "Bash(ls -la \"C:\\\\Projects\\\\Vizai-discovery\\\\\" | grep -i \"env\\\\|\\\\.next\")",
+      "Bash(dir \"C:\\\\Projects\\\\Vizai-discovery\" /a:h /b)",
+      "Bash(findstr /i env)",
+      "Bash(cmd /c \"dir /a /b C:\\\\Projects\\\\Vizai-discovery | findstr /i env\")"
     ]
   }
 }
