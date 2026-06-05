@@ -20,6 +20,17 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
+// ── Development TLS bypass ─────────────────────────────────────────────────────
+// Supabase's certificate chain is not trusted by the local Node.js TLS stack on
+// Windows. Setting this BEFORE any connections are opened disables cert rejection
+// at the process level, which is the only reliable override — pg's connection-
+// string parser can silently win against the ssl object we pass to Pool().
+// Guarded to development only: production traffic goes through Vercel's runtime
+// which trusts the Supabase cert natively.
+if (process.env.NODE_ENV === "development") {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
