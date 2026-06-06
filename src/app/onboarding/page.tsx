@@ -12,8 +12,8 @@
  * On 409 (already assigned), redirects to /companies immediately.
  */
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Loader2, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,12 +22,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [orgName, setOrgName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fromFreeScan = searchParams.get("ref") === "free-scan";
+
+  useEffect(() => {
+    const bn = searchParams.get("businessName");
+    const ws = searchParams.get("website");
+    if (bn && !businessName) {
+      setBusinessName(bn);
+      setOrgName(bn);
+    }
+    if (ws && !websiteUrl) setWebsiteUrl(ws);
+  }, [searchParams]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -91,7 +103,9 @@ export default function OnboardingPage() {
           </div>
           <CardTitle className="text-2xl font-headline">Set up your account</CardTitle>
           <CardDescription>
-            Create your organization and add your first company profile to get started.
+            {fromFreeScan
+              ? "Your free scan is ready. Set up your account to unlock full AI perception intelligence."
+              : "Create your organization and add your first company profile to get started."}
           </CardDescription>
         </CardHeader>
 
