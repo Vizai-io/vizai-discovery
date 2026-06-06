@@ -21,9 +21,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/get-auth-context";
 import { OrganizationRepository } from "@/lib/repositories";
-import { getStripe, getPriceId, type BillablePlan } from "@/lib/stripe";
+import {
+  getCheckoutCatalogItem,
+  getCheckoutLineItems,
+  getStripe,
+  type BillablePlan,
+} from "@/lib/stripe";
 
-const BILLABLE_PLANS: BillablePlan[] = ["PROFESSIONAL", "ENTERPRISE"];
+const LEGACY_PLAN_TO_SKU: Record<BillablePlan, string> = {
+  PROFESSIONAL: "TIER1_FOUNDATION",
+  ENTERPRISE: "TIER2_REINFORCEMENT",
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,11 +47,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { plan } = body;
+    const { plan, sku } = body;
+    const checkoutSku = sku || (plan ? LEGACY_PLAN_TO_SKU[plan as BillablePlan] : null);
 
-    if (!plan || !BILLABLE_PLANS.includes(plan as BillablePlan)) {
+    if (!checkoutSku) {
       return NextResponse.json(
-        { error: `Invalid plan. Must be one of: ${BILLABLE_PLANS.join(", ")}` },
+        { error: "Invalid checkout item." },
         { status: 400 },
       );
     }
@@ -54,15 +63,21 @@ export async function POST(request: NextRequest) {
     }
 
     const stripe = getStripe();
-    const priceId = getPriceId(plan as BillablePlan);
+    const item = getCheckoutCatalogItem(checkoutSku);
+    const lineItems = getCheckoutLineItems(item);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:9002";
 
     // Build session params — reuse existing Stripe customer if available
     const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
-      mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
+      mode: item.mode,
+      line_items: lineItems,
       // Pass organizationId in metadata so the webhook can identify the org
-      metadata: { organizationId: auth.organizationId, plan },
+      metadata: {
+        organizationId: auth.organizationId,
+        sku: item.sku,
+        itemName: item.name,
+        mappedTier: item.mappedTier ?? "",
+      },
       success_url: `${appUrl}/billing?success=1`,
       cancel_url: `${appUrl}/billing`,
       // Allow promotion codes

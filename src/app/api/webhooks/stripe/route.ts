@@ -130,9 +130,21 @@ export async function POST(request: NextRequest) {
               ? session.subscription
               : (session.subscription as Stripe.Subscription | null)?.id ?? null;
 
-          if (!customerId || !subscriptionId) {
+          if (!customerId) {
             console.error(
-              `[webhook/stripe] checkout.session.completed missing customer/subscription. event=${event.id}`,
+              `[webhook/stripe] checkout.session.completed missing customer. event=${event.id}`,
+            );
+            break;
+          }
+
+          if (session.mode === "payment" || !subscriptionId) {
+            await tx.organization.update({
+              where: { id: organizationId },
+              data: { stripeCustomerId: customerId },
+            });
+
+            console.log(
+              `[webhook/stripe] checkout.session.completed: org=${organizationId} sku=${session.metadata?.sku ?? "unknown"} mode=payment`,
             );
             break;
           }
