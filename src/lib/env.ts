@@ -37,12 +37,16 @@ const envSchema = z.object({
   // ── Stripe Billing (optional — billing features disabled if absent) ──
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PROFESSIONAL_PRICE_ID: z.string().optional(),
+  STRIPE_ENTERPRISE_PRICE_ID: z.string().optional(),
   STRIPE_PRICE_PROFESSIONAL: z.string().optional(),
   STRIPE_PRICE_ENTERPRISE: z.string().optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
 
   // ── Cron runner ───────────────────────────────────────────────
   CRON_SECRET: z.string().optional(),
+  VIZAI_SERVICE_API_KEY: z.string().optional(),
+  VIZAI_SERVICE_ORG_ID: z.string().optional(),
 
   // ── Next.js ───────────────────────────────────────────────────
   NODE_ENV: z

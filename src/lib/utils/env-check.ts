@@ -29,10 +29,12 @@ const REQUIRED: EnvSpec[] = [
 // ── Recommended vars — degraded functionality without these ───────────────
 const RECOMMENDED: EnvSpec[] = [
   { name: "OPENAI_API_KEY", description: "OpenAI API key (scan engine)" },
-  { name: "GOOGLE_API_KEY", description: "Google Gemini API key (scan engine)" },
+  { name: "GOOGLE_GENAI_API_KEY", description: "Google Gemini API key (scan engine)" },
   { name: "STRIPE_SECRET_KEY", description: "Stripe secret key (billing)" },
   { name: "STRIPE_WEBHOOK_SECRET", description: "Stripe webhook signing secret" },
   { name: "CRON_SECRET", description: "Bearer secret for cron endpoints" },
+  { name: "VIZAI_SERVICE_API_KEY", description: "Service-to-service API key" },
+  { name: "VIZAI_SERVICE_ORG_ID", description: "Service-to-service organization id" },
 ];
 
 /**

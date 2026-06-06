@@ -45,11 +45,16 @@ export function getStripe(): Stripe {
 
 export function buildPriceTierMap(): Record<string, OrgTier> {
   const map: Record<string, OrgTier> = {};
-  if (process.env.STRIPE_PRICE_PROFESSIONAL) {
-    map[process.env.STRIPE_PRICE_PROFESSIONAL] = "PROFESSIONAL";
+  const professionalPriceId =
+    process.env.STRIPE_PROFESSIONAL_PRICE_ID || process.env.STRIPE_PRICE_PROFESSIONAL;
+  const enterprisePriceId =
+    process.env.STRIPE_ENTERPRISE_PRICE_ID || process.env.STRIPE_PRICE_ENTERPRISE;
+
+  if (professionalPriceId) {
+    map[professionalPriceId] = "PROFESSIONAL";
   }
-  if (process.env.STRIPE_PRICE_ENTERPRISE) {
-    map[process.env.STRIPE_PRICE_ENTERPRISE] = "ENTERPRISE";
+  if (enterprisePriceId) {
+    map[enterprisePriceId] = "ENTERPRISE";
   }
   return map;
 }
@@ -59,12 +64,14 @@ export function buildPriceTierMap(): Record<string, OrgTier> {
 export type BillablePlan = "PROFESSIONAL" | "ENTERPRISE";
 
 export function getPriceId(plan: BillablePlan): string {
-  const envKey =
-    plan === "PROFESSIONAL" ? "STRIPE_PRICE_PROFESSIONAL" : "STRIPE_PRICE_ENTERPRISE";
-  const priceId = process.env[envKey];
+  const envKeys =
+    plan === "PROFESSIONAL"
+      ? ["STRIPE_PROFESSIONAL_PRICE_ID", "STRIPE_PRICE_PROFESSIONAL"]
+      : ["STRIPE_ENTERPRISE_PRICE_ID", "STRIPE_PRICE_ENTERPRISE"];
+  const priceId = envKeys.map((envKey) => process.env[envKey]).find(Boolean);
   if (!priceId) {
     throw new Error(
-      `${envKey} is not set. Configure Stripe Price IDs in .env.local before offering ${plan} upgrades.`,
+      `${envKeys.join(" or ")} is not set. Configure Stripe Price IDs in .env.local before offering ${plan} upgrades.`,
     );
   }
   return priceId;
