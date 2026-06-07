@@ -22,7 +22,9 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,9 +35,10 @@ export default function SignInPage() {
       await signIn(email, password);
       router.push("/dashboard");
     } catch (err: any) {
-      // Supabase error messages (err.message) replace Firebase error codes
       const msg = (err?.message ?? "").toLowerCase();
-      if (msg.includes("invalid login") || msg.includes("invalid credentials") || msg.includes("email not confirmed")) {
+      if (msg.includes("email not confirmed")) {
+        setError("Please confirm your email before signing in. Check your inbox for a confirmation link.");
+      } else if (msg.includes("invalid login") || msg.includes("invalid credentials")) {
         setError("Invalid email or password.");
       } else if (msg.includes("rate limit") || msg.includes("too many")) {
         setError("Too many attempts. Please try again later.");
@@ -43,6 +46,31 @@ export default function SignInPage() {
         setError("Sign in failed. Please try again.");
       }
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError("Enter your email address above, then click Forgot Password.");
+      return;
+    }
+    setResetLoading(true);
+    setError(null);
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+      });
+      if (resetError) {
+        setError(resetError.message);
+      } else {
+        setResetSent(true);
+      }
+    } catch {
+      setError("Failed to send reset email. Please try again.");
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -71,6 +99,13 @@ export default function SignInPage() {
               </div>
             )}
 
+            {resetSent && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 text-green-700 text-sm border border-green-200">
+                <Mail className="w-4 h-4 shrink-0" />
+                <span>Password reset email sent! Check your inbox and click the link to set a new password.</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Professional Email</Label>
               <div className="relative">
@@ -89,6 +124,14 @@ export default function SignInPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Security Key</Label>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={resetLoading}
+                  className="text-[10px] font-bold text-primary hover:underline disabled:opacity-50"
+                >
+                  {resetLoading ? "Sending..." : "Forgot Password?"}
+                </button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
