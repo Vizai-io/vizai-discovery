@@ -21,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace("/auth/sign-in");
       return;
     }
-    if (!loading && userProfile?.organizationId === "unassigned") {
+    if (!loading && userProfile?.organizationId === "unassigned" && userProfile?.role !== "admin") {
       router.replace("/onboarding");
     }
   }, [loading, user, userProfile, router]);
