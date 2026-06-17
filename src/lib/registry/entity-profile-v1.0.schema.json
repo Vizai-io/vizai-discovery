@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://vizai.io/schema/entity-profile/v1.0",
+  "title": "VizAI Entity Profile",
+  "description": "Canonical clean PUBLIC entity profile (Model C, DEC-029). Entity-primary: one per business at registry/<entity-slug>/profile.json. A public-safe subset of the private Truth Canon — never the Canon itself. additionalProperties:false at the top level enforces the forbidden-field rules (no Canon/worksheet/evidence/ledger/internal fields may appear).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "entitySlug", "businessIdentifier", "category", "verification", "metadata"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "entitySlug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Canonical unique key; matches the registry/<entity-slug>/ folder name"
+    },
+    "businessIdentifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["legalName", "commonName", "primaryDomain"],
+      "properties": {
+        "legalName": { "type": "string" },
+        "commonName": { "type": "string" },
+        "primaryDomain": { "type": "string", "format": "hostname" },
+        "aliases": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "category": {
+      "type": "string",
+      "description": "Primary industry category",
+      "enum": ["technology", "professional-services", "financial", "healthcare", "manufacturing", "retail", "construction", "hospitality", "transportation", "logistics", "education", "real-estate", "other"]
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "method", "lastVerified"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Model C / DEC-025 verification status",
+          "enum": ["claimed_verified", "unclaimed_observed", "community", "pending"]
+        },
+        "tier": {
+          "type": "string",
+          "description": "Optional legacy/tier label (backward-compatible; status is authoritative)",
+          "enum": ["claimed_verified", "unclaimed_observed", "verified", "community", "enterprise"]
+        },
+        "method": {
+          "type": "string",
+          "enum": ["customer-canon-approval", "domain-ownership", "email-verification", "manual-review", "self-reported"]
+        },
+        "canonVersion": {
+          "type": "string",
+          "description": "Source Canon version for claimed_verified profiles (provenance)"
+        },
+        "customerApprovalDate": { "type": "string", "format": "date" },
+        "lastVerified": { "type": "string", "format": "date" },
+        "qualityScore": { "type": "integer", "minimum": 0, "maximum": 100 }
+      },
+      "allOf": [
+        {
+          "description": "Verified profiles must carry Canon provenance",
+          "if": { "properties": { "status": { "const": "claimed_verified" } } },
+          "then": { "required": ["canonVersion"] }
+        }
+      ]
+    },
+    "profileVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional monotonically increasing version for the Truth Signal Layer (Truth Ping / change detection)"
+    },
+    "profileUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "Optional pointer to a richer private hub view (Model A compatibility)"
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Public-safe profile body. Optional; absence is valid.",
+      "properties": {
+        "businessType": { "type": "string" },
+        "country": { "type": "string" },
+        "yearFounded": { "type": "integer" },
+        "ownership": { "type": "string" },
+        "scale": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "facilityCount": { "type": "integer" },
+            "totalSquareFeet": { "type": "string" },
+            "locationCount": { "type": "integer" },
+            "region": { "type": "string" }
+          }
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "region": { "type": "string" },
+              "role": { "type": "string" }
+            }
+          }
+        },
+        "services": { "type": "array", "items": { "type": "string" } },
+        "industriesServed": { "type": "array", "items": { "type": "string" } },
+        "claims": {
+          "type": "array",
+          "description": "Approved public claims only (non-credential). Credentialed claims go in 'credentials' and are evidence-gated.",
+          "items": { "type": "string" }
+        },
+        "contact": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "phone": { "type": "string" },
+            "tollFree": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
+            "website": { "type": "string", "format": "uri" }
+          }
+        },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "linkedin": { "type": "string", "format": "uri" },
+            "facebook": { "type": "string", "format": "uri" },
+            "twitter": { "type": "string" },
+            "crunchbase": { "type": "string" },
+            "bbb": { "type": "string" }
+          }
+        }
+      }
+    },
+    "credentials": {
+      "type": "array",
+      "description": "Evidence-required claims (certifications, awards, licenses, memberships, accreditations). DEC-027: a credential may appear here ONLY when evidence-verified AND cleared for public publication. Absence is valid.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "evidenceStatus", "publicPublishAllowed"],
+        "properties": {
+          "name": { "type": "string" },
+          "credentialType": {
+            "type": "string",
+            "enum": ["certification", "award", "license", "regulated-credential", "security-designation", "compliance", "membership", "accreditation", "safety-quality-program", "partner-vendor-status", "recognition"]
+          },
+          "issuingBody": { "type": "string" },
+          "issueDate": { "type": "string", "format": "date" },
+          "expiryOrRenewalDate": { "type": "string", "format": "date" },
+          "evidenceStatus": {
+            "const": "evidence_verified",
+            "description": "DEC-027: must be evidence_verified to appear in a public profile"
+          },
+          "publicPublishAllowed": {
+            "const": true,
+            "description": "DEC-027: must be true to appear in a public profile"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dateAdded", "lastUpdated"],
+      "properties": {
+        "dateAdded": { "type": "string", "format": "date" },
+        "lastUpdated": { "type": "string", "format": "date" }
+      }
+    }
+  }
+}
