@@ -103,6 +103,98 @@ enum TruthPublishStatus {
   SUPERSEDED
 }
 
+enum TruthCanonStatus {
+  DRAFT
+  APPROVED
+  PUBLISHED
+  SUPERSEDED
+}
+
+enum TruthEntityType {
+  COMPANY
+  BRAND
+  SERVICE
+  PRODUCT
+  LOCATION
+  INDUSTRY
+  CERTIFICATION
+  CLAIM
+  EVIDENCE
+  AUTHORITY_SOURCE
+  COMPETITOR
+  CUSTOMER_SEGMENT
+  PERSON
+  REGISTRY_PROFILE
+}
+
+enum TruthClaimStatus {
+  DRAFT
+  VERIFIED
+  NEEDS_EVIDENCE
+  REJECTED
+  ARCHIVED
+}
+
+enum EvidenceSourceType {
+  WEBSITE
+  SOCIAL_PROFILE
+  DIRECTORY
+  GOVERNMENT_RECORD
+  TRADE_ASSOCIATION
+  REVIEW_PLATFORM
+  PRESS
+  CUSTOMER_PROVIDED
+  OTHER
+}
+
+enum EvidenceSupportLevel {
+  STRONG
+  MODERATE
+  WEAK
+  CONTRADICTS
+}
+
+enum TruthGraphRelationType {
+  PROVIDES
+  OPERATES_IN
+  SERVES
+  CERTIFIED_BY
+  SUPPORTED_BY
+  LISTED_ON
+  COMPETES_WITH
+  DERIVED_FROM
+  CONTACT_FOR
+  HAS_BRAND
+}
+
+enum RegistryProfileStatus {
+  DRAFT
+  READY
+  PUBLISHED
+  SUPERSEDED
+}
+
+enum AuthoritySourceStatus {
+  PLANNED
+  READY
+  PUBLISHED
+  NEEDS_UPDATE
+  BLOCKED
+}
+
+enum DriftRunStatus {
+  COMPLETE
+  PARTIAL
+  FAILED
+}
+
+enum DriftFindingSeverity {
+  LOW
+  MODERATE
+  HIGH
+  CRITICAL
+}
+
 // ─────────────────────────────────────────────────
 // ORGANIZATION
 // ─────────────────────────────────────────────────
@@ -137,6 +229,14 @@ model Organization {
   scanSchedules            ScanSchedule[]
   notifications            Notification[]
   truthPublishRecords      TruthPublishRecord[]
+  truthCanonVersions       TruthCanonVersion[]
+  truthEntities            TruthEntity[]
+  truthClaims              TruthClaim[]
+  evidenceSources          EvidenceSource[]
+  truthGraphEdges          TruthGraphEdge[]
+  registryProfiles         RegistryProfile[]
+  authoritySources         AuthoritySource[]
+  driftRuns                DriftRun[]
   orgIntelligenceSnapshots OrgIntelligenceSnapshot[]
 
   @@map("organizations")
@@ -191,6 +291,14 @@ model CompanyProfile {
   competitorProfiles  CompetitorProfile[]
   scanSchedules       ScanSchedule[]
   truthPublishRecords TruthPublishRecord[]
+  truthCanonVersions  TruthCanonVersion[]
+  truthEntities       TruthEntity[]
+  truthClaims         TruthClaim[]
+  evidenceSources     EvidenceSource[]
+  truthGraphEdges     TruthGraphEdge[]
+  registryProfiles    RegistryProfile[]
+  authoritySources    AuthoritySource[]
+  driftRuns           DriftRun[]
 
   @@index([organizationId])
   @@index([businessName])
@@ -518,6 +626,242 @@ model TruthPublishRecord {
   @@index([organizationId])
   @@index([companyProfileId, status])
   @@map("truth_publish_records")
+}
+
+// ─────────────────────────────────────────────────
+// TRUTH INFRASTRUCTURE (Phase 0-1)
+// ─────────────────────────────────────────────────
+
+model TruthCanonVersion {
+  id               String           @id @default(cuid())
+  organizationId   String
+  companyProfileId String
+  version          Int
+  status           TruthCanonStatus @default(DRAFT)
+  title            String
+  summary          String?          @db.Text
+  canonPayload     Json             @default("{}")
+  payloadHash      String
+  approvedAt       DateTime?
+  approvedBy       String?
+  publishedAt      DateTime?
+  supersededAt     DateTime?
+  notes            String?          @db.Text
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Restrict)
+  entities       TruthEntity[]
+  claims         TruthClaim[]
+  registryProfiles RegistryProfile[]
+  driftRuns      DriftRun[]
+
+  @@unique([companyProfileId, version])
+  @@index([organizationId, status])
+  @@index([companyProfileId, status])
+  @@map("truth_canon_versions")
+}
+
+model TruthEntity {
+  id               String          @id @default(cuid())
+  organizationId   String
+  companyProfileId String
+  canonVersionId   String?
+  type             TruthEntityType
+  name             String
+  slug             String
+  description      String?         @db.Text
+  data             Json            @default("{}")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile     @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  canonVersion   TruthCanonVersion? @relation(fields: [canonVersionId], references: [id], onDelete: SetNull)
+  claims         TruthClaim[]
+  outgoingEdges  TruthGraphEdge[]   @relation("GraphFromEntity")
+  incomingEdges  TruthGraphEdge[]   @relation("GraphToEntity")
+
+  @@unique([organizationId, companyProfileId, type, slug])
+  @@index([organizationId, type])
+  @@index([companyProfileId])
+  @@map("truth_entities")
+}
+
+model TruthClaim {
+  id               String           @id @default(cuid())
+  organizationId   String
+  companyProfileId String
+  canonVersionId   String?
+  entityId         String?
+  category         String
+  statement        String           @db.Text
+  value            Json             @default("{}")
+  status           TruthClaimStatus @default(DRAFT)
+  confidence       Int              @default(50)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile     @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  canonVersion   TruthCanonVersion? @relation(fields: [canonVersionId], references: [id], onDelete: SetNull)
+  entity         TruthEntity?       @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  evidenceLinks  TruthClaimEvidence[]
+
+  @@index([organizationId, status])
+  @@index([companyProfileId, category])
+  @@index([canonVersionId])
+  @@map("truth_claims")
+}
+
+model EvidenceSource {
+  id               String             @id @default(cuid())
+  organizationId   String
+  companyProfileId String
+  type             EvidenceSourceType
+  title            String
+  url              String?
+  sourceDate       DateTime?
+  retrievedAt      DateTime           @default(now())
+  contentHash      String?
+  evidenceText     String?            @db.Text
+  metadata         Json               @default("{}")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile      @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  claimLinks     TruthClaimEvidence[]
+
+  @@index([organizationId, type])
+  @@index([companyProfileId])
+  @@index([url])
+  @@map("evidence_sources")
+}
+
+model TruthClaimEvidence {
+  id               String               @id @default(cuid())
+  claimId          String
+  evidenceSourceId String
+  supportLevel     EvidenceSupportLevel @default(MODERATE)
+  notes            String?              @db.Text
+  createdAt        DateTime             @default(now())
+
+  claim          TruthClaim     @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  evidenceSource EvidenceSource @relation(fields: [evidenceSourceId], references: [id], onDelete: Cascade)
+
+  @@unique([claimId, evidenceSourceId])
+  @@index([evidenceSourceId])
+  @@map("truth_claim_evidence")
+}
+
+model TruthGraphEdge {
+  id               String                 @id @default(cuid())
+  organizationId   String
+  companyProfileId String
+  fromEntityId     String
+  toEntityId       String
+  relationType     TruthGraphRelationType
+  claimId          String?
+  weight           Int                    @default(100)
+  metadata         Json                   @default("{}")
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  fromEntity     TruthEntity    @relation("GraphFromEntity", fields: [fromEntityId], references: [id], onDelete: Cascade)
+  toEntity       TruthEntity    @relation("GraphToEntity", fields: [toEntityId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, companyProfileId, fromEntityId, toEntityId, relationType])
+  @@index([organizationId, relationType])
+  @@index([companyProfileId])
+  @@map("truth_graph_edges")
+}
+
+model RegistryProfile {
+  id               String                @id @default(cuid())
+  organizationId   String
+  companyProfileId String
+  canonVersionId   String?
+  registryId       String
+  status           RegistryProfileStatus @default(DRAFT)
+  payload          Json                  @default("{}")
+  payloadHash      String
+  publishedAt      DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile     @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  canonVersion   TruthCanonVersion? @relation(fields: [canonVersionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([companyProfileId])
+  @@unique([organizationId, registryId])
+  @@map("registry_profiles")
+}
+
+model AuthoritySource {
+  id               String                @id @default(cuid())
+  organizationId   String
+  companyProfileId String
+  type             EvidenceSourceType
+  name             String
+  url              String?
+  status           AuthoritySourceStatus @default(PLANNED)
+  recommendedAction String?              @db.Text
+  lastCheckedAt    DateTime?
+  metadata         Json                  @default("{}")
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([companyProfileId, type])
+  @@map("authority_sources")
+}
+
+model DriftRun {
+  id               String         @id @default(cuid())
+  organizationId   String
+  companyProfileId String
+  canonVersionId   String?
+  perceptionScanId String?
+  status           DriftRunStatus @default(COMPLETE)
+  overallSeverity  DriftFindingSeverity?
+  summary          String         @db.Text
+  metadata         Json           @default("{}")
+  createdAt        DateTime       @default(now())
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile     @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  canonVersion   TruthCanonVersion? @relation(fields: [canonVersionId], references: [id], onDelete: SetNull)
+  findings       DriftFinding[]
+
+  @@index([organizationId, createdAt])
+  @@index([companyProfileId])
+  @@map("drift_runs")
+}
+
+model DriftFinding {
+  id          String               @id @default(cuid())
+  driftRunId  String
+  severity    DriftFindingSeverity
+  category    String
+  title       String
+  description String               @db.Text
+  evidence    Json                 @default("{}")
+  action      String               @db.Text
+  createdAt   DateTime             @default(now())
+
+  driftRun DriftRun @relation(fields: [driftRunId], references: [id], onDelete: Cascade)
+
+  @@index([driftRunId, severity])
+  @@map("drift_findings")
 }
 
 // ─────────────────────────────────────────────────
