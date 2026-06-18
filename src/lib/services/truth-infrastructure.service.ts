@@ -10,6 +10,13 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { PerceptionDriftService } from "@/lib/services/perception-drift.service";
 import { buildCanonicalBusiness } from "@/lib/services/truth-export.service";
+import { buildPublishDraft } from "@/lib/services/registry-publish.service";
+import {
+  canonToAppShaped,
+  buildRegistryDraftWrites,
+  assertApprovable,
+  type TransformerClaim,
+} from "@/lib/registry/canon-to-appshaped";
 import type {
   AuthoritySourceStatus,
   EvidenceSourceType,
@@ -497,89 +504,132 @@ export const TruthGraphService = {
 };
 
 export const RegistryProfileService = {
-  buildPayload(canonPayload: CanonPayload) {
-    const business = canonPayload.business;
-    const domain = domainFromUrl(business.website);
-    const location = business.locations[0] ?? "";
-    const [city = "", region = "", country = ""] = location.split(",").map((part) => part.trim());
-    const industry = mapRegistryIndustry(business.industries[0] ?? business.business_type ?? "other");
+  /**
+   * WP-19F: load the canon + its TruthClaim rows (PRIMARY source) + evidence links,
+   * resolve identity (canonPayload is fallback/reference only), and shape the
+   * transformer input for `canonToAppShaped`.
+   */
+  async loadCanonForArtifact(canonVersionId: string, organizationId: string) {
+    const canon = await db.truthCanonVersion.findFirst({
+      where: { id: canonVersionId, organizationId },
+      include: { companyProfile: true, claims: { include: { evidenceLinks: true } } },
+    });
+    if (!canon) throw new Error("Canon version not found.");
+    if (canon.status !== "APPROVED" && canon.status !== "PUBLISHED") {
+      throw new Error(`Canon must be APPROVED or PUBLISHED to generate a registry profile (got ${canon.status}).`);
+    }
 
+    const fallback = (canon.canonPayload as CanonPayload | null) ?? null;
+    const businessName = canon.companyProfile?.businessName ?? fallback?.business?.name ?? "";
+    if (!businessName) throw new Error("Cannot build public profile: missing business name.");
+    const websiteUrl = canon.companyProfile?.websiteUrl ?? fallback?.business?.website ?? null;
+    const primaryDomain = domainFromUrl(websiteUrl);
+    if (!primaryDomain) throw new Error("Cannot build public profile: company has no primary domain (websiteUrl).");
+
+    const claims: TransformerClaim[] = canon.claims.map((cl) => ({
+      category: cl.category,
+      value: cl.value,
+      status: cl.status,
+      statement: cl.statement,
+      evidence: cl.evidenceLinks.map((el) => ({ supportLevel: el.supportLevel })),
+    }));
+
+    const date = today();
     return {
-      registryId: slugify(domain ?? business.name),
-      domain: domain ?? slugify(business.name),
-      name: business.name,
-      location: { country: country || "unknown", region: region || "unknown", city: city || "unknown" },
-      industry,
-      services: business.services.map(slugify),
-      profileUrl: `https://app.vizai.io/profiles/${canonPayload.company_profile_id}`,
-      verification: {
-        status: "verified",
-        tier: "verified",
-        method: "manual-review",
-        lastVerified: today(),
-        qualityScore: scoreRegistryQuality(canonPayload),
+      companyProfileId: canon.companyProfileId,
+      input: {
+        version: canon.version,
+        status: canon.status,
+        approvedAt: canon.approvedAt ? canon.approvedAt.toISOString() : null,
+        approvedBy: canon.approvedBy,
+        businessName,
+        primaryDomain,
+        entitySlug: slugify(businessName),
+        category: canon.companyProfile?.officialBusinessType ?? fallback?.business?.business_type ?? undefined,
+        lastVerified: date,
+        dateAdded: date,
+        lastUpdated: date,
+        claims,
       },
-      metadata: { dateAdded: today(), lastUpdated: today() },
     };
   },
 
-  async generateForCanon(canonVersionId: string, organizationId: string) {
-    const canon = await db.truthCanonVersion.findFirst({ where: { id: canonVersionId, organizationId } });
-    if (!canon) throw new Error("Canon version not found.");
+  /** Read-only: the integer profileVersion the next draft will carry (= TruthPublishRecord.version). */
+  async resolveDraftProfileVersion(companyProfileId: string): Promise<number> {
+    const existingDraft = await db.truthPublishRecord.findFirst({
+      where: { companyProfileId, status: "DRAFT" },
+      orderBy: { version: "desc" },
+    });
+    if (existingDraft) return existingDraft.version;
+    const agg = await db.truthPublishRecord.aggregate({ where: { companyProfileId }, _max: { version: true } });
+    return (agg._max.version ?? 0) + 1;
+  },
 
-    const payload = this.buildPayload(canon.canonPayload as CanonPayload);
-    const payloadHash = stableHash(payload);
+  /**
+   * PREPARE phase — read-only, NO DB write. Projects the canon's TruthClaim rows to a clean
+   * `entity-profile-v1.0` draft via `buildPublishDraft` (Beacon hash + the 7 gates) and returns the
+   * review payload: clean artifact, gate results, held/excluded claims, contentHash, profileVersion.
+   * Writes NOTHING — operator review happens on this output before `approveRegistryPublishDraft`.
+   */
+  async prepareRegistryPublishDraft(canonVersionId: string, organizationId: string) {
+    const { companyProfileId, input } = await this.loadCanonForArtifact(canonVersionId, organizationId);
+    const profileVersion = await this.resolveDraftProfileVersion(companyProfileId);
+    const packet = buildPublishDraft(canonToAppShaped(input), { profileVersion });
+    return { canonVersionId, companyProfileId, profileVersion, packet };
+  },
 
-    return db.registryProfile.upsert({
-      where: { organizationId_registryId: { organizationId, registryId: payload.registryId } },
-      create: {
-        organizationId,
-        companyProfileId: canon.companyProfileId,
-        canonVersionId: canon.id,
-        registryId: payload.registryId,
-        status: "READY",
-        payload,
-        payloadHash,
-      },
-      update: {
-        canonVersionId: canon.id,
-        status: "READY",
-        payload,
-        payloadHash,
-      },
+  /**
+   * APPROVE / PERSIST phase — WRITES. Requires an explicit call (the approval). Re-prepares the
+   * draft, enforces the gates + optional reviewed-hash match (gate failure or hash drift => NO write),
+   * then persists the public-registry CANDIDATE in one transaction:
+   *   - `RegistryProfile` status READY (payload = clean artifact, payloadHash = Beacon hash)
+   *   - internal DRAFT `TruthPublishRecord` ledger row (version = integer profileVersion)
+   * The canon's own publish status is untouched. NO external publish, NO GitHub PR, NO MCP/signal write.
+   */
+  async approveRegistryPublishDraft(
+    canonVersionId: string,
+    organizationId: string,
+    approval: { approvedBy?: string; expectedContentHash?: string } = {},
+  ) {
+    const draft = await this.prepareRegistryPublishDraft(canonVersionId, organizationId);
+    assertApprovable(draft.packet, approval.expectedContentHash);
+
+    const writes = buildRegistryDraftWrites({
+      organizationId,
+      companyProfileId: draft.companyProfileId,
+      canonVersionId,
+      version: draft.profileVersion,
+      packet: draft.packet,
+      approvedBy: approval.approvedBy,
+    });
+    const rp = writes.registryProfile;
+    const pr = writes.truthPublishRecord;
+
+    return db.$transaction(async (tx) => {
+      const registryProfile = await tx.registryProfile.upsert({
+        where: rp.where,
+        create: { ...rp.create, payload: json(rp.create.payload) },
+        update: { ...rp.update, payload: json(rp.update.payload) },
+      });
+      const publishRecord = await tx.truthPublishRecord.upsert({
+        where: pr.where,
+        create: { ...pr.create, exportPayload: json(pr.create.exportPayload) },
+        update: { ...pr.update, exportPayload: json(pr.update.exportPayload) },
+      });
+      return { registryProfile, publishRecord, contentHash: draft.packet.contentHash, profileVersion: draft.profileVersion };
     });
   },
+
+  /**
+   * ⚠ WRITE METHOD — compatibility alias for the existing `truth-canon/[id]/publish` route.
+   * Equivalent to `approveRegistryPublishDraft` with no operator id: it PERSISTS RegistryProfile
+   * READY + a DRAFT TruthPublishRecord. NOT a preview — use `prepareRegistryPublishDraft` to
+   * review without writing.
+   */
+  async generateForCanon(canonVersionId: string, organizationId: string) {
+    return (await this.approveRegistryPublishDraft(canonVersionId, organizationId)).registryProfile;
+  },
 };
-
-function mapRegistryIndustry(industry: string): string {
-  const allowed = new Set([
-    "technology",
-    "professional-services",
-    "financial",
-    "healthcare",
-    "manufacturing",
-    "retail",
-    "construction",
-    "hospitality",
-    "transportation",
-    "education",
-    "real-estate",
-    "other",
-  ]);
-  const normalized = slugify(industry);
-  return allowed.has(normalized) ? normalized : "other";
-}
-
-function scoreRegistryQuality(payload: CanonPayload): number {
-  let score = 30;
-  if (payload.business.website) score += 10;
-  if (payload.business.description) score += 15;
-  if (payload.business.services.length > 0) score += 15;
-  if (payload.business.locations.length > 0) score += 10;
-  if (payload.business.industries.length > 0) score += 10;
-  if (payload.evidence.length > 0) score += 10;
-  return Math.min(100, score);
-}
 
 export const AuthorityArtifactService = {
   async getAuthorityMap(organizationId: string, companyProfileId?: string) {
@@ -622,7 +672,8 @@ export const AuthorityArtifactService = {
 
     const payload = canon.canonPayload as CanonPayload;
     if (format === "schemaorg") return this.buildSchemaOrg(payload);
-    if (format === "registry") return RegistryProfileService.buildPayload(payload);
+    // WP-19F: the public "registry" export is the clean entity-profile-v1.0 artifact (read-only prepare; no write).
+    if (format === "registry") return (await RegistryProfileService.prepareRegistryPublishDraft(canonVersionId, organizationId)).packet.generatedArtifact;
     if (format === "markdown") return toCanonMarkdown(payload);
     return payload;
   },
