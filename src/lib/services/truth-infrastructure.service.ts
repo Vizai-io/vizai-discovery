@@ -17,6 +17,11 @@ import {
   assertApprovable,
   type TransformerClaim,
 } from "@/lib/registry/canon-to-appshaped";
+import {
+  buildExportPackage,
+  assertMarkPublishable,
+  buildMarkPublishedWrites,
+} from "@/lib/registry/external-publish";
 import type {
   AuthoritySourceStatus,
   EvidenceSourceType,
@@ -628,6 +633,91 @@ export const RegistryProfileService = {
    */
   async generateForCanon(canonVersionId: string, organizationId: string) {
     return (await this.approveRegistryPublishDraft(canonVersionId, organizationId)).registryProfile;
+  },
+};
+
+/**
+ * WP-19G — manual external publish. EXPORT is read-only (the clean package for a human PR).
+ * MARK-PUBLISHED writes PUBLISHED statuses ONLY after a human-confirmed merge (matching contentHash).
+ * NO GitHub call, NO business-registry write, NO MCP/signal write.
+ */
+export const ExternalRegistryPublishService = {
+  /** READ-ONLY: build the export package for a READY RegistryProfile candidate. No DB write. */
+  async exportPackage(registryProfileId: string, organizationId: string) {
+    const rp = await db.registryProfile.findFirst({ where: { id: registryProfileId, organizationId } });
+    if (!rp) throw new Error("RegistryProfile not found.");
+
+    const payload = (rp.payload ?? {}) as Record<string, unknown>;
+    const version = typeof payload.profileVersion === "number" ? payload.profileVersion : undefined;
+    const tpr =
+      version !== undefined
+        ? await db.truthPublishRecord.findFirst({ where: { organizationId, companyProfileId: rp.companyProfileId, version } })
+        : await db.truthPublishRecord.findFirst({
+            where: { organizationId, companyProfileId: rp.companyProfileId, status: "DRAFT" },
+            orderBy: { version: "desc" },
+          });
+
+    return buildExportPackage({
+      registryProfileId: rp.id,
+      payload,
+      payloadHash: rp.payloadHash,
+      registryId: rp.registryId,
+      truthPublishRecordId: tpr?.id ?? null,
+      truthPublishRecordVersion: tpr?.version ?? null,
+      exportPayload: (tpr?.exportPayload as Record<string, unknown> | null) ?? null,
+    });
+  },
+
+  /**
+   * WRITES: record public publication after a human merged the business-registry PR. Validates the
+   * confirmed hash + READY/DRAFT statuses (else NO write), then flips both records to PUBLISHED and
+   * records the PR URL in existing Json/notes fields. No enum additions, no migration, no external write.
+   */
+  async markPublished(
+    registryProfileId: string,
+    organizationId: string,
+    input: { truthPublishRecordId: string; prUrl: string; confirmedContentHash: string },
+  ) {
+    const rp = await db.registryProfile.findFirst({ where: { id: registryProfileId, organizationId } });
+    if (!rp) throw new Error("RegistryProfile not found.");
+    const tpr = await db.truthPublishRecord.findFirst({ where: { id: input.truthPublishRecordId, organizationId } });
+    if (!tpr) throw new Error("TruthPublishRecord not found.");
+
+    assertMarkPublishable({
+      registryProfileStatus: rp.status,
+      truthPublishStatus: tpr.status,
+      payloadHash: rp.payloadHash,
+      confirmedContentHash: input.confirmedContentHash,
+      prUrl: input.prUrl,
+    });
+
+    const now = new Date();
+    const writes = buildMarkPublishedWrites({
+      registryProfileId: rp.id,
+      truthPublishRecordId: tpr.id,
+      prUrl: input.prUrl,
+      confirmedContentHash: input.confirmedContentHash,
+      existingExportPayload: (tpr.exportPayload as Record<string, unknown> | null) ?? null,
+      now: now.toISOString(),
+    });
+
+    return db.$transaction(async (tx) => {
+      const registryProfile = await tx.registryProfile.update({
+        where: writes.registryProfile.where,
+        data: { ...writes.registryProfile.data, publishedAt: now },
+      });
+      const publishRecord = await tx.truthPublishRecord.update({
+        where: writes.truthPublishRecord.where,
+        data: {
+          status: writes.truthPublishRecord.data.status,
+          notes: writes.truthPublishRecord.data.notes,
+          exportPayload: json(writes.truthPublishRecord.data.exportPayload),
+          publishedAt: now,
+          confirmedAt: now,
+        },
+      });
+      return { registryProfile, publishRecord };
+    });
   },
 };
 
