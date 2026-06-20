@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { ExternalPublishSection } from "./external-publish-section";
 
 type GateResult = { gate: string; status: "PASS" | "FAIL" | "PENDING" | "PREVIEW" | string; detail: string };
 type HeldClaim = { name: string; credentialType?: string | null; status?: string | null; reason?: string };
@@ -46,6 +47,8 @@ type PrepareResult = {
 };
 
 type ApproveResult = {
+  registryProfileId: string;
+  publishRecordId: string;
   registryProfileStatus: string;
   truthPublishStatus: string;
   contentHash: string;
@@ -236,11 +239,18 @@ export function RegistryPublishReviewPanel({ canonVersionId }: { canonVersionId:
         )}
 
         {approved && (
-          <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2.5">
-            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-            Candidate prepared (RegistryProfile {approved.registryProfileStatus}, TruthPublishRecord{" "}
-            {approved.truthPublishStatus}, v{approved.profileVersion}). Not externally published.
-          </div>
+          <>
+            <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2.5">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              Candidate prepared (RegistryProfile {approved.registryProfileStatus}, TruthPublishRecord{" "}
+              {approved.truthPublishStatus}, v{approved.profileVersion}). Not externally published.
+            </div>
+            <ExternalPublishSection
+              registryProfileId={approved.registryProfileId}
+              truthPublishRecordId={approved.publishRecordId}
+              contentHash={approved.contentHash}
+            />
+          </>
         )}
       </div>
     </div>
