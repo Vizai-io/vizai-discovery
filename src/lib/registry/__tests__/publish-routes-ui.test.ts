@@ -86,6 +86,18 @@ check(
   "",
 );
 
+// T6 — mount page (WP-19F-UI-MOUNT): mounts the panel, B-lineage only, warns, not in nav
+const mountPage = read("app", "(dashboard)", "monitoring", "registry-publish", "page.tsx");
+check(
+  "T6 mount page imports the panel, warns, supplies canonVersionId, not lineage A",
+  /import[^;]+RegistryPublishReviewPanel/.test(mountPage) &&
+    mountPage.includes("does not publish externally") &&
+    mountPage.includes("canonVersionId") &&
+    !/from\s+["'][^"']*truth-publish-panel/.test(mountPage) && // no actual import of the lineage-A panel
+    !/["'][^"']*\/api\/canonical-truth/.test(mountPage), // no quoted canonical-truth endpoint
+  "",
+);
+
 console.log("-".repeat(60));
 console.log(`WP-19F-UI tests: ${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
