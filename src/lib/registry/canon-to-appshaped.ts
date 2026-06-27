@@ -34,10 +34,23 @@ const ENTITY_PROFILE_CATEGORY = new Set<string>([
   "education", "real-estate", "other",
 ]);
 
+// WP-19G-VIZAI-REVISE: when a businessType/industry string is not itself a category enum value,
+// map it via conservative keyword fragments (substring match on the normalized value). The exact-enum
+// check always wins; unmatched values still fall back to "other". This lets a descriptive businessType
+// (e.g. "AI software / business intelligence platform") resolve to "technology" while profile.businessType
+// keeps the full phrase — category and businessType are independent fields in entity-profile-v1.0.
+const CATEGORY_KEYWORDS: Array<{ category: string; fragments: string[] }> = [
+  { category: "technology", fragments: ["software", "saas", "business-intelligence", "analytics", "artificial-intelligence", "fintech", "technology", "cybersecurity"] },
+];
+
 function mapCategory(raw?: string): string {
   if (!raw) return "other";
   const norm = raw.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  return ENTITY_PROFILE_CATEGORY.has(norm) ? norm : "other";
+  if (ENTITY_PROFILE_CATEGORY.has(norm)) return norm;
+  for (const { category, fragments } of CATEGORY_KEYWORDS) {
+    if (fragments.some((f) => norm.includes(f))) return category;
+  }
+  return "other";
 }
 
 function asObject(value: unknown): Record<string, unknown> {

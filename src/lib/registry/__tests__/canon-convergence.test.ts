@@ -223,6 +223,27 @@ check(
   `prepareWrite=${/\.upsert\(|\$transaction/.test(prepareBody)} approveTx=${/\$transaction/.test(approveBody)}`,
 );
 
+// T15 (WP-19G-VIZAI-REVISE) — descriptive tech businessType maps to category "technology";
+// the full businessType phrase is preserved in profile.businessType; artifact still schema-valid.
+const techInput: CanonToAppShapedInput = {
+  ...input,
+  category: "AI software / business intelligence platform",
+  claims: [
+    { category: "business_type", value: { businessType: "AI software / business intelligence platform" }, status: "VERIFIED" },
+    { category: "service", value: { service: "Business fact intake and verification" }, status: "VERIFIED" },
+    { category: "industry", value: { industry: "Business intelligence" }, status: "VERIFIED" },
+  ],
+};
+const techArt = buildPublishDraft(canonToAppShaped(techInput)).generatedArtifact;
+const techProfile = (techArt.profile ?? {}) as Record<string, unknown>;
+check(
+  "T15 tech businessType -> category technology; profile.businessType phrase preserved; schema valid",
+  techArt.category === "technology" &&
+    techProfile.businessType === "AI software / business intelligence platform" &&
+    validate(schema, techArt).length === 0,
+  JSON.stringify({ category: techArt.category, businessType: techProfile.businessType }),
+);
+
 console.log("-".repeat(60));
 console.log(`WP-19F tests: ${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
