@@ -135,6 +135,12 @@ enum TruthClaimStatus {
   ARCHIVED
 }
 
+// WP-21B / DEC-032 — immutable provenance axis, separate from lifecycle status.
+enum ClaimOrigin {
+  OBSERVED
+  DECLARED
+}
+
 enum EvidenceSourceType {
   WEBSITE
   SOCIAL_PROFILE
@@ -145,6 +151,7 @@ enum EvidenceSourceType {
   PRESS
   CUSTOMER_PROVIDED
   OTHER
+  OWNER_ATTESTATION
 }
 
 enum EvidenceSupportLevel {
@@ -700,6 +707,10 @@ model TruthClaim {
   value            Json             @default("{}")
   status           TruthClaimStatus @default(DRAFT)
   confidence       Int              @default(50)
+  origin           ClaimOrigin      @default(OBSERVED)
+  verifiedAt       DateTime?
+  verifiedBy       String?
+  publishAllowed   Boolean          @default(false)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -746,6 +757,9 @@ model TruthClaimEvidence {
   evidenceSourceId String
   supportLevel     EvidenceSupportLevel @default(MODERATE)
   notes            String?              @db.Text
+  resolvedAt       DateTime?
+  resolvedBy       String?
+  resolutionNote   String?              @db.Text
   createdAt        DateTime             @default(now())
 
   claim          TruthClaim     @relation(fields: [claimId], references: [id], onDelete: Cascade)
