@@ -24,6 +24,7 @@ import {
   BarChart2,
   Clock,
   TrendingUp,
+  KeyRound,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -312,6 +313,12 @@ export default function AdminPage() {
             <Button variant="outline" className="gap-2 border-accent text-primary font-bold bg-accent/5">
               <Briefcase className="w-4 h-4 text-accent" />
               Manage Pipeline ({stats.pendingLeads})
+            </Button>
+          </Link>
+          <Link href="/admin/api-keys">
+            <Button variant="outline" className="gap-2 border-primary/20 text-primary">
+              <KeyRound className="w-4 h-4" />
+              API Keys
             </Button>
           </Link>
           <Button

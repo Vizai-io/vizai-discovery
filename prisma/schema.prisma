@@ -245,6 +245,7 @@ model Organization {
   authoritySources         AuthoritySource[]
   driftRuns                DriftRun[]
   orgIntelligenceSnapshots OrgIntelligenceSnapshot[]
+  serviceApiKeys           ServiceApiKey[]
 
   @@map("organizations")
 }
@@ -268,6 +269,35 @@ model User {
 
   @@index([organizationId])
   @@map("users")
+}
+
+// ─────────────────────────────────────────────────
+// SERVICE API KEYS (service-to-service auth)
+// ─────────────────────────────────────────────────
+// Issued per consumer (lmo-backend, NeuroOS hub, MCP, …) from /admin/api-keys.
+// Only the SHA-256 hash of the token is stored; the plaintext token
+// (vizai_sk_…) is shown exactly once at creation. Replaces the shared
+// VIZAI_SERVICE_API_KEY env var (kept as deprecated fallback until cutover).
+
+model ServiceApiKey {
+  id             String    @id @default(cuid())
+  name           String // consumer label, e.g. "lmo-backend forwarding"
+  keyPrefix      String // display-only token prefix, e.g. "vizai_sk_ab12cd34"
+  keyHash        String    @unique // SHA-256 hex of the full token
+  organizationId String
+  role           UserRole  @default(ADMIN)
+  isActive       Boolean   @default(true) // false = revoked
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdBy      String // admin uid or email that issued the key
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@map("service_api_keys")
 }
 
 // ─────────────────────────────────────────────────

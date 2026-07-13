@@ -51,6 +51,8 @@ export const EVENT_TYPES = {
   // Admin operations
   PROVISIONING_REPLAY:           'PROVISIONING_REPLAY',
   ADMIN_ACTION:                  'ADMIN_ACTION',
+  API_KEY_CREATED:               'API_KEY_CREATED',
+  API_KEY_REVOKED:               'API_KEY_REVOKED',
 
   // System / escalation (emitted automatically by assertion escalation logic)
   SYSTEM_RUNTIME_DEGRADATION:    'SYSTEM_RUNTIME_DEGRADATION',
@@ -78,6 +80,7 @@ export const EVENT_SOURCES = {
   ONBOARDING_API:  'api:onboarding',
   AUTH_API:        'api:auth/me',
   ADMIN_USERS_API:              'api:admin/users',
+  ADMIN_API_KEYS_API:           'api:admin/api-keys',
   SYSTEM_INTERNAL:              'system:internal',  // assertion escalation, meta-health
   CRON_INTELLIGENCE_SNAPSHOT:   'cron:intelligence-snapshot',
 } as const;

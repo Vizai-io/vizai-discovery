@@ -10,6 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Search, Loader2, UserPlus, Mail, Lock, User, Building2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
+// localStorage key for the free-scan → onboarding handoff. The registration
+// redirect chain (register → /dashboard → /onboarding) drops query params, so
+// the scan context is stashed here and consumed by the onboarding page.
+const FREE_SCAN_HANDOFF_KEY = "vizai.freeScanHandoff";
+
 export default function RegisterPage() {
   const router = useRouter();
   const { user, loading: authLoading, signUp } = useAuth();
@@ -21,6 +26,29 @@ export default function RegisterPage() {
   }, [authLoading, user, router]);
   const [displayName, setDisplayName] = useState("");
   const [companyName, setCompanyName] = useState("");
+
+  // Free-scan handoff: persist scan context across the auth redirect chain.
+  // window.location.search (not useSearchParams) — avoids a Suspense boundary.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("ref") === "free-scan" && params.get("scanId")) {
+        localStorage.setItem(
+          FREE_SCAN_HANDOFF_KEY,
+          JSON.stringify({
+            scanId:       params.get("scanId"),
+            businessName: params.get("businessName") ?? "",
+            website:      params.get("website") ?? "",
+            savedAt:      Date.now(),
+          }),
+        );
+        const bn = params.get("businessName");
+        if (bn) setCompanyName((prev) => prev || bn);
+      }
+    } catch {
+      // Storage unavailable (private mode) — handoff is best-effort.
+    }
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
