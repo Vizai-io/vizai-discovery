@@ -84,10 +84,10 @@ enum NotificationType {
   BILLING_WARNING
   CONSULTATION_REQUEST_SUBMITTED
   // ── Sprint 12: Intelligence alerting ─────────────────────────────────────
-  CONTINUITY_STATE_DECLINED   // org continuity state rank dropped ≥1
-  ARCHETYPE_TRANSITION        // org moved to an at-risk operational archetype
-  INTERVENTION_REQUIRED       // intervention window reached IMMEDIATE
-  RISK_ESCALATED              // risk level crossed to HIGH or CRITICAL
+  CONTINUITY_STATE_DECLINED // org continuity state rank dropped ≥1
+  ARCHETYPE_TRANSITION // org moved to an at-risk operational archetype
+  INTERVENTION_REQUIRED // intervention window reached IMMEDIATE
+  RISK_ESCALATED // risk level crossed to HIGH or CRITICAL
 }
 
 enum NotificationSeverity {
@@ -202,6 +202,71 @@ enum DriftFindingSeverity {
   CRITICAL
 }
 
+// WP-VIZ-CRAWL-01 — registry intelligence operational control plane.
+enum RegistryTargetStatus {
+  NEW
+  RESOLVING
+  ACTIVE
+  PAUSED
+  QUARANTINED
+  ARCHIVED
+}
+
+enum RegistryAutonomyLevel {
+  MANUAL
+  SUPERVISED
+  AUTO_DISCOVERY
+  POLICY_AUTO_VERIFY
+  POLICY_AUTO_PUBLISH
+}
+
+enum CrawlRunStatus {
+  QUEUED
+  PLANNING
+  CRAWLING
+  EXTRACTING
+  ASSESSING
+  PAUSED
+  COMPLETE
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+enum CrawlTaskStatus {
+  QUEUED
+  RUNNING
+  COMPLETE
+  BLOCKED
+  RETRY
+  FAILED
+  CANCELLED
+}
+
+enum CrawlTransport {
+  STATIC_HTTP
+  BROWSER
+}
+
+enum RobotsDecision {
+  ALLOWED
+  DISALLOWED
+  UNAVAILABLE
+  UNREACHABLE
+  ERROR
+}
+
+enum CrawlStopReason {
+  FOUNDATION_FETCH_COMPLETE
+  ROBOTS_BLOCKED
+  POLICY_BLOCKED
+  BUDGET_EXHAUSTED
+  OPERATOR_PAUSED
+  OPERATOR_CANCELLED
+  FETCH_FAILED
+  INTERNAL_ERROR
+}
+
 // ─────────────────────────────────────────────────
 // ORGANIZATION
 // ─────────────────────────────────────────────────
@@ -245,6 +310,13 @@ model Organization {
   authoritySources         AuthoritySource[]
   driftRuns                DriftRun[]
   orgIntelligenceSnapshots OrgIntelligenceSnapshot[]
+  serviceApiKeys           ServiceApiKey[]
+  registryAutonomyPolicies RegistryAutonomyPolicy[]
+  registryTargets          RegistryTarget[]
+  registryCrawlRuns        RegistryCrawlRun[]
+  registryCrawlTasks       RegistryCrawlTask[]
+  registryPageSnapshots    RegistryPageSnapshot[]
+  registryAgentDecisions   RegistryAgentDecision[]
 
   @@map("organizations")
 }
@@ -268,6 +340,36 @@ model User {
 
   @@index([organizationId])
   @@map("users")
+}
+
+// ─────────────────────────────────────────────────
+// SERVICE API KEYS (service-to-service auth)
+// ─────────────────────────────────────────────────
+// Issued per consumer (lmo-backend, NeuroOS hub, MCP, …) from /admin/api-keys.
+// Only the SHA-256 hash of the token is stored; the plaintext token
+// (vizai_sk_…) is shown exactly once at creation. Replaces the shared
+// VIZAI_SERVICE_API_KEY env var (kept as deprecated fallback until cutover).
+
+model ServiceApiKey {
+  id             String    @id @default(cuid())
+  name           String // consumer label, e.g. "lmo-backend forwarding"
+  keyPrefix      String // display-only token prefix, e.g. "vizai_sk_ab12cd34"
+  keyHash        String    @unique // SHA-256 hex of the full token
+  organizationId String
+  role           UserRole  @default(ADMIN)
+  scopes         String[]  @default([]) // explicit service capabilities, e.g. registry:read
+  isActive       Boolean   @default(true) // false = revoked
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdBy      String // admin uid or email that issued the key
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@map("service_api_keys")
 }
 
 // ─────────────────────────────────────────────────
@@ -306,6 +408,7 @@ model CompanyProfile {
   registryProfiles    RegistryProfile[]
   authoritySources    AuthoritySource[]
   driftRuns           DriftRun[]
+  registryTargets     RegistryTarget[]
 
   @@index([organizationId])
   @@index([businessName])
@@ -432,7 +535,7 @@ model ScanReport {
 
 model Recommendation {
   id                String    @id @default(cuid())
-  perceptionScanId  String?   // nullable — intelligence-sourced recs have no scan
+  perceptionScanId  String? // nullable — intelligence-sourced recs have no scan
   priority          Priority
   category          String
   title             String
@@ -577,10 +680,10 @@ model Notification {
   archivedAt DateTime?
 
   // Sprint 16 — Alert resolution workflow
-  acknowledgedAt  DateTime?
-  resolvedAt      DateTime?
-  resolvedBy      String?    // admin userId
-  resolutionNote  String?    @db.Text
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  resolvedBy     String? // admin userId
+  resolutionNote String?   @db.Text
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -657,12 +760,12 @@ model TruthCanonVersion {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  companyProfile CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Restrict)
-  entities       TruthEntity[]
-  claims         TruthClaim[]
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile   CompanyProfile    @relation(fields: [companyProfileId], references: [id], onDelete: Restrict)
+  entities         TruthEntity[]
+  claims           TruthClaim[]
   registryProfiles RegistryProfile[]
-  driftRuns      DriftRun[]
+  driftRuns        DriftRun[]
 
   @@unique([companyProfileId, version])
   @@index([organizationId, status])
@@ -714,10 +817,10 @@ model TruthClaim {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  companyProfile CompanyProfile     @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
-  canonVersion   TruthCanonVersion? @relation(fields: [canonVersionId], references: [id], onDelete: SetNull)
-  entity         TruthEntity?       @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile       @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  canonVersion   TruthCanonVersion?   @relation(fields: [canonVersionId], references: [id], onDelete: SetNull)
+  entity         TruthEntity?         @relation(fields: [entityId], references: [id], onDelete: SetNull)
   evidenceLinks  TruthClaimEvidence[]
 
   @@index([organizationId, status])
@@ -741,8 +844,8 @@ model EvidenceSource {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  companyProfile CompanyProfile      @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile       @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
   claimLinks     TruthClaimEvidence[]
 
   @@index([organizationId, type])
@@ -811,25 +914,25 @@ model RegistryProfile {
   companyProfile CompanyProfile     @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
   canonVersion   TruthCanonVersion? @relation(fields: [canonVersionId], references: [id], onDelete: SetNull)
 
+  @@unique([organizationId, registryId])
   @@index([organizationId, status])
   @@index([companyProfileId])
-  @@unique([organizationId, registryId])
   @@map("registry_profiles")
 }
 
 model AuthoritySource {
-  id               String                @id @default(cuid())
-  organizationId   String
-  companyProfileId String
-  type             EvidenceSourceType
-  name             String
-  url              String?
-  status           AuthoritySourceStatus @default(PLANNED)
-  recommendedAction String?              @db.Text
-  lastCheckedAt    DateTime?
-  metadata         Json                  @default("{}")
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  id                String                @id @default(cuid())
+  organizationId    String
+  companyProfileId  String
+  type              EvidenceSourceType
+  name              String
+  url               String?
+  status            AuthoritySourceStatus @default(PLANNED)
+  recommendedAction String?               @db.Text
+  lastCheckedAt     DateTime?
+  metadata          Json                  @default("{}")
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   companyProfile CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
@@ -840,16 +943,16 @@ model AuthoritySource {
 }
 
 model DriftRun {
-  id               String         @id @default(cuid())
+  id               String                @id @default(cuid())
   organizationId   String
   companyProfileId String
   canonVersionId   String?
   perceptionScanId String?
-  status           DriftRunStatus @default(COMPLETE)
+  status           DriftRunStatus        @default(COMPLETE)
   overallSeverity  DriftFindingSeverity?
-  summary          String         @db.Text
-  metadata         Json           @default("{}")
-  createdAt        DateTime       @default(now())
+  summary          String                @db.Text
+  metadata         Json                  @default("{}")
+  createdAt        DateTime              @default(now())
 
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   companyProfile CompanyProfile     @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
@@ -876,6 +979,231 @@ model DriftFinding {
 
   @@index([driftRunId, severity])
   @@map("drift_findings")
+}
+
+// ─────────────────────────────────────────────────
+// REGISTRY INTELLIGENCE (WP-VIZ-CRAWL-01)
+// ─────────────────────────────────────────────────
+
+model RegistryAutonomyPolicy {
+  id                       String                @id @default(cuid())
+  organizationId           String
+  name                     String
+  version                  Int                   @default(1)
+  isActive                 Boolean               @default(false)
+  level                    RegistryAutonomyLevel @default(MANUAL)
+  maySchedule              Boolean               @default(false)
+  mayDiscoverSources       Boolean               @default(false)
+  mayUseBrowser            Boolean               @default(false)
+  mayCreateEvidence        Boolean               @default(true)
+  mayCreateClaimCandidates Boolean               @default(false)
+  mayVerifyObservedClaims  Boolean               @default(false)
+  maySetPublishAllowed     Boolean               @default(false)
+  mayPrepareRegistry       Boolean               @default(false)
+  mayCreatePullRequest     Boolean               @default(false)
+  mayMergePullRequest      Boolean               @default(false)
+  allowedSourceClasses     String[]              @default([])
+  allowedClaimCategories   String[]              @default([])
+  budgets                  Json                  @default("{}")
+  thresholds               Json                  @default("{}")
+  canaryPercentage         Int                   @default(0)
+  policyHash               String
+  approvedBy               String?
+  approvedAt               DateTime?
+  createdAt                DateTime              @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  targets      RegistryTarget[]
+  crawlRuns    RegistryCrawlRun[]
+
+  @@unique([organizationId, name, version])
+  @@unique([organizationId, policyHash])
+  @@index([organizationId, isActive])
+  @@map("registry_autonomy_policies")
+}
+
+model RegistryTarget {
+  id                    String               @id @default(cuid())
+  organizationId        String
+  companyProfileId      String?
+  autonomyPolicyId      String
+  businessName          String
+  canonicalUrl          String
+  canonicalDomain       String
+  status                RegistryTargetStatus @default(NEW)
+  entityResolutionState String               @default("UNRESOLVED")
+  entityConfidence      Int?
+  freshnessHours        Int                  @default(720)
+  lastCrawledAt         DateTime?
+  nextCrawlAt           DateTime?
+  quarantineReason      String?              @db.Text
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  companyProfile CompanyProfile?         @relation(fields: [companyProfileId], references: [id], onDelete: SetNull)
+  autonomyPolicy RegistryAutonomyPolicy  @relation(fields: [autonomyPolicyId], references: [id], onDelete: Restrict)
+  crawlRuns      RegistryCrawlRun[]
+  pageSnapshots  RegistryPageSnapshot[]
+  agentDecisions RegistryAgentDecision[]
+
+  @@unique([organizationId, canonicalDomain])
+  @@index([organizationId, status])
+  @@index([companyProfileId])
+  @@index([nextCrawlAt])
+  @@map("registry_targets")
+}
+
+model RegistryCrawlRun {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  targetId           String
+  autonomyPolicyId   String
+  triggerType        String           @default("MANUAL")
+  triggeredBy        String
+  objective          String           @db.Text
+  status             CrawlRunStatus   @default(QUEUED)
+  priority           Int              @default(0)
+  policyHash         String
+  plannerVersion     String?
+  extractorVersion   String?
+  schemaVersion      String           @default("1")
+  traceId            String           @unique
+  commandCenterRunId String?
+  queueJobId         String?          @unique
+  budgetAllocated    Json             @default("{}")
+  budgetConsumed     Json             @default("{}")
+  coverageBefore     Json             @default("{}")
+  coverageAfter      Json             @default("{}")
+  stopReason         CrawlStopReason?
+  summary            String?          @db.Text
+  errorCode          String?
+  errorMessage       String?          @db.Text
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  target         RegistryTarget          @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  autonomyPolicy RegistryAutonomyPolicy  @relation(fields: [autonomyPolicyId], references: [id], onDelete: Restrict)
+  tasks          RegistryCrawlTask[]
+  pageSnapshots  RegistryPageSnapshot[]
+  agentDecisions RegistryAgentDecision[]
+
+  @@index([organizationId, status])
+  @@index([targetId, createdAt(sort: Desc)])
+  @@index([status, priority, createdAt])
+  @@map("registry_crawl_runs")
+}
+
+model RegistryCrawlTask {
+  id                 String          @id @default(cuid())
+  organizationId     String
+  runId              String
+  normalizedUrl      String          @db.Text
+  urlHash            String
+  sourceClass        String          @default("FIRST_PARTY")
+  purpose            String          @default("FOUNDATION_FETCH")
+  depth              Int             @default(0)
+  parentUrl          String?         @db.Text
+  requestedTransport CrawlTransport  @default(STATIC_HTTP)
+  actualTransport    CrawlTransport?
+  status             CrawlTaskStatus @default(QUEUED)
+  priority           Int             @default(0)
+  robotsDecision     RobotsDecision?
+  eligibilityReason  String?         @db.Text
+  idempotencyKey     String          @unique
+  attemptCount       Int             @default(0)
+  maxAttempts        Int             @default(3)
+  lastErrorCode      String?
+  lastErrorMessage   String?         @db.Text
+  scheduledAt        DateTime        @default(now())
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  organization  Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  run           RegistryCrawlRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  pageSnapshots RegistryPageSnapshot[]
+  decisions     RegistryAgentDecision[]
+
+  @@unique([runId, urlHash, purpose])
+  @@index([organizationId, status])
+  @@index([runId, status])
+  @@map("registry_crawl_tasks")
+}
+
+model RegistryPageSnapshot {
+  id                      String         @id @default(cuid())
+  organizationId          String
+  targetId                String
+  runId                   String
+  crawlTaskId             String?
+  normalizedUrl           String         @db.Text
+  urlHash                 String
+  finalUrl                String         @db.Text
+  retrievedAt             DateTime       @default(now())
+  sourceDate              DateTime?
+  httpStatus              Int
+  mimeType                String
+  sizeBytes               Int
+  contentHash             String
+  textHash                String?
+  objectKey               String?
+  normalizedTextObjectKey String?
+  redirectChain           Json           @default("[]")
+  robotsDecision          RobotsDecision
+  fetchMetadata           Json           @default("{}")
+  parserVersion           String         @default("foundation-v1")
+  retentionClass          String         @default("STANDARD")
+  deletedAt               DateTime?
+  createdAt               DateTime       @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  target       RegistryTarget     @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  run          RegistryCrawlRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  crawlTask    RegistryCrawlTask? @relation(fields: [crawlTaskId], references: [id], onDelete: SetNull)
+
+  @@unique([targetId, urlHash, contentHash])
+  @@index([organizationId, retrievedAt])
+  @@index([runId])
+  @@index([contentHash])
+  @@map("registry_page_snapshots")
+}
+
+model RegistryAgentDecision {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  targetId           String
+  runId              String
+  crawlTaskId        String?
+  step               String
+  decisionType       String
+  inputHash          String
+  result             Json     @default("{}")
+  rationale          String   @db.Text
+  ruleIds            String[] @default([])
+  modelProvider      String?
+  modelName          String?
+  modelVersion       String?
+  promptTemplateHash String?
+  policyHash         String
+  traceId            String
+  costMicros         Int      @default(0)
+  latencyMs          Int?
+  createdAt          DateTime @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  target       RegistryTarget     @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  run          RegistryCrawlRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  crawlTask    RegistryCrawlTask? @relation(fields: [crawlTaskId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([runId, createdAt])
+  @@index([traceId])
+  @@map("registry_agent_decisions")
 }
 
 // ─────────────────────────────────────────────────
@@ -979,37 +1307,37 @@ model OrgIntelligenceSnapshot {
   id             String   @id @default(cuid())
   organizationId String
   snapshotAt     DateTime @default(now())
-  windowDays     Int      // 30 | 90 | 365
+  windowDays     Int // 30 | 90 | 365
 
   // Archetype (Sprint 9 Task 3)
-  archetype           String  // OperationalArchetypeType
-  archetypeStability  String  // STABLE | TRANSITIONING | VOLATILE
-  archetypeConfidence String  // LOW | MEDIUM | HIGH
+  archetype           String // OperationalArchetypeType
+  archetypeStability  String // STABLE | TRANSITIONING | VOLATILE
+  archetypeConfidence String // LOW | MEDIUM | HIGH
 
   // Continuity state (Sprint 8 Task 1)
-  continuityState   String  // OPTIMIZING | STABLE | WATCHING | FRAGMENTED | CRITICAL
+  continuityState   String // OPTIMIZING | STABLE | WATCHING | FRAGMENTED | CRITICAL
   projectedState30d String
   projectedState90d String
-  continuityTrend   String  // IMPROVING | STABLE | DECLINING
-  forecastStability String  // STABLE | VOLATILE | UNSTABLE
+  continuityTrend   String // IMPROVING | STABLE | DECLINING
+  forecastStability String // STABLE | VOLATILE | UNSTABLE
 
   // Resilience (Sprint 8 Task 3)
   resilienceScore Int
-  resilienceState String  // RESILIENT | RECOVERING | FRAGILE | UNSTABLE
+  resilienceState String // RESILIENT | RECOVERING | FRAGILE | UNSTABLE
 
   // Risk (Sprint 8 Task 5)
-  riskLevel String  // LOW | MEDIUM | HIGH | CRITICAL
+  riskLevel String // LOW | MEDIUM | HIGH | CRITICAL
 
   // Trajectory (Sprint 8 Task 2)
   trajectoryType String
   momentum       String
 
   // Intervention (Sprint 8 Task 4)
-  interventionWindow String  // IMMEDIATE | SHORT_TERM | MONITOR | LOW_PRIORITY
+  interventionWindow String // IMMEDIATE | SHORT_TERM | MONITOR | LOW_PRIORITY
 
   // Validation (Sprint 9 Task 1) — nullable, populated when replay data is sufficient
-  validationResult    String?  // ACCURATE | PARTIALLY_ACCURATE | INACCURATE
-  forecastCalibration String?  // WELL_CALIBRATED | OVERCALIBRATED | UNDERCALIBRATED
+  validationResult    String? // ACCURATE | PARTIALLY_ACCURATE | INACCURATE
+  forecastCalibration String? // WELL_CALIBRATED | OVERCALIBRATED | UNDERCALIBRATED
   divergenceScore     Int?
 
   forecastVersion String @default("v1")

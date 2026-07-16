@@ -53,6 +53,18 @@ type PgLead = {
   updatedAt:      string;
 };
 
+// Free-scan lead shape (WP-22 single lead store — scans under the free-scan org)
+type FreeScanLead = {
+  scanId:         string;
+  businessName:   string;
+  website:        string | null;
+  email:          string | null;
+  requestContact: boolean;
+  overallScore:   number | null;
+  source:         'website' | 'platform';
+  createdAt:      string;
+};
+
 const STATUS_CONFIGS: Record<string, { label: string; className: string }> = {
   pending:          { label: 'New Lead',       className: 'bg-blue-50 text-blue-700 border-blue-200' },
   reviewed:         { label: 'Reviewed',       className: 'bg-purple-50 text-purple-700 border-purple-200' },
@@ -71,6 +83,7 @@ function getStatusBadge(status: string) {
 
 export default function LeadsAdminPage() {
   const [leads, setLeads] = useState<PgLead[]>([]);
+  const [freeScanLeads, setFreeScanLeads] = useState<FreeScanLead[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchLeads = async () => {
@@ -80,6 +93,7 @@ export default function LeadsAdminPage() {
       if (!res.ok) throw new Error(`API error ${res.status}`);
       const data = await res.json();
       setLeads(data.leads);
+      setFreeScanLeads(data.freeScanLeads ?? []);
     } catch (e) {
       console.error("Error fetching leads:", e);
       toast({ title: "Load Error", description: "Could not fetch consultation pipeline.", variant: "destructive" });
@@ -257,6 +271,117 @@ export default function LeadsAdminPage() {
                 </Table>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Free scan leads — WP-22 single lead store (D1) */}
+        <Card className="border-none shadow-sm overflow-hidden bg-white">
+          <CardHeader className="border-b bg-muted/10 py-4 px-8 flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-lg font-bold text-primary">Free Scan Leads</CardTitle>
+              <CardDescription className="text-xs">
+                Website and platform free scans with captured contact details — free-scan org, Postgres source.
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Badge variant="outline" className="text-[10px]">
+                {freeScanLeads.length} total
+              </Badge>
+              <Badge className="border bg-amber-50 text-amber-700 border-amber-200 text-[10px]">
+                {freeScanLeads.filter(l => l.requestContact).length} contact requested
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead className="pl-8 font-bold uppercase text-[10px] tracking-widest">Scan Date</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] tracking-widest">Business</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] tracking-widest">Contact</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] tracking-widest">Score</TableHead>
+                    <TableHead className="font-bold uppercase text-[10px] tracking-widest">Source</TableHead>
+                    <TableHead className="pr-8 font-bold uppercase text-[10px] tracking-widest text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {freeScanLeads.map((lead) => (
+                    <TableRow key={lead.scanId} className="hover:bg-muted/20 transition-colors group">
+                      <TableCell className="pl-8 py-5">
+                        <div className="text-sm font-medium">
+                          {new Date(lead.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {new Date(lead.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-bold text-primary">{lead.businessName}</div>
+                        {lead.website && (
+                          <div className="text-[10px] text-muted-foreground truncate max-w-[200px]">{lead.website}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs font-medium flex items-center gap-1">
+                          <Mail className="w-2.5 h-2.5 text-muted-foreground" /> {lead.email ?? '—'}
+                        </div>
+                        {lead.requestContact && (
+                          <Badge className="mt-1 border bg-amber-50 text-amber-700 border-amber-200 text-[9px]">
+                            Contact requested
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-black text-primary">
+                          {lead.overallScore != null ? Math.round(lead.overallScore) : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {lead.source === 'website' ? (
+                          <Badge className="border bg-blue-50 text-blue-700 border-blue-200 text-[10px]">Website scan</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">Platform teaser</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="pr-8 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="w-4 h-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Lead Actions</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              disabled={!lead.email}
+                              onClick={() => {
+                                if (lead.email) {
+                                  navigator.clipboard.writeText(lead.email);
+                                  toast({ title: "Email Copied" });
+                                }
+                              }}
+                            >
+                              Copy Email
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <a href={`/free-scan/results/${lead.scanId}`} target="_blank" rel="noreferrer">
+                                <ExternalLink className="w-3 h-3 mr-1" /> View Teaser Page
+                              </a>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {freeScanLeads.length === 0 && !loading && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-16 text-center text-muted-foreground italic">
+                        No free scan leads yet. Website scans appear here once lmo-backend forwarding is activated.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </main>

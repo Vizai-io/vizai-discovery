@@ -32,6 +32,11 @@ export default function OnboardingPage() {
   );
 }
 
+// Handoff stashed by /auth/register (see FREE_SCAN_HANDOFF_KEY there) — the
+// register → dashboard → onboarding redirect chain drops query params.
+const FREE_SCAN_HANDOFF_KEY = "vizai.freeScanHandoff";
+const HANDOFF_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 function OnboardingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,18 +44,43 @@ function OnboardingContent() {
   const [orgName, setOrgName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [freeScanId, setFreeScanId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fromFreeScan = searchParams.get("ref") === "free-scan";
+  const fromFreeScan = searchParams.get("ref") === "free-scan" || freeScanId !== null;
 
   useEffect(() => {
     const bn = searchParams.get("businessName");
     const ws = searchParams.get("website");
+    const sid = searchParams.get("scanId");
     if (bn && !businessName) {
       setBusinessName(bn);
       setOrgName(bn);
     }
     if (ws && !websiteUrl) setWebsiteUrl(ws);
+    if (sid) {
+      setFreeScanId(sid);
+      return;
+    }
+
+    // No scan context in the URL — fall back to the register-page handoff.
+    try {
+      const raw = localStorage.getItem(FREE_SCAN_HANDOFF_KEY);
+      if (!raw) return;
+      const handoff = JSON.parse(raw);
+      if (!handoff?.scanId || Date.now() - (handoff.savedAt ?? 0) > HANDOFF_MAX_AGE_MS) {
+        localStorage.removeItem(FREE_SCAN_HANDOFF_KEY);
+        return;
+      }
+      setFreeScanId(handoff.scanId);
+      if (handoff.businessName && !businessName) {
+        setBusinessName(handoff.businessName);
+        setOrgName(handoff.businessName);
+      }
+      if (handoff.website && !websiteUrl) setWebsiteUrl(handoff.website);
+    } catch {
+      // Storage unavailable or malformed — onboarding proceeds without a claim.
+    }
   }, [searchParams]);
 
   async function handleSubmit(e: FormEvent) {
@@ -75,6 +105,7 @@ function OnboardingContent() {
           org_name: orgName.trim(),
           business_name: businessName.trim(),
           website_url: websiteUrl.trim() || undefined,
+          free_scan_id: freeScanId ?? undefined,
         }),
       });
 
@@ -90,6 +121,11 @@ function OnboardingContent() {
         return;
       }
 
+      try {
+        localStorage.removeItem(FREE_SCAN_HANDOFF_KEY);
+      } catch {
+        // Non-fatal — stale handoffs expire on their own.
+      }
       router.replace("/companies");
     } catch {
       setError("An unexpected error occurred. Please try again.");

@@ -3,8 +3,12 @@
  *
  * STATUS: MIGRATED (Sprint 3 Task 1) — Firestore eliminated.
  *
- * Reads from GET /api/free-scan/[id] (Postgres, free-scan org only).
- * No Firebase imports. No onSnapshot. No Firestore reads.
+ * Reads the scan directly from Postgres (free-scan org only) — no HTTP
+ * self-fetch. The previous implementation fetched its own API via
+ * NEXT_PUBLIC_APP_URL, which 404'd the whole funnel whenever that env var
+ * didn't match the serving origin (e.g. local dev on a non-default port).
+ * GET /api/free-scan/[id] remains the public API surface; this page and that
+ * route share the same query shape.
  *
  * This page is an AI discoverability surface (Refinement 6):
  * - Public, indexable
@@ -13,30 +17,58 @@
  *
  * Lifecycle:
  *   free-scan submit → results (this page, teaser) → register CTA → onboarding → dashboard
+ *
+ * The register CTA carries ref/scanId/businessName/website params so the
+ * onboarding step can pre-fill and claim the scan into the new org.
  */
 
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cache } from "react";
+import { db } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Lock, Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
 
-// ── Data fetch (server-side) ──────────────────────────────────────────────────
+// ── Data fetch (direct Postgres read, deduped across metadata + page) ────────
 
-async function getFreeScanResult(id: string) {
+const getFreeScanResult = cache(async (id: string) => {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/free-scan/${id}`,
-      { cache: "no-store" },
-    );
-    if (!res.ok) return null;
-    return await res.json();
+    const scan = await db.perceptionScan.findFirst({
+      where: { id, organizationId: "free-scan" },
+      select: {
+        id:     true,
+        status: true,
+        companyProfile: {
+          select: { businessName: true, websiteUrl: true },
+        },
+        scanReport: {
+          select: { jsonReport: true },
+        },
+      },
+    });
+
+    if (!scan) return null;
+
+    const jsonReport = scan.scanReport?.jsonReport as any;
+    // Platform mock scans store overallScore at the top level; lmo-backend
+    // intake scans store it under scores.overall.
+    const overallScore: number | null =
+      jsonReport?.overallScore ?? jsonReport?.scores?.overall ?? null;
+
+    return {
+      scanId:       scan.id,
+      status:       scan.status,
+      businessName: scan.companyProfile?.businessName ?? null,
+      websiteUrl:   scan.companyProfile?.websiteUrl ?? null,
+      overallScore,
+    };
   } catch {
     return null;
   }
-}
+});
 
 // ── Metadata (Refinement 6: SEO + OG for discoverability) ────────────────────
 
@@ -98,6 +130,13 @@ export default async function FreeScanTeaserPage(
   const businessName: string = data.businessName ?? "Your Business";
   const overallScore: number = data.overallScore ?? 0;
 
+  // Register CTA carries the scan context so onboarding can pre-fill and
+  // claim this scan into the newly created organization.
+  const registerParams = new URLSearchParams({ ref: "free-scan", scanId: data.scanId });
+  if (data.businessName) registerParams.set("businessName", data.businessName);
+  if (data.websiteUrl) registerParams.set("website", data.websiteUrl);
+  const registerHref = `/auth/register?${registerParams.toString()}`;
+
   return (
     <div className="min-h-screen bg-background flex flex-col pb-20">
       <header className="px-6 py-4 flex items-center justify-between border-b bg-white">
@@ -150,7 +189,7 @@ export default async function FreeScanTeaserPage(
                 competitor deep-dives, and strategic implementation plans.
               </p>
             </div>
-            <Link href="/auth/register" className="w-full max-w-xs">
+            <Link href={registerHref} className="w-full max-w-xs">
               <Button className="w-full h-14 bg-primary text-white font-black text-lg gap-2 shadow-2xl rounded-full">
                 <Sparkles className="w-5 h-5 text-accent" /> Create Account for Full Access
               </Button>

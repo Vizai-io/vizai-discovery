@@ -65,7 +65,9 @@ export async function GET(
     }
 
     const jsonReport = scan.scanReport?.jsonReport as any;
-    const overallScore: number = jsonReport?.overallScore ?? null;
+    // Platform mock scans store overallScore at the top level; lmo-backend
+    // intake scans store it under scores.overall.
+    const overallScore: number = jsonReport?.overallScore ?? jsonReport?.scores?.overall ?? null;
 
     console.log('[free-scan/get] Result fetched', {
       traceId,

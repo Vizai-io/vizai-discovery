@@ -8,18 +8,25 @@
  *   1. Creates the Organization
  *   2. Assigns the authenticated user to the new org
  *   3. Creates the first CompanyProfile under the new org
+ *   4. Claims the originating free scan, if one was handed off — the
+ *      PerceptionScan moves from the 'free-scan' sentinel org into the new
+ *      org and attaches to the new profile, so the customer's scan history
+ *      starts with the scan that brought them here. Invalid or already
+ *      claimed scan ids are ignored (never fail onboarding over a claim).
  *
  * Request body:
  * {
  *   org_name: string,       // required — organization display name
  *   business_name: string,  // required — first company profile name
  *   website_url?: string,   // optional
+ *   free_scan_id?: string,  // optional — PerceptionScan id from the free-scan funnel
  * }
  *
  * Response (201):
  * {
  *   org_id: string,
  *   profile_id: string,
+ *   claimed_scan_id: string | null,
  * }
  */
 
@@ -56,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { org_name, business_name, website_url } = body;
+    const { org_name, business_name, website_url, free_scan_id } = body;
 
     // ── Validate required fields ──────────────────────────────
     if (!org_name || typeof org_name !== "string" || org_name.trim().length === 0) {
@@ -77,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Atomic setup ──────────────────────────────────────────
-    const { organization, profile } = await db.$transaction(async (tx) => {
+    const { organization, profile, claimedScanId } = await db.$transaction(async (tx) => {
       // 1. Create organization (STARTER tier by default)
       const organization = await tx.organization.create({
         data: {
@@ -103,7 +110,42 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      return { organization, profile };
+      // 4. Claim the originating free scan into the new org (best-effort).
+      //    Only scans still under the 'free-scan' sentinel org are claimable —
+      //    a scan already claimed elsewhere is silently skipped.
+      let claimedScanId: string | null = null;
+      if (typeof free_scan_id === "string" && free_scan_id.trim().length > 0) {
+        const freeScan = await tx.perceptionScan.findFirst({
+          where: { id: free_scan_id.trim(), organizationId: "free-scan" },
+          select: { id: true, companyProfileId: true },
+        });
+
+        if (freeScan) {
+          await tx.perceptionScan.update({
+            where: { id: freeScan.id },
+            data: {
+              organizationId: organization.id,
+              companyProfileId: profile.id,
+            },
+          });
+          claimedScanId = freeScan.id;
+
+          // The free-scan funnel creates one sentinel CompanyProfile per scan.
+          // Once its only scan moves out, remove the now-orphaned lead profile.
+          if (freeScan.companyProfileId) {
+            const remaining = await tx.perceptionScan.count({
+              where: { companyProfileId: freeScan.companyProfileId },
+            });
+            if (remaining === 0) {
+              await tx.companyProfile.delete({
+                where: { id: freeScan.companyProfileId },
+              });
+            }
+          }
+        }
+      }
+
+      return { organization, profile, claimedScanId };
     });
 
     // Onboarding milestone notification (fire-and-forget, one-time ever)
@@ -123,10 +165,12 @@ export async function POST(request: NextRequest) {
       entityId:       organization.id,
       message:        `Onboarding completed for org "${organization.name}"`,
       metadata: {
-        orgName:      organization.name,
-        orgSlug:      organization.slug,
-        profileId:    profile.id,
-        businessName: profile.businessName,
+        orgName:        organization.name,
+        orgSlug:        organization.slug,
+        profileId:      profile.id,
+        businessName:   profile.businessName,
+        claimedScanId:  claimedScanId,
+        cameFromFreeScan: claimedScanId !== null,
       },
     });
 
@@ -136,6 +180,7 @@ export async function POST(request: NextRequest) {
         org_name: organization.name,
         profile_id: profile.id,
         business_name: profile.businessName,
+        claimed_scan_id: claimedScanId,
       },
       { status: 201 },
     );
