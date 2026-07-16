@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import crypto from 'node:crypto';
 import { requireAdmin, SERVICE_KEY_PREFIX } from '@/lib/auth/get-auth-context';
+import { REGISTRY_SCOPES } from '@/lib/auth/registry-scope';
 import { db } from '@/lib/db';
 import { OperationalEventService, EVENT_TYPES, EVENT_SOURCES, SEVERITIES } from '@/lib/services/operational-event-service';
 
@@ -36,6 +37,7 @@ const KEY_SELECT = {
   name:           true,
   keyPrefix:      true,
   role:           true,
+  scopes:         true,
   organizationId: true,
   isActive:       true,
   expiresAt:      true,
@@ -77,6 +79,7 @@ const CreateSchema = z.object({
   name:            z.string().min(2).max(100),
   organization_id: z.string().min(1),
   role:            z.enum(['ADMIN', 'CLIENT']).optional().default('ADMIN'),
+  scopes:          z.array(z.enum(REGISTRY_SCOPES)).max(REGISTRY_SCOPES.length).optional().default([]),
   expires_in_days: z.number().int().min(1).max(3650).nullish(),
 });
 
@@ -114,6 +117,7 @@ export async function POST(req: NextRequest) {
         keyHash:        hashToken(token),
         organizationId: org.id,
         role:           input.role,
+        scopes:         Array.from(new Set(input.scopes)),
         expiresAt:      input.expires_in_days
           ? new Date(Date.now() + input.expires_in_days * 24 * 60 * 60 * 1000)
           : null,
@@ -134,6 +138,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         keyPrefix: key.keyPrefix,
         role:      key.role,
+        scopes:    key.scopes,
         expiresAt: key.expiresAt?.toISOString() ?? null,
         createdBy: auth.email,
       },

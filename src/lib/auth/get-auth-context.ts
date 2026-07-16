@@ -45,6 +45,9 @@ export interface AuthContext {
   email: string;
   role: UserRole;
   organizationId: string;
+  authMode: "session" | "service";
+  scopes: string[];
+  serviceKeyId?: string;
 }
 
 /**
@@ -92,6 +95,7 @@ async function tryDbKeyAuth(token: string): Promise<AuthContext | null> {
         id:             true,
         role:           true,
         organizationId: true,
+        scopes:         true,
         isActive:       true,
         expiresAt:      true,
         lastUsedAt:     true,
@@ -113,6 +117,9 @@ async function tryDbKeyAuth(token: string): Promise<AuthContext | null> {
       email: `service+${key.id}@vizai.io`,
       role: key.role,
       organizationId: key.organizationId,
+      authMode: "service",
+      scopes: key.scopes,
+      serviceKeyId: key.id,
     };
   } catch {
     return null;
@@ -148,6 +155,11 @@ function tryLegacyEnvKeyAuth(token: string): AuthContext | null {
     email: "neuroos@vizai.io",
     role: "ADMIN" as UserRole,
     organizationId: serviceOrgId,
+    authMode: "service",
+    scopes: (process.env.VIZAI_SERVICE_SCOPES ?? "registry:read,registry:run")
+      .split(",")
+      .map((scope) => scope.trim())
+      .filter(Boolean),
   };
 }
 
@@ -185,6 +197,8 @@ async function trySupabaseAuth(): Promise<AuthContext | null> {
       email: dbUser.email,
       role: dbUser.role,
       organizationId: dbUser.organizationId,
+      authMode: "session",
+      scopes: [],
     };
   } catch {
     return null;

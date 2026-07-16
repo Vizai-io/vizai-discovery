@@ -39,8 +39,12 @@ next-env.d.ts
 
 .genkit/*
 .env*
+!.env.example
 
 # firebase
 firebase-debug.log
 firestore-debug.log
 /src/generated/prisma
+
+# Registry Intelligence local content-addressed snapshots
+.registry-snapshots/

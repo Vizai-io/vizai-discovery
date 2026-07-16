@@ -63,6 +63,14 @@ export const EVENT_TYPES = {
 
   // Sprint 10 — Intelligence snapshot cron
   INTELLIGENCE_SNAPSHOT_COMPLETED: 'INTELLIGENCE_SNAPSHOT_COMPLETED',
+
+  // WP-VIZ-CRAWL-01 — Registry Intelligence foundation
+  REGISTRY_TARGET_CREATED:              'REGISTRY_TARGET_CREATED',
+  REGISTRY_CRAWL_RUN_PLANNED:           'REGISTRY_CRAWL_RUN_PLANNED',
+  REGISTRY_CRAWL_PAGE_FETCHED:          'REGISTRY_CRAWL_PAGE_FETCHED',
+  REGISTRY_CRAWL_PAGE_BLOCKED:          'REGISTRY_CRAWL_PAGE_BLOCKED',
+  REGISTRY_POLICY_CIRCUIT_BREAKER_OPENED: 'REGISTRY_POLICY_CIRCUIT_BREAKER_OPENED',
+  REGISTRY_RUN_COMPLETED:               'REGISTRY_RUN_COMPLETED',
 } as const;
 
 export type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES];
@@ -83,6 +91,8 @@ export const EVENT_SOURCES = {
   ADMIN_API_KEYS_API:           'api:admin/api-keys',
   SYSTEM_INTERNAL:              'system:internal',  // assertion escalation, meta-health
   CRON_INTELLIGENCE_SNAPSHOT:   'cron:intelligence-snapshot',
+  REGISTRY_INTELLIGENCE_API:    'api:registry-intelligence',
+  REGISTRY_INTELLIGENCE_WORKER: 'worker:registry-intelligence',
 } as const;
 
 export type EventSource = (typeof EVENT_SOURCES)[keyof typeof EVENT_SOURCES];
