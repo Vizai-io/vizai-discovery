@@ -3,6 +3,7 @@ import {
   Prisma,
   type CrawlRunStatus,
   type RegistryAutonomyPolicy,
+  type RegistryCrawlRun,
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
@@ -174,29 +175,42 @@ export async function createCrawlRun(input: {
   if (active) return { run: active, created: false };
 
   const traceId = crypto.randomUUID();
-  const run = await db.registryCrawlRun.create({
-    data: {
-      organizationId: input.organizationId,
-      targetId: target.id,
-      autonomyPolicyId: target.autonomyPolicyId,
-      triggeredBy: input.triggeredBy,
-      objective: input.objective,
-      priority: input.priority,
-      policyHash: target.autonomyPolicy.policyHash,
-      traceId,
-      commandCenterRunId: input.commandCenterRunId,
-      budgetAllocated: target.autonomyPolicy.budgets as unknown as Prisma.InputJsonValue,
-    },
-  });
+  const queueJobId = crypto.randomUUID();
+  let run: RegistryCrawlRun;
+  try {
+    run = await db.registryCrawlRun.create({
+      data: {
+        organizationId: input.organizationId,
+        targetId: target.id,
+        autonomyPolicyId: target.autonomyPolicyId,
+        triggeredBy: input.triggeredBy,
+        objective: input.objective,
+        priority: input.priority,
+        policyHash: target.autonomyPolicy.policyHash,
+        traceId,
+        queueJobId,
+        commandCenterRunId: input.commandCenterRunId,
+        budgetAllocated: target.autonomyPolicy.budgets as unknown as Prisma.InputJsonValue,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const raced = await db.registryCrawlRun.findFirst({
+        where: { targetId: target.id, status: { in: ACTIVE_RUN_STATUSES } },
+        orderBy: { createdAt: "desc" },
+      });
+      if (raced) return { run: raced, created: false };
+    }
+    throw error;
+  }
 
   try {
-    const queueJobId = await getRegistryQueue().enqueueRun({
+    await getRegistryQueue().enqueueRun({
       runId: run.id,
       targetId: target.id,
       organizationId: input.organizationId,
       traceId,
-    }, input.priority);
-    const queued = await db.registryCrawlRun.update({ where: { id: run.id }, data: { queueJobId } });
+    }, input.priority, queueJobId);
     void OperationalEventService.emit({
       eventType: EVENT_TYPES.REGISTRY_CRAWL_RUN_PLANNED,
       severity: SEVERITIES.INFO,
@@ -208,7 +222,7 @@ export async function createCrawlRun(input: {
       message: `Registry foundation run queued for ${target.canonicalDomain}`,
       metadata: { targetId: target.id, queueJobId, policyHash: target.autonomyPolicy.policyHash },
     });
-    return { run: queued, created: true };
+    return { run, created: true };
   } catch (error) {
     await db.registryCrawlRun.update({
       where: { id: run.id },
@@ -269,20 +283,32 @@ export async function controlCrawlRun(
 
   if (action === "pause") {
     assertRunTransition(run.status, "PAUSED");
-    if (run.queueJobId) await queue.cancel(run.queueJobId);
-    return transitionCrawlRun(organizationId, runId, "PAUSED", { stopReason: "OPERATOR_PAUSED" });
+    const paused = await transitionCrawlRun(
+      organizationId,
+      runId,
+      "PAUSED",
+      { stopReason: "OPERATOR_PAUSED" },
+    );
+    if (run.queueJobId) await queue.cancel(run.queueJobId).catch(() => undefined);
+    return paused;
   }
   if (action === "resume") {
     assertRunTransition(run.status, "QUEUED");
+    const queueJobId = crypto.randomUUID();
     const queued = await transitionCrawlRun(organizationId, runId, "QUEUED", {
       stopReason: null,
       errorCode: null,
       errorMessage: null,
       completedAt: null,
+      queueJobId,
     });
     try {
-      if (!run.queueJobId) throw new Error("Paused run has no queue job to resume.");
-      await queue.resume(run.queueJobId);
+      await queue.enqueueRun({
+        runId,
+        targetId: run.targetId,
+        organizationId,
+        traceId: run.traceId,
+      }, run.priority, queueJobId);
       return queued;
     } catch (error) {
       await transitionCrawlRun(organizationId, runId, "PAUSED", { stopReason: "OPERATOR_PAUSED" });
@@ -291,6 +317,12 @@ export async function controlCrawlRun(
   }
 
   assertRunTransition(run.status, "CANCELLED");
-  if (run.queueJobId) await queue.cancel(run.queueJobId);
-  return transitionCrawlRun(organizationId, runId, "CANCELLED", { stopReason: "OPERATOR_CANCELLED" });
+  const cancelled = await transitionCrawlRun(
+    organizationId,
+    runId,
+    "CANCELLED",
+    { stopReason: "OPERATOR_CANCELLED" },
+  );
+  if (run.queueJobId) await queue.cancel(run.queueJobId).catch(() => undefined);
+  return cancelled;
 }

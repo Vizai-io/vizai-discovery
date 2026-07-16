@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for generating strategic recommendations
+ * @fileOverview Generates strategic recommendations
  * based on AI scan results. It provides high-impact, client-facing advice grouped by
  * specific intelligence categories.
  *
@@ -9,8 +9,8 @@
  * - ProvideAiScanRecommendationsOutput - The return type for the recommendations.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import {generateStructuredOutput} from '@/ai/google-genai';
+import {z} from 'zod';
 
 const ProvideAiScanRecommendationsInputSchema = z.object({
   companyName: z.string().describe('The name of the company being scanned.'),
@@ -47,35 +47,13 @@ const ProvideAiScanRecommendationsOutputSchema = z.object({
 export type ProvideAiScanRecommendationsOutput = z.infer<typeof ProvideAiScanRecommendationsOutputSchema>;
 
 export async function provideAiScanRecommendations(input: ProvideAiScanRecommendationsInput): Promise<ProvideAiScanRecommendationsOutput> {
-  return provideAiScanRecommendationsFlow(input);
-}
+  const validatedInput = ProvideAiScanRecommendationsInputSchema.parse(input);
+  return generateStructuredOutput({
+    schema: ProvideAiScanRecommendationsOutputSchema,
+    prompt: `You are a Senior VizAI Consultant. Provide high-impact, client-facing recommendations that improve a company's visibility in AI search environments.
 
-const recommendationsPrompt = ai.definePrompt({
-  name: 'recommendationsPrompt',
-  input: { schema: ProvideAiScanRecommendationsInputSchema },
-  output: { schema: ProvideAiScanRecommendationsOutputSchema },
-  prompt: `You are a Senior VizAI Consultant. Your goal is to provide high-impact, client-facing recommendations to improve a company's visibility in AI search environments (LLMs, Perplexity, etc.).
-
-Analyze the following scan data for '{{{companyName}}}':
-Industry: {{{industry}}}
-Geography: {{{targetGeography}}}
-
-Scores (0-100):
-- Overall Visibility: {{{currentScores.visibilityScore}}}
-- Description Accuracy: {{{currentScores.descriptionAccuracyScore}}}
-- Citation Strength: {{{currentScores.citationStrengthScore}}}
-- Service Coverage: {{{currentScores.serviceCoverageScore}}}
-- Competitor Share of Voice: {{{currentScores.competitorShareOfVoiceScore}}}
-
-{{#if identifiedGaps}}
-Identified Gaps:
-{{#each identifiedGaps}}- {{{this}}}
-{{/each}}
-{{/if}}
-
-{{#if competitors}}
-Competitors: {{#each competitors}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
-{{/if}}
+Scan data:
+${JSON.stringify(validatedInput, null, 2)}
 
 Focus recommendations on the WEAKEST score areas first. 
 
@@ -91,20 +69,6 @@ For each recommendation, provide:
 3. Priority (high/medium/low).
 4. Expected impact (e.g., 'Visibility gain', 'Accuracy gain', 'Citation strength gain').
 
-Format the output as a JSON object with a 'recommendations' array.`,
-});
-
-const provideAiScanRecommendationsFlow = ai.defineFlow(
-  {
-    name: 'provideAiScanRecommendationsFlow',
-    inputSchema: ProvideAiScanRecommendationsInputSchema,
-    outputSchema: ProvideAiScanRecommendationsOutputSchema,
-  },
-  async (input) => {
-    const { output } = await recommendationsPrompt(input);
-    if (!output) {
-      throw new Error('Failed to generate strategic recommendations.');
-    }
-    return output;
-  },
-);
+Return only a JSON object with a "recommendations" array.`,
+  });
+}

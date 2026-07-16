@@ -19,6 +19,11 @@ import type {
   EvidenceSupportLevel,
   TruthClaimStatus,
 } from "./types";
+import {
+  isClaimPublishable,
+  type ClaimOrigin,
+  type EvidenceSourceType,
+} from "@/lib/truth/claim-gates";
 
 // TruthClaim categories that represent evidence-gated credentials (entity-profile-v1.0
 // credentialType enum). Anything else is a public-profile fact.
@@ -64,9 +69,16 @@ export interface TransformerClaim {
   category: string;
   value: unknown; // TruthClaim.value (Json)
   status: TruthClaimStatus;
+  origin?: ClaimOrigin;
+  publishAllowed?: boolean;
   statement?: string;
   /** TruthClaimEvidence support levels for this claim (credential evidence gate). */
-  evidence?: Array<{ supportLevel: EvidenceSupportLevel }>;
+  evidence?: Array<{
+    supportLevel: EvidenceSupportLevel;
+    sourceType?: EvidenceSourceType;
+    resolvedAt?: Date | string | null;
+    resolvedBy?: string | null;
+  }>;
 }
 
 export interface CanonToAppShapedInput {
@@ -99,19 +111,32 @@ export function canonToAppShaped(input: CanonToAppShapedInput): AppShapedCanon {
   const credentialClaims: CanonCredentialClaim[] = [];
 
   for (const c of input.claims) {
+    const publishable = isClaimPublishable(
+      {
+        ...c,
+        origin: c.origin ?? "OBSERVED",
+        publishAllowed: c.publishAllowed ?? c.status === "VERIFIED",
+      },
+      (c.evidence ?? []).map((e) => ({
+        ...e,
+        sourceType: e.sourceType ?? "WEBSITE",
+      })),
+      true,
+    );
     if (CREDENTIAL_CATEGORIES.has(c.category)) {
       const v = asObject(c.value);
       credentialClaims.push({
         name: (typeof v.name === "string" && v.name) || c.statement || c.category,
         credentialType: c.category,
         issuingBody: typeof v.issuingBody === "string" ? v.issuingBody : undefined,
-        status: c.status,
+        status: publishable ? "VERIFIED" : "NEEDS_EVIDENCE",
         evidence: (c.evidence ?? []).map((e) => ({ supportLevel: e.supportLevel })),
       });
       continue;
     }
-    // public-profile facts: only VERIFIED claims cross (held facts are simply omitted)
-    if (c.status !== "VERIFIED") continue;
+    // Public facts cross only after verification, per-claim publication approval,
+    // evidence revalidation, and entity-level registry consent.
+    if (!publishable) continue;
     const v = asObject(c.value);
     switch (c.category) {
       case "service":

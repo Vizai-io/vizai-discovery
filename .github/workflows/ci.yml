@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vizai
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/vizai
+      DATABASE_SSL_MODE: disable
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-key
+      NEXT_PUBLIC_APP_URL: http://localhost:9002
+      OPENAI_API_KEY: test-openai-key
+      GOOGLE_GENAI_API_KEY: test-google-key
+      CRON_SECRET: test-cron-secret
+      RATE_LIMIT_HASH_SECRET: test-rate-limit-secret
+      REGISTRY_QUEUE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vizai
+      REGISTRY_QUEUE_MIGRATE: "false"
+      REGISTRY_SNAPSHOT_BACKEND: local
+      REGISTRY_SNAPSHOT_BUCKET: registry-snapshots
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run ci:verify
+      - run: npm audit --omit=dev --audit-level=high

@@ -22,6 +22,7 @@ export interface PinnedRequest {
   headers: Record<string, string>;
   timeoutMs: number;
   maxBytes: number;
+  signal?: AbortSignal;
 }
 
 export interface PinnedResponse {
@@ -42,6 +43,7 @@ export interface SafeFetchOptions {
   requestHeaders?: Record<string, string>;
   resolver?: HostResolver;
   requester?: PinnedRequester;
+  signal?: AbortSignal;
 }
 
 export interface SafeFetchResult {
@@ -86,6 +88,7 @@ export const defaultPinnedRequester: PinnedRequester = (input) => new Promise((r
     headers: input.headers,
     lookup,
     servername: input.url.hostname,
+    signal: input.signal,
   }, (response) => {
     const contentEncoding = headerValue(response.headers, "content-encoding");
     if (contentEncoding && contentEncoding.toLowerCase() !== "identity") {
@@ -145,6 +148,7 @@ export async function safeFetch(inputUrl: string, options: SafeFetchOptions): Pr
         "Accept-Encoding": "identity",
         ...options.requestHeaders,
       },
+      signal: options.signal,
     });
 
     const location = headerValue(response.headers, "location");

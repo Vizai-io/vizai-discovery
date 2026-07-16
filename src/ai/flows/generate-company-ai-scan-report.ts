@@ -1,15 +1,15 @@
 
 'use server';
 /**
- * @fileOverview A Genkit flow to simulate an AI scan for a company and generate a detailed report.
+ * @fileOverview Generates an AI visibility scan report for a company.
  *
  * - generateCompanyAIScanReport - A function that initiates the mock AI scan process.
  * - GenerateCompanyAIScanReportInput - The input type for the generateCompanyAIScanReport function.
  * - GenerateCompanyAIScanReportOutput - The return type for the generateCompanyAIScanReport function.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import {generateStructuredOutput} from '@/ai/google-genai';
+import {z} from 'zod';
 
 const GenerateCompanyAIScanReportInputSchema = z.object({
   companyName: z.string().describe('The name of the company to scan.'),
@@ -91,62 +91,19 @@ const GenerateCompanyAIScanReportOutputSchema = z.object({
 export type GenerateCompanyAIScanReportOutput = z.infer<typeof GenerateCompanyAIScanReportOutputSchema>;
 
 export async function generateCompanyAIScanReport(input: GenerateCompanyAIScanReportInput): Promise<GenerateCompanyAIScanReportOutput> {
-  return generateCompanyAIScanReportFlow(input);
+  const validatedInput = GenerateCompanyAIScanReportInputSchema.parse(input);
+  return generateStructuredOutput({
+    schema: GenerateCompanyAIScanReportOutputSchema,
+    prompt: `You are the VizAI Discovery Scanner, an expert AI visibility analyst. Generate a detailed AI scan report for a company.
+
+For this version, infer results from the supplied company details, technical website signals, and enriched entity data:
+${JSON.stringify(validatedInput, null, 2)}
+
+Apply these scoring rules when entitySignal exists:
+- If authorityWeight is above 70, increase presence and citationStrength.
+- If geographicRelevanceWeight is above 70, increase presence in target markets.
+- If dataConfidence is below 50, decrease descriptionAccuracy and identify entity knowledge gaps.
+
+Return only the complete JSON report. Keep every numeric score between 0 and 100.`,
+  });
 }
-
-const scanReportPrompt = ai.definePrompt({
-  name: 'companyAIScanReportPrompt',
-  input: { schema: GenerateCompanyAIScanReportInputSchema },
-  output: { schema: GenerateCompanyAIScanReportOutputSchema },
-  prompt: `You are the VizAI Discovery Scanner, an expert AI visibility analyst. Your task is to generate a detailed, comprehensive AI scan report for a company.
-
-For v0.1, simulate results based on inputs, technical website signals, and enriched entity data.
-
-{{#if websiteSignals}}
-TECHNICAL WEBSITE SIGNALS:
-- Title: {{{websiteSignals.title}}}
-- Meta: {{{websiteSignals.metaDescription}}}
-- JSON-LD Found: {{#if websiteSignals.jsonLdDetected}}Yes{{else}}No{{/if}}
-- Detected Services: {{#each websiteSignals.serviceKeywords}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
-- Detected Geographies: {{#each websiteSignals.locationReferences}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
-{{/if}}
-
-{{#if entitySignal}}
-ENRICHED ENTITY DATA:
-- Authority Weight: {{{entitySignal.authorityWeight}}}
-- Service Coverage Weight: {{{entitySignal.serviceCoverageWeight}}}
-- Geographic Relevance Weight: {{{entitySignal.geographicRelevanceWeight}}}
-- Data Confidence: {{{entitySignal.dataConfidence}}}
-- Founding Year: {{{entitySignal.enrichedAttributes.foundingYear}}}
-- Size: {{{entitySignal.enrichedAttributes.employeeSize}}}
-{{/if}}
-
-Company Details:
-Name: {{{companyName}}}
-Website: {{{website}}}
-Industry: {{{industry}}}
-Service Categories: {{#each serviceCategories}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
-Target Geography: {{{targetGeography}}}
-Competitors: {{#each competitors}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
-
-If entitySignal.authorityWeight is high (> 70), increase 'presence' and 'citationStrength' scores.
-If entitySignal.geographicRelevanceWeight is high (> 70), increase 'presence' in target markets.
-If dataConfidence is low (< 50), decrease 'descriptionAccuracy' and identify 'entity' knowledge gaps.
-
-Generate a detailed AI scan report in JSON format.`,
-});
-
-const generateCompanyAIScanReportFlow = ai.defineFlow(
-  {
-    name: 'generateCompanyAIScanReportFlow',
-    inputSchema: GenerateCompanyAIScanReportInputSchema,
-    outputSchema: GenerateCompanyAIScanReportOutputSchema,
-  },
-  async (input) => {
-    const { output } = await scanReportPrompt(input);
-    if (!output) {
-      throw new Error('Failed to generate mock AI scan report.');
-    }
-    return output;
-  }
-);

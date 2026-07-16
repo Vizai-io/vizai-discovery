@@ -356,7 +356,7 @@ model ServiceApiKey {
   keyPrefix      String // display-only token prefix, e.g. "vizai_sk_ab12cd34"
   keyHash        String    @unique // SHA-256 hex of the full token
   organizationId String
-  role           UserRole  @default(ADMIN)
+  role           UserRole  @default(CLIENT)
   scopes         String[]  @default([]) // explicit service capabilities, e.g. registry:read
   isActive       Boolean   @default(true) // false = revoked
   expiresAt      DateTime?
@@ -391,6 +391,8 @@ model CompanyProfile {
   officialIndustries      String[] @default([])
   officialDifferentiators String[] @default([])
   officialCustomerTypes   String[] @default([])
+  registryListingConsentAt DateTime?
+  registryListingConsentedBy String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1293,6 +1295,17 @@ model RankingSnapshot {
 
   @@index([industry, region, snapshotDate(sort: Desc)])
   @@map("ranking_snapshots")
+}
+
+model RateLimitCounter {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("rate_limit_counters")
 }
 
 // ─────────────────────────────────────────────────

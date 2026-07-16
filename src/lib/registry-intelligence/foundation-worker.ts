@@ -7,7 +7,7 @@ import {
   OperationalEventService,
   SEVERITIES,
 } from "@/lib/services/operational-event-service";
-import { acquireFoundationPage } from "./acquisition";
+import { acquireFoundationPage, type AcquisitionResult } from "./acquisition";
 import { CrawlBudgetSchema, type RegistryRunJob } from "./contracts";
 import { sha256 } from "./canonical-json";
 import { createSnapshotStore, snapshotObjectKey } from "./snapshot-store";
@@ -24,6 +24,19 @@ function extensionFor(mimeType: string): string {
   if (mimeType.includes("json")) return "json";
   if (mimeType.includes("xml")) return "xml";
   return "txt";
+}
+
+async function runControlStatus(
+  runId: string,
+  organizationId: string,
+): Promise<"PAUSED" | "CANCELLED" | null> {
+  const run = await db.registryCrawlRun.findFirst({
+    where: { id: runId, organizationId },
+    select: { status: true },
+  });
+  return run?.status === "PAUSED" || run?.status === "CANCELLED"
+    ? run.status
+    : null;
 }
 
 export async function processFoundationRun(job: JobWithMetadata<RegistryRunJob>): Promise<object> {
@@ -81,10 +94,43 @@ export async function processFoundationRun(job: JobWithMetadata<RegistryRunJob>)
     taskId = task.id;
 
     const budget = CrawlBudgetSchema.parse(run.budgetAllocated);
-    const acquired = await acquireFoundationPage(run.target.canonicalUrl, {
-      canonicalDomain: run.target.canonicalDomain,
-      budget,
-    });
+    const controller = new AbortController();
+    let controlCheckRunning = false;
+    const controlMonitor = setInterval(() => {
+      if (controlCheckRunning) return;
+      controlCheckRunning = true;
+      void runControlStatus(runId, organizationId)
+        .then((status) => {
+          if (status) controller.abort(new Error(`Registry run ${status.toLowerCase()} by operator.`));
+        })
+        .finally(() => {
+          controlCheckRunning = false;
+        });
+    }, 500);
+    let acquired: AcquisitionResult;
+    try {
+      acquired = await acquireFoundationPage(run.target.canonicalUrl, {
+        canonicalDomain: run.target.canonicalDomain,
+        budget,
+        signal: controller.signal,
+      });
+    } finally {
+      clearInterval(controlMonitor);
+    }
+
+    const interruptedAfterFetch = await runControlStatus(runId, organizationId);
+    if (interruptedAfterFetch) {
+      await db.registryCrawlTask.update({
+        where: { id: task.id },
+        data: {
+          status: "CANCELLED",
+          lastErrorCode: `OPERATOR_${interruptedAfterFetch}`,
+          lastErrorMessage: `Run ${interruptedAfterFetch.toLowerCase()} before snapshot storage.`,
+          completedAt: new Date(),
+        },
+      });
+      return { interrupted: true, status: interruptedAfterFetch };
+    }
     const robotsDecision = asRobotsDecision(acquired.robots.decision);
 
     await db.$transaction([
@@ -242,6 +288,22 @@ export async function processFoundationRun(job: JobWithMetadata<RegistryRunJob>)
     return { completed: true, snapshotId: snapshot.id, unchanged: !stored.created };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown foundation worker error";
+    const interrupted = await runControlStatus(runId, organizationId).catch(() => null);
+    if (interrupted) {
+      if (taskId) {
+        await db.registryCrawlTask.update({
+          where: { id: taskId },
+          data: {
+            status: "CANCELLED",
+            lastErrorCode: `OPERATOR_${interrupted}`,
+            lastErrorMessage: `Run ${interrupted.toLowerCase()} by operator.`,
+            completedAt: new Date(),
+          },
+        }).catch(() => undefined);
+      }
+      return { interrupted: true, status: interrupted };
+    }
+
     const terminalAttempt = job.retryCount >= job.retryLimit;
     if (taskId) {
       await db.registryCrawlTask.update({

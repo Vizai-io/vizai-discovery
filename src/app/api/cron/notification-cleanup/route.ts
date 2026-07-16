@@ -1,5 +1,5 @@
 /**
- * @fileOverview POST /api/cron/notification-cleanup
+ * @fileOverview GET|POST /api/cron/notification-cleanup
  *
  * Archives notifications older than 90 days, across all organizations.
  * Unread CRITICAL notifications are exempt from archival regardless of age.
@@ -17,15 +17,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { NotificationRepository } from "@/lib/repositories";
+import { authorizeCronRequest } from "@/lib/cron/runtime";
 
-export async function POST(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-
-  if (!cronSecret || token !== cronSecret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+async function handleNotificationCleanup(request: NextRequest) {
+  const unauthorized = authorizeCronRequest(request);
+  if (unauthorized) return unauthorized;
 
   try {
     const archived = await NotificationRepository.archiveOldAll();
@@ -38,4 +34,12 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handleNotificationCleanup(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleNotificationCleanup(request);
 }

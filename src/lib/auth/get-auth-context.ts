@@ -115,7 +115,9 @@ async function tryDbKeyAuth(token: string): Promise<AuthContext | null> {
     return {
       uid: `service:${key.id}`,
       email: `service+${key.id}@vizai.io`,
-      role: key.role,
+      // Service principals never inherit human ADMIN authority. Their access
+      // is granted exclusively through explicit scopes.
+      role: "CLIENT" as UserRole,
       organizationId: key.organizationId,
       authMode: "service",
       scopes: key.scopes,
@@ -153,7 +155,7 @@ function tryLegacyEnvKeyAuth(token: string): AuthContext | null {
   return {
     uid: "service:legacy-env-key",
     email: "neuroos@vizai.io",
-    role: "ADMIN" as UserRole,
+    role: "CLIENT" as UserRole,
     organizationId: serviceOrgId,
     authMode: "service",
     scopes: (process.env.VIZAI_SERVICE_SCOPES ?? "registry:read,registry:run")
@@ -212,5 +214,15 @@ async function trySupabaseAuth(): Promise<AuthContext | null> {
 export async function requireAdmin(): Promise<AuthContext | null> {
   const auth = await getAuthContext();
   if (!auth || auth.role !== "ADMIN") return null;
+  return auth;
+}
+
+/**
+ * Require an interactive ADMIN session. Service principals must use
+ * capability-scoped routes and can never manage credentials or governance.
+ */
+export async function requireHumanAdmin(): Promise<AuthContext | null> {
+  const auth = await getAuthContext();
+  if (!auth || auth.authMode !== "session" || auth.role !== "ADMIN") return null;
   return auth;
 }

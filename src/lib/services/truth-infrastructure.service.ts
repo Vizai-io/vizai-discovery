@@ -409,8 +409,8 @@ export const TruthCanonServiceV2 = {
             category: claim.category,
             statement: claim.statement,
             value: json(claim.value),
-            status: payload.evidence.length > 0 ? "VERIFIED" : "NEEDS_EVIDENCE",
-            confidence: payload.evidence.length > 0 ? Math.max(claim.confidence, 85) : claim.confidence,
+            status: "NEEDS_EVIDENCE",
+            confidence: claim.confidence,
           },
         });
       }
@@ -517,7 +517,14 @@ export const RegistryProfileService = {
   async loadCanonForArtifact(canonVersionId: string, organizationId: string) {
     const canon = await db.truthCanonVersion.findFirst({
       where: { id: canonVersionId, organizationId },
-      include: { companyProfile: true, claims: { include: { evidenceLinks: true } } },
+      include: {
+        companyProfile: true,
+        claims: {
+          include: {
+            evidenceLinks: { include: { evidenceSource: true } },
+          },
+        },
+      },
     });
     if (!canon) throw new Error("Canon version not found.");
     if (canon.status !== "APPROVED" && canon.status !== "PUBLISHED") {
@@ -530,13 +537,23 @@ export const RegistryProfileService = {
     const websiteUrl = canon.companyProfile?.websiteUrl ?? fallback?.business?.website ?? null;
     const primaryDomain = domainFromUrl(websiteUrl);
     if (!primaryDomain) throw new Error("Cannot build public profile: company has no primary domain (websiteUrl).");
+    if (!canon.companyProfile?.registryListingConsentAt) {
+      throw new Error("Cannot build public profile: registry listing consent has not been recorded.");
+    }
 
     const claims: TransformerClaim[] = canon.claims.map((cl) => ({
       category: cl.category,
       value: cl.value,
       status: cl.status,
+      origin: cl.origin,
+      publishAllowed: cl.publishAllowed,
       statement: cl.statement,
-      evidence: cl.evidenceLinks.map((el) => ({ supportLevel: el.supportLevel })),
+      evidence: cl.evidenceLinks.map((el) => ({
+        supportLevel: el.supportLevel,
+        sourceType: el.evidenceSource.type,
+        resolvedAt: el.resolvedAt,
+        resolvedBy: el.resolvedBy,
+      })),
     }));
 
     const date = today();

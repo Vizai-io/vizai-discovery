@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import crypto from 'node:crypto';
-import { requireAdmin, SERVICE_KEY_PREFIX } from '@/lib/auth/get-auth-context';
+import { requireHumanAdmin, SERVICE_KEY_PREFIX } from '@/lib/auth/get-auth-context';
 import { REGISTRY_SCOPES } from '@/lib/auth/registry-scope';
 import { db } from '@/lib/db';
 import { OperationalEventService, EVENT_TYPES, EVENT_SOURCES, SEVERITIES } from '@/lib/services/operational-event-service';
@@ -51,7 +51,7 @@ const KEY_SELECT = {
 // ── GET /api/admin/api-keys ───────────────────────────────────────────────────
 
 export async function GET(_req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireHumanAdmin();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -78,13 +78,13 @@ export async function GET(_req: NextRequest) {
 const CreateSchema = z.object({
   name:            z.string().min(2).max(100),
   organization_id: z.string().min(1),
-  role:            z.enum(['ADMIN', 'CLIENT']).optional().default('ADMIN'),
+  role:            z.literal('CLIENT').optional().default('CLIENT'),
   scopes:          z.array(z.enum(REGISTRY_SCOPES)).max(REGISTRY_SCOPES.length).optional().default([]),
   expires_in_days: z.number().int().min(1).max(3650).nullish(),
 });
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireHumanAdmin();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   let body: unknown;
@@ -160,7 +160,7 @@ const PatchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireHumanAdmin();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   let body: unknown;

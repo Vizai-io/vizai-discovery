@@ -13,6 +13,7 @@ export interface AcquisitionOptions {
   resolver?: HostResolver;
   requester?: PinnedRequester;
   userAgent?: string;
+  signal?: AbortSignal;
 }
 
 export interface AcquisitionResult {
@@ -33,6 +34,7 @@ export async function acquireFoundationPage(
     maxRedirects: options.budget.maxRedirects,
     resolver: options.resolver,
     requester: options.requester,
+    signal: options.signal,
   };
 
   let robotsFetch: SafeFetchResult | undefined;

@@ -36,20 +36,40 @@ function check(name: string, cond: boolean, detail = ""): void {
 }
 
 // ── Wills-shaped B-lineage rows (REAL TruthClaim categories) ──────────────────
+function verified(
+  claim: Omit<TransformerClaim, "status" | "origin" | "publishAllowed" | "evidence">,
+): TransformerClaim {
+  return {
+    ...claim,
+    status: "VERIFIED",
+    origin: "OBSERVED",
+    publishAllowed: true,
+    evidence: [{ supportLevel: "STRONG", sourceType: "WEBSITE" }],
+  };
+}
+
 const claims: TransformerClaim[] = [
-  { category: "business_type", value: { businessType: "Third-party logistics (3PL)" }, status: "VERIFIED" },
-  { category: "service", value: { service: "Warehousing" }, status: "VERIFIED" },
-  { category: "service", value: { service: "Distribution" }, status: "VERIFIED" },
+  verified({ category: "business_type", value: { businessType: "Third-party logistics (3PL)" } }),
+  verified({ category: "service", value: { service: "Warehousing" } }),
+  verified({ category: "service", value: { service: "Distribution" } }),
   { category: "service", value: { service: "Fulfillment" }, status: "NEEDS_EVIDENCE" }, // held -> excluded
-  { category: "location", value: { location: "Smiths Falls" }, status: "VERIFIED" },
-  { category: "location", value: { location: "Brockville" }, status: "VERIFIED" },
-  { category: "industry", value: { industry: "Food & beverage" }, status: "VERIFIED" },
-  { category: "description", value: { description: "Serving Eastern Ontario since 1945" }, status: "VERIFIED" },
-  { category: "differentiator", value: { differentiator: "Fourth-generation family business" }, status: "VERIFIED" },
-  { category: "customer_segment", value: { customerType: "Retailers" }, status: "VERIFIED" }, // dropped (no field)
+  verified({ category: "location", value: { location: "Smiths Falls" } }),
+  verified({ category: "location", value: { location: "Brockville" } }),
+  verified({ category: "industry", value: { industry: "Food & beverage" } }),
+  verified({ category: "description", value: { description: "Serving Eastern Ontario since 1945" } }),
+  verified({ category: "differentiator", value: { differentiator: "Fourth-generation family business" } }),
+  verified({ category: "customer_segment", value: { customerType: "Retailers" } }), // dropped (no field)
   // credentials (held):
   { category: "certification", statement: "SQF Certification", value: { name: "SQF Certification" }, status: "NEEDS_EVIDENCE", evidence: [] },
-  { category: "award", statement: "Canada's Best Managed", value: { name: "Canada's Best Managed Companies" }, status: "VERIFIED", evidence: [{ supportLevel: "MODERATE" }] },
+  {
+    category: "award",
+    statement: "Canada's Best Managed",
+    value: { name: "Canada's Best Managed Companies" },
+    status: "VERIFIED",
+    origin: "OBSERVED",
+    publishAllowed: true,
+    evidence: [{ supportLevel: "MODERATE", sourceType: "WEBSITE" }],
+  },
 ];
 
 const input: CanonToAppShapedInput = {
@@ -111,7 +131,15 @@ const inputStrong: CanonToAppShapedInput = {
   ...input,
   claims: [
     ...claims.filter((c) => c.category !== "certification" && c.category !== "award"),
-    { category: "certification", statement: "ISO 9001", value: { name: "ISO 9001", issuingBody: "ISO" }, status: "VERIFIED", evidence: [{ supportLevel: "STRONG" }] },
+    {
+      category: "certification",
+      statement: "ISO 9001",
+      value: { name: "ISO 9001", issuingBody: "ISO" },
+      status: "VERIFIED",
+      origin: "OBSERVED",
+      publishAllowed: true,
+      evidence: [{ supportLevel: "STRONG", sourceType: "WEBSITE" }],
+    },
   ],
 };
 const art5 = buildPublishDraft(canonToAppShaped(inputStrong)).generatedArtifact;
@@ -229,9 +257,9 @@ const techInput: CanonToAppShapedInput = {
   ...input,
   category: "AI software / business intelligence platform",
   claims: [
-    { category: "business_type", value: { businessType: "AI software / business intelligence platform" }, status: "VERIFIED" },
-    { category: "service", value: { service: "Business fact intake and verification" }, status: "VERIFIED" },
-    { category: "industry", value: { industry: "Business intelligence" }, status: "VERIFIED" },
+    verified({ category: "business_type", value: { businessType: "AI software / business intelligence platform" } }),
+    verified({ category: "service", value: { service: "Business fact intake and verification" } }),
+    verified({ category: "industry", value: { industry: "Business intelligence" } }),
   ],
 };
 const techArt = buildPublishDraft(canonToAppShaped(techInput)).generatedArtifact;
