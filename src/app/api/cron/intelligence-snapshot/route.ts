@@ -1,5 +1,5 @@
 /**
- * @fileOverview POST /api/cron/intelligence-snapshot
+ * @fileOverview GET|POST /api/cron/intelligence-snapshot
  *
  * Cron-triggered endpoint that runs the full Sprint 7→8→9 intelligence
  * pipeline and persists one OrgIntelligenceSnapshot row per org.
@@ -58,26 +58,21 @@ import { IntelligenceAlertingService }   from '@/lib/services/intelligence-alert
 import { IntelligenceRecommendationService } from '@/lib/services/intelligence-recommendation-service';
 
 import { OperationalEventService, EVENT_TYPES, EVENT_SOURCES } from '@/lib/services/operational-event-service';
+import { authorizeCronRequest } from '@/lib/cron/runtime';
 
 export const maxDuration = 300;
 
 const SENTINEL_IDS  = ['free-scan', 'unassigned'];
 const WINDOW_DAYS: 30 | 90 | 365 = 90;
 
-export async function POST(req: NextRequest) {
+async function handleIntelligenceSnapshot(req: NextRequest, singleOrgId: string | null) {
   const traceId = crypto.randomUUID();
 
   // ── Auth: CRON_SECRET ────────────────────────────────────────────────────────
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = req.headers.get('Authorization');
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const unauthorized = authorizeCronRequest(req);
+  if (unauthorized) return unauthorized;
 
   // ── Optional single-org mode (e.g. triggered by scan completion) ─────────────
-  const body           = await req.json().catch(() => ({}));
-  const singleOrgId    = typeof body?.orgId === 'string' ? body.orgId : null;
-
   const startedAt = Date.now();
 
   try {
@@ -214,4 +209,14 @@ export async function POST(req: NextRequest) {
     console.error('[cron/intelligence-snapshot] failed', { traceId, error: err?.message });
     return NextResponse.json({ error: 'Intelligence snapshot failed', traceId }, { status: 500 });
   }
+}
+
+export async function GET(req: NextRequest) {
+  return handleIntelligenceSnapshot(req, null);
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  const singleOrgId = typeof body?.orgId === 'string' ? body.orgId : null;
+  return handleIntelligenceSnapshot(req, singleOrgId);
 }

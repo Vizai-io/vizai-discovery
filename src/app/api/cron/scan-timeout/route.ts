@@ -24,18 +24,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { NotificationService } from "@/lib/services/notification.service";
+import { authorizeCronRequest } from "@/lib/cron/runtime";
 
 const TIMEOUT_MINUTES = 30;
 const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
 
 export async function GET(request: Request) {
   // ── Auth gate — CRON_SECRET header ───────────────────────────
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = authorizeCronRequest(request);
+  if (unauthorized) return unauthorized;
 
   try {
     const cutoff = new Date(Date.now() - TIMEOUT_MS);

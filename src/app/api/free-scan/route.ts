@@ -9,7 +9,7 @@
  *   → /onboarding (org assignment)
  *   → /dashboard (authenticated lifecycle)
  *
- * No authentication required. Rate limiting via in-memory Map (usage-actions.ts).
+ * No authentication required. Rate limiting uses durable Postgres counters.
  *
  * Persistence destination: POSTGRES ONLY.
  * organizationId = 'free-scan' (seeded in migration 20260508000009).
@@ -68,7 +68,6 @@ export async function POST(req: NextRequest) {
   if (!rateCheck.allowed) {
     console.log('[free-scan] Rate limit blocked', {
       traceId,
-      email: input.email,
       reason: rateCheck.reason,
     });
     return NextResponse.json(
@@ -136,7 +135,6 @@ export async function POST(req: NextRequest) {
     traceId,
     scanId,
     companyName: input.companyName,
-    email:       input.email,
     phase:       'created',
   });
 

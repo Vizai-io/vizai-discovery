@@ -1,43 +1,73 @@
+# VizAI Discovery
 
-# VizAI Discovery Scanner
+Private control plane for AI visibility intelligence, truth governance, and
+supervised business-registry discovery.
 
-Production-ready AI visibility intelligence platform. Built with Next.js 15 (App Router), Firebase, and Genkit.
+## Architecture
 
-## Canonical Route Map
+- Next.js 15 App Router web application
+- Supabase Auth
+- PostgreSQL through Prisma
+- Persistent Registry Intelligence worker using pg-boss
+- Content-addressed evidence snapshots in private object storage
+- Manual, gated publication into the separate public `business-registry`
+  repository
 
-### External / Marketing
-- `/` : Landing Page
-- `/auth/sign-in` : Authenticated access portal
-- `/demo` : Sandbox industry selector
-- `/free-scan` : Lead generation teaser audit
-- `/share/[id]` : Secure read-only presentation for clients
+`vizai-discovery` contains private operational data, evidence, policies, and
+review state. Public registry artifacts are allowlisted projections and never
+contain raw evidence or internal notes.
 
-### User Command Center
-- `/dashboard` : Portfolio intelligence summary
-- `/scans` : Historical inventory of all audits
-- `/scans/new` : Setup wizard for new entity scans
-- `/scans/[id]` : In-depth discovery analytics and fidelity scores
-- `/scans/[id]/report` : Internal-professional audit report
-- `/companies` : Management of corporate entity signal profiles
-- `/rankings` : Market benchmarking and sector leaderboards
-- `/recommendations` : Strategic action center
-- `/monitoring` : Automated tracking schedules
-- `/history` : Chronological timeline of visibility drift
+## Local development
 
-### Administrative Hub
-- `/admin` : System health and seeding controls
-- `/admin/leads` : Consultation intake and sales pipeline
-- `/admin/scans/[id]/review` : Human quality control & anonymization
-- `/admin/scans/[id]/proposal` : Commercial roadmap builder
+Requirements:
 
-## Core Architecture
+- Node.js version from `.nvmrc`
+- PostgreSQL/Supabase connection
+- `.env.local` based on `.env.example`
 
-This application uses a **Provider Adapter Architecture** to facilitate hybrid intelligence—balancing deterministic high-volume simulations with live AI model verification via Gemini 1.5 Flash.
+```text
+npm ci
+npm run env:check
+npm run dev
+```
 
-### Key Data Entities
-- `organizations`: Enterprise accounts.
-- `users`: IAM and role-based access.
-- `companyProfiles`: The digital twins of brands being audited.
-- `scans`: Multi-vector discovery records containing analytics and real AI validation.
-- `consultationRequests`: Lead intake from the free scan funnel.
-- `discoveryDataset`: Long-term repository for trend analysis.
+## Validation
+
+```text
+npm run ci:verify
+```
+
+This validates environment shape, Prisma migrations, linting, TypeScript,
+executable specifications, and the production build.
+
+## Registry worker
+
+The worker is deployed independently from the Vercel web application. See
+`docs/registry-worker-deployment.md` and `Dockerfile.worker`.
+
+The foundation crawler enforces:
+
+- explicit organization and service scopes
+- robots evaluation
+- DNS pinning and SSRF protection
+- bounded redirects, response sizes, MIME types, time, and cost
+- immutable content-addressed snapshots
+- one active run per target
+- cooperative pause and cancellation
+- no autonomous publication
+
+## Publication boundary
+
+Publication remains a human-approved process:
+
+1. Claims receive evidence-linked verification.
+2. Each claim is explicitly marked publishable.
+3. Registry-listing consent is recorded for the company profile.
+4. A clean public artifact passes local gates.
+5. A human opens and reviews a pull request in `business-registry`.
+6. The public registry CI remains the final technical gate.
+
+## Security
+
+See `SECURITY.md`. Never commit `.env.local`, raw customer evidence, service
+tokens, snapshot objects, or database exports.

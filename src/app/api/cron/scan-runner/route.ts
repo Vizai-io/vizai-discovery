@@ -1,5 +1,5 @@
 /**
- * @fileOverview POST /api/cron/scan-runner
+ * @fileOverview GET|POST /api/cron/scan-runner
  *
  * Cron-triggered endpoint that finds all due scan schedules and runs them.
  *
@@ -33,6 +33,7 @@ import { computeScanDelta } from "@/lib/services/scan-delta.service";
 import { RecommendationRepository } from "@/lib/repositories";
 import { db } from "@/lib/db";
 import type { PerceptionScanInput } from "@/lib/types/perception-scan";
+import { authorizeCronRequest, resolveInternalAppBaseUrl } from "@/lib/cron/runtime";
 
 // Allow up to 5 minutes — synchronous execution across multiple schedules
 export const maxDuration = 300;
@@ -46,15 +47,10 @@ type RunResult = {
   error?: string;
 };
 
-export async function POST(request: NextRequest) {
+async function handleScanRunner(request: NextRequest) {
   // ── Security gate ──────────────────────────────────────────
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-
-  if (!cronSecret || token !== cronSecret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = authorizeCronRequest(request);
+  if (unauthorized) return unauthorized;
 
   // ── Find due schedules ─────────────────────────────────────
   let dueSchedules;
@@ -140,9 +136,7 @@ export async function POST(request: NextRequest) {
         try {
           const cronSecret = process.env.CRON_SECRET;
           if (cronSecret) {
-            const baseUrl = process.env.NEXTAUTH_URL ?? process.env.VERCEL_URL
-              ? `https://${process.env.VERCEL_URL}`
-              : 'http://localhost:3000';
+            const baseUrl = resolveInternalAppBaseUrl();
             await fetch(`${baseUrl}/api/cron/intelligence-snapshot`, {
               method:  'POST',
               headers: {
@@ -252,4 +246,12 @@ export async function POST(request: NextRequest) {
   console.log(`[cron/scan-runner] Done. ran=${ran} failed=${failed}`);
 
   return NextResponse.json({ ran, failed, results });
+}
+
+export async function GET(request: NextRequest) {
+  return handleScanRunner(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleScanRunner(request);
 }

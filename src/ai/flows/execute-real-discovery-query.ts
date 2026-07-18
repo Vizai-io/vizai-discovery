@@ -1,15 +1,15 @@
 
 'use server';
 /**
- * @fileOverview A Genkit flow to execute a real-world discovery query against an LLM.
+ * @fileOverview Executes a real-world discovery query against Gemini.
  *
  * - executeRealDiscoveryQuery - A function that calls Gemini to identify company mentions.
  * - ExecuteRealDiscoveryQueryInput - The input type for the flow.
  * - ExecuteRealDiscoveryQueryOutput - The return type for the flow.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import {generateStructuredOutput} from '@/ai/google-genai';
+import {z} from 'zod';
 
 const ExecuteRealDiscoveryQueryInputSchema = z.object({
   queryText: z.string().describe('The search query to simulate in an AI model.'),
@@ -30,38 +30,28 @@ const ExecuteRealDiscoveryQueryOutputSchema = z.object({
 export type ExecuteRealDiscoveryQueryOutput = z.infer<typeof ExecuteRealDiscoveryQueryOutputSchema>;
 
 export async function executeRealDiscoveryQuery(input: ExecuteRealDiscoveryQueryInput): Promise<ExecuteRealDiscoveryQueryOutput> {
-  return executeRealDiscoveryQueryFlow(input);
-}
+  const validatedInput = ExecuteRealDiscoveryQueryInputSchema.parse(input);
+  return generateStructuredOutput({
+    schema: ExecuteRealDiscoveryQueryOutputSchema,
+    prompt: `Act as a search-engine user and answer the following discovery query.
 
-const discoveryPrompt = ai.definePrompt({
-  name: 'executeRealDiscoveryQueryPrompt',
-  input: { schema: ExecuteRealDiscoveryQueryInputSchema },
-  output: { schema: ExecuteRealDiscoveryQueryOutputSchema },
-  prompt: `Act as a search engine user. Given the search query: "{{{queryText}}}"
+Input:
+${JSON.stringify(validatedInput, null, 2)}
 
-Identify all companies mentioned in your internal knowledge base that are relevant to the {{{industry}}} sector.
+Identify companies that are relevant to the supplied industry and query.
 
 For each company found:
 1. Provide the official name.
 2. Provide a brief 1-sentence description of their relevance to the query.
 3. If they are ranked, provide their rank.
 
-Also check specifically if the company "{{{targetCompany}}}" is mentioned or should be mentioned based on your knowledge.
+Check specifically whether the target company is mentioned or should be mentioned based on your knowledge.
 
-Return a structured JSON report.`,
-});
-
-const executeRealDiscoveryQueryFlow = ai.defineFlow(
-  {
-    name: 'executeRealDiscoveryQueryFlow',
-    inputSchema: ExecuteRealDiscoveryQueryInputSchema,
-    outputSchema: ExecuteRealDiscoveryQueryOutputSchema,
-  },
-  async (input) => {
-    const { output } = await discoveryPrompt(input);
-    if (!output) {
-      throw new Error('Failed to execute real-world discovery query.');
-    }
-    return output;
-  }
-);
+Return only a JSON object matching this shape:
+{
+  "mentions": [{"companyName": "string", "description": "string", "position": 1}],
+  "responseExcerpt": "string",
+  "isTargetCompanyMentioned": true
+}`,
+  });
+}

@@ -24,7 +24,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/auth/get-auth-context';
+import { requireHumanAdmin } from '@/lib/auth/get-auth-context';
 import { db } from '@/lib/db';
 
 // ── GET /api/admin/leads ──────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ export type FreeScanLead = {
 };
 
 export async function GET(_req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireHumanAdmin();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -94,7 +94,7 @@ const PatchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireHumanAdmin();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   let body: unknown;

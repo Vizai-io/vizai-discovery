@@ -67,6 +67,17 @@ type DriftRun = {
   findings: Array<{ id: string; severity: string; title: string; action: string }>;
 };
 
+type SecurityFinding = { severity: string; title: string; detail: string };
+type SecurityScanResult = {
+  domain: string;
+  grade: string;
+  findings: SecurityFinding[];
+  scope: string;
+  scannedAt: string;
+  error?: string;
+};
+type SecurityReportResult = { report: string; model: string; provider: string; error?: string };
+
 const evidenceTypes = [
   "WEBSITE",
   "SOCIAL_PROFILE",
@@ -88,6 +99,8 @@ export default function TruthInfrastructurePage() {
   const [graph, setGraph] = useState<GraphPayload | null>(null);
   const [authorityMap, setAuthorityMap] = useState<AuthorityMap | null>(null);
   const [driftRuns, setDriftRuns] = useState<DriftRun[]>([]);
+  const [securityScan, setSecurityScan] = useState<SecurityScanResult | null>(null);
+  const [securityReport, setSecurityReport] = useState<SecurityReportResult | null>(null);
   const [evidenceForm, setEvidenceForm] = useState({
     type: "WEBSITE",
     title: "",
@@ -199,6 +212,32 @@ export default function TruthInfrastructurePage() {
     });
   }
 
+  async function runSecurityScan() {
+    if (!state?.profile) return;
+    setBusy("security");
+    setSecurityScan(null);
+    setSecurityReport(null);
+    try {
+      const res = await fetch("/api/security-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyProfileId: state.profile.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Security scan failed");
+      setSecurityScan(data.scan as SecurityScanResult);
+      setSecurityReport(data.report as SecurityReportResult);
+      toast({
+        title: "Security scan complete",
+        description: `Grade ${data.scan.grade} · ${data.scan.findings.length} findings`,
+      });
+    } catch (err: any) {
+      toast({ title: "Security scan failed", description: err.message, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function exportUrl(format: string) {
     if (!activeCanon) return "#";
     return `/api/truth-canon/${activeCanon.id}/export?format=${format}`;
@@ -256,6 +295,67 @@ export default function TruthInfrastructurePage() {
         <Metric icon={Boxes} label="Claims" value={String(state.claimCount)} />
         <Metric icon={Network} label="Graph Entities" value={String(state.entityCount)} />
       </div>
+
+      <section className="rounded-lg border bg-card p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-4 w-4 text-muted-foreground" />
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Security &amp; Trust</h2>
+              <p className="text-xs text-muted-foreground">
+                Passive external scan of {state.profile.websiteUrl ?? "your website"} — security headers,
+                DNS email-authentication, and exposed paths. Automated posture check, not a penetration test.
+              </p>
+            </div>
+          </div>
+          <Button onClick={runSecurityScan} disabled={!!busy || !state.profile.websiteUrl} className="shrink-0 gap-2">
+            {busy === "security" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            Run security scan
+          </Button>
+        </div>
+
+        {!state.profile.websiteUrl && (
+          <p className="text-sm text-muted-foreground">Add a website to your company profile to enable scanning.</p>
+        )}
+
+        {securityScan && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className={`flex h-11 w-11 items-center justify-center rounded-lg border-2 text-xl font-bold ${securityGradeClass(securityScan.grade)}`}>
+                {securityScan.grade}
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-foreground">{securityScan.domain}</p>
+                <p className="text-xs text-muted-foreground">{securityScan.findings.length} findings · {securityScan.scope}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {securityScan.findings.map((f, i) => (
+                <div key={i} className="rounded-md border p-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[0.6rem] font-bold uppercase tracking-wide ${severityClass(f.severity)}`}>{f.severity}</span>
+                    <p className="text-sm font-medium text-foreground">{f.title}</p>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{f.detail}</p>
+                </div>
+              ))}
+            </div>
+
+            {securityReport?.report ? (
+              <div className="rounded-md border bg-muted/30 p-4">
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">AI Report</h3>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{securityReport.report}</div>
+                {securityReport.model && (
+                  <p className="mt-3 border-t pt-2 text-xs text-muted-foreground">Generated by {securityReport.model}</p>
+                )}
+              </div>
+            ) : securityReport?.error ? (
+              <p className="text-xs text-destructive">{securityReport.error}</p>
+            ) : null}
+          </div>
+        )}
+      </section>
 
       <section className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="rounded-lg border bg-card p-5">
@@ -419,4 +519,23 @@ function CompactItem({ title, meta }: { title: string; meta: string }) {
       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{meta}</p>
     </div>
   );
+}
+
+function securityGradeClass(grade: string): string {
+  switch (grade) {
+    case "A": return "border-green-500 text-green-600 dark:text-green-500";
+    case "B": return "border-emerald-500 text-emerald-600 dark:text-emerald-500";
+    case "C": return "border-amber-500 text-amber-600 dark:text-amber-500";
+    case "D": return "border-orange-500 text-orange-600 dark:text-orange-500";
+    default:  return "border-red-500 text-red-600 dark:text-red-500";
+  }
+}
+
+function severityClass(sev: string): string {
+  switch (sev) {
+    case "critical":
+    case "high":   return "text-red-600 dark:text-red-500";
+    case "medium": return "text-amber-600 dark:text-amber-500";
+    default:       return "text-muted-foreground";
+  }
 }
