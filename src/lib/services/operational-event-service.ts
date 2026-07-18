@@ -44,6 +44,11 @@ export const EVENT_TYPES = {
   SCAN_COMPLETED:                'SCAN_COMPLETED',
   SCAN_FAILED:                   'SCAN_FAILED',
 
+  // Security & Trust — web posture scan (WP-SEC-SCAN-01)
+  SECURITY_SCAN_STARTED:         'SECURITY_SCAN_STARTED',
+  SECURITY_SCAN_COMPLETED:       'SECURITY_SCAN_COMPLETED',
+  SECURITY_SCAN_FAILED:          'SECURITY_SCAN_FAILED',
+
   // User lifecycle
   USER_PROVISIONED:              'USER_PROVISIONED',
   ONBOARDING_COMPLETED:          'ONBOARDING_COMPLETED',
@@ -85,6 +90,7 @@ export const EVENT_SOURCES = {
   SHARE_API:       'api:share',
   RANKINGS_API:    'api:rankings',
   SCAN_API:        'api:scan',
+  SECURITY_SCAN_API: 'api:security-scan',
   ONBOARDING_API:  'api:onboarding',
   AUTH_API:        'api:auth/me',
   ADMIN_USERS_API:              'api:admin/users',
