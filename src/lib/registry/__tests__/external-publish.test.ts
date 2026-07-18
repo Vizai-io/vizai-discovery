@@ -105,7 +105,8 @@ check(
   "T6 mark-published writes: both PUBLISHED, PR URL in notes + exportPayload.externalPublish, existing kept",
   writes.registryProfile.data.status === "PUBLISHED" &&
     writes.truthPublishRecord.data.status === "PUBLISHED" &&
-    writes.truthPublishRecord.data.notes.includes("https://github.com/x/pull/1") &&
+    writes.truthPublishRecord.data.notes ===
+      "Published to business-registry via manual PR https://github.com/x/pull/1 (confirmed 2026-06-17T00:00:00.000Z)." &&
     ep.externalPublish.prUrl === "https://github.com/x/pull/1" && ep.kept === true,
   "",
 );
