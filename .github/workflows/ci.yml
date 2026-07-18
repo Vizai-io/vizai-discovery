@@ -34,6 +34,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      # Pin npm explicitly: a Node patch can change the bundled npm, and npm 10
+      # vs 11 resolve this lockfile differently (npm 10 fails `npm ci`). Keep in
+      # sync with package.json "packageManager".
+      - run: npm install -g npm@11.6.2
+      - run: node -v && npm -v
       - run: npm ci
       - run: npm run ci:verify
       - run: npm audit --omit=dev --audit-level=high
