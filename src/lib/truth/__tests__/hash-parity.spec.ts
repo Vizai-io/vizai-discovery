@@ -1,16 +1,17 @@
 /**
- * WP-21D-A — Hash-parity SPEC (DEC-035). Pure; no DB, no network.
+ * WP-21D-A / WP-21C — Hash-parity spec (DEC-035). Pure; no DB, no network.
  *
  *   npx ts-node --transpile-only --compiler-options '{"module":"commonjs","moduleResolution":"node"}' \
  *     src/lib/truth/__tests__/hash-parity.spec.ts
  *
- * Documents the app-vs-registry canonicalization divergence WITHOUT changing production hashing:
- *   - production `contentHash` (content-hash.ts) emits raw UTF-8 (JSON.stringify).
- *   - the registry/Beacon uses Python `json.dumps(sort_keys=True, separators=(",",":"))` (ensure_ascii=True).
- * `ensureAsciiHash` below is a TEST-ONLY helper that emulates the Python side (the "tiny isolated
- * expected-hash helper" WP-21D-A is allowed to add). It is validated against real Python-computed hashes
- * pinned as constants. FINDINGS: identical for ASCII (parity holds → published VizAI hash preserved),
- * divergent for non-ASCII (the gap WP-21C/WP-21D-B must close). No production hashing is changed here.
+ * WP-21C applied the ensure_ascii emulation to production `contentHash` (content-hash.ts), so the
+ * app now matches the registry/Beacon Python `json.dumps(sort_keys=True, separators=(",",":"))`
+ * (ensure_ascii=True) for BOTH ASCII and non-ASCII payloads. This spec proves:
+ *   - ASCII parity still holds (the published VizAI hash 43ace6d6… is byte-identical — regression guard).
+ *   - non-ASCII parity is now achieved (contentHash == Python ensure_ascii, e.g. 61a0291b…).
+ * `ensureAsciiHash` below is an independent TEST-ONLY re-implementation of the Python side, validated
+ * against real Python-computed hashes pinned as constants — so it is a genuine cross-check, not a mirror
+ * of the production code.
  */
 import { createHash } from "node:crypto";
 import { contentHash } from "../../registry/content-hash";
@@ -60,10 +61,10 @@ function ensureAsciiHash(obj: unknown): string {
   return "sha256:" + createHash("sha256").update(pyCanonical(obj), "utf8").digest("hex");
 }
 
-// ── Pinned real hashes (computed this turn: TS contentHash + Python json.dumps ensure_ascii) ──
+// ── Pinned real hashes (TS contentHash + Python json.dumps ensure_ascii) ──
 const VIZAI_PUBLISHED = "sha256:43ace6d6a910e4a9e6cee1b3e2691eb7d8261dc6c9122dbe833f13a093776a82"; // TS == Python (ASCII)
-const NONASCII_TS_RAW = "sha256:e536bf9f95b36283be8ff88b6449fafcd660acb5a879f5980593359b624d10a9"; // current production TS (raw UTF-8)
 const NONASCII_PY_ENSURE_ASCII = "sha256:61a0291bdeb67ad6c9c7668980aa797c24b8d0f9bb1784113861513d12c40919"; // Python / Beacon
+// (pre-WP-21C, raw-UTF-8 production TS produced sha256:e536bf9f… for the non-ASCII fixture — now closed.)
 
 // ── Fixtures (byte-identical to the ones the pinned hashes were computed from) ──
 const vizai = {
@@ -90,28 +91,26 @@ const nonascii = {
   metadata: { dateAdded: "2026-06-27", lastUpdated: "2026-06-27" },
 };
 
-console.log("== ASCII regression (parity holds; WP-21C MUST preserve) ==");
+console.log("== ASCII regression (parity holds; published VizAI hash preserved) ==");
 check("H1 contentHash(vizai) == published VizAI hash (43ace6d6)", contentHash(vizai) === VIZAI_PUBLISHED, contentHash(vizai));
 check("H2 ensureAsciiHash helper validated: == 43ace6d6 for ASCII", ensureAsciiHash(vizai) === VIZAI_PUBLISHED, ensureAsciiHash(vizai));
 check("H3 ASCII: TS contentHash == Python-style ensureAsciiHash", contentHash(vizai) === ensureAsciiHash(vizai));
 
 console.log("== Non-ASCII fixture (accented name / Québec location / em-dash + apostrophe) ==");
 check("H4 ensureAsciiHash helper validated against real Python (61a0291b)", ensureAsciiHash(nonascii) === NONASCII_PY_ENSURE_ASCII, ensureAsciiHash(nonascii));
-check("H5 current production TS contentHash is stable (e536bf9f, raw UTF-8)", contentHash(nonascii) === NONASCII_TS_RAW, contentHash(nonascii));
-check("H6 FINDING: non-ASCII TS contentHash DIVERGES from Python ensure_ascii (DEC-035 gap OPEN)", contentHash(nonascii) !== ensureAsciiHash(nonascii),
+check("H5 non-ASCII TS contentHash now matches Python ensure_ascii (61a0291b) — DEC-035 CLOSED", contentHash(nonascii) === NONASCII_PY_ENSURE_ASCII, contentHash(nonascii));
+check("H6 non-ASCII parity: TS contentHash == Python ensureAsciiHash (WP-21C applied)", contentHash(nonascii) === ensureAsciiHash(nonascii),
   `${contentHash(nonascii)} vs ${ensureAsciiHash(nonascii)}`);
 
-// ── TARGET for WP-21C (documented, not a hard failure here) ──
-console.log("== TARGET (WP-21C / WP-21D-B) ==");
+console.log("== DEC-035 status ==");
 if (contentHash(nonascii) === ensureAsciiHash(nonascii)) {
   console.log("  DONE   non-ASCII parity achieved: contentHash == ensureAsciiHash (WP-21C applied).");
 } else {
   targets++;
-  console.log("  TARGET non-ASCII parity PENDING: WP-21C must make contentHash emulate Python ensure_ascii");
-  console.log(`         (must change ${NONASCII_TS_RAW} -> ${NONASCII_PY_ENSURE_ASCII}) while keeping ASCII hashes (43ace6d6) byte-identical.`);
+  console.log("  TARGET non-ASCII parity PENDING — regression: contentHash no longer emulates Python ensure_ascii.");
 }
 
 console.log("-".repeat(60));
-console.log(`WP-21D-A hash-parity spec: ${passed} passed, ${failed} failed, ${targets} target(s) pending for WP-21C`);
-console.log("Current-behavior findings: ASCII parity = HOLDS; non-ASCII parity = FAILS (documented, unchanged).");
+console.log(`WP-21C hash-parity spec: ${passed} passed, ${failed} failed, ${targets} target(s) pending`);
+console.log("Findings: ASCII parity = HOLDS (43ace6d6 preserved); non-ASCII parity = HOLDS (WP-21C ensure_ascii applied).");
 process.exit(failed === 0 ? 0 : 1);

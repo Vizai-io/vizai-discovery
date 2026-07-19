@@ -22,6 +22,7 @@ import {
   assertMarkPublishable,
   buildMarkPublishedWrites,
 } from "@/lib/registry/external-publish";
+import { canVerifyClaim, canApproveCanon } from "@/lib/truth/claim-gates";
 import type {
   AuthoritySourceStatus,
   EvidenceSourceType,
@@ -458,8 +459,27 @@ export const TruthCanonServiceV2 = {
   },
 
   async approve(id: string, organizationId: string, approvedBy: string) {
-    const canon = await db.truthCanonVersion.findFirst({ where: { id, organizationId, status: "DRAFT" } });
+    const canon = await db.truthCanonVersion.findFirst({
+      where: { id, organizationId, status: "DRAFT" },
+      include: { claims: { include: { evidenceLinks: { include: { evidenceSource: true } } } } },
+    });
     if (!canon) throw new Error("Draft Canon not found.");
+
+    // WP-21C (DEC-031/034): canon-approval gate — no untriaged DRAFT claims and no
+    // unresolved contradictions may cross into an APPROVED Canon.
+    const gate = canApproveCanon(
+      canon.claims.map((c) => ({
+        status: c.status,
+        evidence: c.evidenceLinks.map((el) => ({
+          supportLevel: el.supportLevel,
+          sourceType: el.evidenceSource.type,
+          resolvedAt: el.resolvedAt,
+          resolvedBy: el.resolvedBy,
+        })),
+      })),
+    );
+    if (!gate.ok) throw new Error(`Canon cannot be approved: ${gate.reasons.join(" ")}`);
+
     return db.truthCanonVersion.update({
       where: { id },
       data: { status: "APPROVED", approvedAt: new Date(), approvedBy },
@@ -486,6 +506,82 @@ export const TruthCanonServiceV2 = {
           publishedAt: new Date(),
         },
       });
+    });
+  },
+};
+
+export const TruthClaimServiceV2 = {
+  /**
+   * WP-21C — server-side per-claim verification gate (DEC-031..034). Loads the claim +
+   * its evidence, runs `canVerifyClaim`, and only on success stamps VERIFIED + verifiedAt +
+   * verifiedBy. Throws with the gate reason otherwise. This is the ONLY path to VERIFIED —
+   * the canon-save path parks new claims at NEEDS_EVIDENCE (no blanket verification).
+   */
+  async verify(claimId: string, organizationId: string, verifiedBy: string) {
+    const claim = await db.truthClaim.findFirst({
+      where: { id: claimId, organizationId },
+      include: { evidenceLinks: { include: { evidenceSource: true } } },
+    });
+    if (!claim) throw new Error("Claim not found.");
+
+    const evidence = claim.evidenceLinks.map((el) => ({
+      supportLevel: el.supportLevel,
+      sourceType: el.evidenceSource.type,
+      resolvedAt: el.resolvedAt,
+      resolvedBy: el.resolvedBy,
+    }));
+    const gate = canVerifyClaim(
+      { category: claim.category, origin: claim.origin, status: claim.status, publishAllowed: claim.publishAllowed },
+      evidence,
+    );
+    if (!gate.ok) throw new Error(gate.reason);
+
+    return db.truthClaim.update({
+      where: { id: claim.id },
+      data: { status: "VERIFIED", verifiedAt: new Date(), verifiedBy },
+    });
+  },
+
+  /**
+   * WP-21C — demote a claim out of VERIFIED (e.g. after its evidence changed or a
+   * contradiction was added). Clears the verification stamp; the claim is held until
+   * it passes the gate again.
+   */
+  async demote(claimId: string, organizationId: string) {
+    const claim = await db.truthClaim.findFirst({ where: { id: claimId, organizationId }, select: { id: true } });
+    if (!claim) throw new Error("Claim not found.");
+    return db.truthClaim.update({
+      where: { id: claim.id },
+      data: { status: "NEEDS_EVIDENCE", verifiedAt: null, verifiedBy: null },
+    });
+  },
+
+  /**
+   * WP-21C — record resolution of a contradictory evidence link (DEC-034). Requires an
+   * operator and a mandatory note. Only CONTRADICTS links can be resolved; resolving one
+   * makes its claim eligible for re-verification via `verify`.
+   */
+  async resolveContradiction(
+    evidenceLinkId: string,
+    organizationId: string,
+    resolvedBy: string,
+    resolutionNote: string,
+  ) {
+    const note = resolutionNote?.trim();
+    if (!note) throw new Error("A resolution note is required.");
+
+    const link = await db.truthClaimEvidence.findFirst({
+      where: { id: evidenceLinkId, claim: { organizationId } },
+      select: { id: true, supportLevel: true },
+    });
+    if (!link) throw new Error("Evidence link not found.");
+    if (link.supportLevel !== "CONTRADICTS") {
+      throw new Error("Only contradictory evidence links can be resolved.");
+    }
+
+    return db.truthClaimEvidence.update({
+      where: { id: link.id },
+      data: { resolvedAt: new Date(), resolvedBy, resolutionNote: note },
     });
   },
 };

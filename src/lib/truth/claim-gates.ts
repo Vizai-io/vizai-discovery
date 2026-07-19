@@ -110,3 +110,29 @@ export function isClaimPublishable(
     claim.publishAllowed &&
     canVerifyClaim(claim, evidence).ok;
 }
+
+export interface CanonClaimGateInput {
+  status: TruthClaimStatus;
+  evidence: ClaimEvidenceInput[];
+}
+
+/**
+ * Canon-approval gate (WP-21C, DEC-031/034). A Canon may be APPROVED only when every
+ * claim is triaged (no untriaged DRAFT) and no claim carries an unresolved contradictory
+ * source. NEEDS_EVIDENCE / REJECTED / ARCHIVED claims are allowed — they are simply held
+ * (excluded from the public artifact by absence), never turned into negative claims.
+ */
+export function canApproveCanon(
+  claims: CanonClaimGateInput[],
+): { ok: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  const contradicted = claims.filter((c) => hasUnresolvedContradiction(c.evidence)).length;
+  const draft = claims.filter((c) => c.status === "DRAFT").length;
+  if (contradicted > 0) {
+    reasons.push(`${contradicted} claim(s) have an unresolved contradictory source — resolve or reject before approval.`);
+  }
+  if (draft > 0) {
+    reasons.push(`${draft} claim(s) are still DRAFT — verify, reject, or archive before approval.`);
+  }
+  return { ok: reasons.length === 0, reasons };
+}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { canVerifyClaim, isClaimPublishable } from "../claim-gates";
+import { canVerifyClaim, isClaimPublishable, canApproveCanon } from "../claim-gates";
 
 const observed = {
   category: "service",
@@ -53,4 +53,23 @@ assert.equal(
   false,
 );
 
-console.log("claim gate: 10 passed, 0 failed");
+// ── canon-approval gate (WP-21C, DEC-031/034) ────────────────────────────────
+const resolvedContradiction = {
+  ...unresolvedContradiction,
+  resolvedAt: new Date(),
+  resolvedBy: "operator",
+};
+assert.equal(canApproveCanon([{ status: "VERIFIED", evidence: [strongWebsite] }]).ok, true);
+assert.equal(canApproveCanon([{ status: "NEEDS_EVIDENCE", evidence: [] }]).ok, true); // held by absence — allowed
+assert.equal(canApproveCanon([{ status: "REJECTED", evidence: [] }]).ok, true);
+assert.equal(canApproveCanon([{ status: "DRAFT", evidence: [] }]).ok, false); // untriaged draft blocks
+assert.equal(
+  canApproveCanon([{ status: "VERIFIED", evidence: [strongWebsite, unresolvedContradiction] }]).ok,
+  false,
+); // unresolved contradiction blocks
+assert.equal(
+  canApproveCanon([{ status: "VERIFIED", evidence: [strongWebsite, resolvedContradiction] }]).ok,
+  true,
+); // resolved contradiction is allowed
+
+console.log("claim gate: 16 passed, 0 failed");
