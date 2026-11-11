@@ -384,14 +384,14 @@ model CompanyProfile {
   isActive       Boolean @default(true)
 
   // Ground truth fields
-  officialDescription     String?  @db.Text
-  officialBusinessType    String?
-  officialServices        String[] @default([])
-  officialLocations       String[] @default([])
-  officialIndustries      String[] @default([])
-  officialDifferentiators String[] @default([])
-  officialCustomerTypes   String[] @default([])
-  registryListingConsentAt DateTime?
+  officialDescription        String?   @db.Text
+  officialBusinessType       String?
+  officialServices           String[]  @default([])
+  officialLocations          String[]  @default([])
+  officialIndustries         String[]  @default([])
+  officialDifferentiators    String[]  @default([])
+  officialCustomerTypes      String[]  @default([])
+  registryListingConsentAt   DateTime?
   registryListingConsentedBy String?
 
   createdAt DateTime @default(now())
@@ -569,6 +569,50 @@ model Recommendation {
   @@index([priority])
   @@index([status])
   @@map("recommendations")
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  OPPORTUNITY
+  WON
+  LOST
+}
+
+enum LeadDraftStatus {
+  NONE
+  DRAFT
+  APPROVED
+  SENT
+}
+
+// LEAD — a potential customer who ran a free scan. The scan's key results
+// are snapshotted here (scanSnapshot) so the reply agent and the UI can work
+// with the scan data without a cross-org scan read (free scans live in the
+// free-scan org; leads live in the admin org). The reply draft is held on
+// the lead for Jeremy to confirm before anything is sent.
+model Lead {
+  id               String          @id @default(cuid())
+  organizationId   String
+  perceptionScanId String?         @unique
+  businessName     String
+  websiteUrl       String?
+  industry         String?
+  contactName      String?
+  contactEmail     String?
+  source           String          @default("FREE_SCAN")
+  status           LeadStatus      @default(NEW)
+  scanSnapshot     Json?
+  draftSubject     String?
+  draftBody        String?         @db.Text
+  draftStatus      LeadDraftStatus @default(NONE)
+  draftedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([organizationId, status])
+  @@index([perceptionScanId])
+  @@map("leads")
 }
 
 // ─────────────────────────────────────────────────

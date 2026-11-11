@@ -48,3 +48,7 @@ firestore-debug.log
 
 # Registry Intelligence local content-addressed snapshots
 .registry-snapshots/
+# Local-only health-check runner (contains CRON_SECRET) + dev logs
+model-health-cron.bat
+model-health-cron.log
+dev-server.log

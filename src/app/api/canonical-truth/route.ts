@@ -1,6 +1,6 @@
-/**
- * @fileOverview GET /api/canonical-truth — Publishing state overview
- *              POST /api/canonical-truth — Create or refresh a draft
+﻿/**
+ * @fileOverview GET /api/canonical-truth â€” Publishing state overview
+ *              POST /api/canonical-truth â€” Create or refresh a draft
  *
  * GET: Returns current canonical profile, active draft state, last published,
  *      and current drift classification (from latest scan).
@@ -14,6 +14,7 @@
 
 import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/get-auth-context";
+import { hasRegistryScope } from "@/lib/auth/registry-scope";
 import { CanonicalTruthService } from "@/lib/services/canonical-truth.service";
 import { PerceptionDriftService } from "@/lib/services/perception-drift.service";
 import { db } from "@/lib/db";
@@ -33,7 +34,7 @@ export async function GET() {
       return NextResponse.json({ error: "No active company profile found." }, { status: 404 });
     }
 
-    // Drift classification from latest scan (stateless — computed fresh)
+    // Drift classification from latest scan (stateless â€” computed fresh)
     const drift = await _computeDrift(auth.organizationId, canonical.business);
 
     return NextResponse.json({
@@ -70,7 +71,9 @@ export async function POST() {
     if (auth.organizationId === "unassigned") {
       return NextResponse.json({ error: "No organization" }, { status: 403 });
     }
-    if (auth.role !== "ADMIN") {
+    // Draft creation: human ADMIN, or a service key with registry:run (the
+    // NeuroOS hub truth-building scope). Publishing stays ADMIN-only.
+    if (!hasRegistryScope(auth, "registry:run")) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
@@ -93,7 +96,7 @@ export async function POST() {
   }
 }
 
-// ── Internal: compute drift from latest scan ──────────────────────────────────
+// â”€â”€ Internal: compute drift from latest scan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function _computeDrift(organizationId: string, canonical: Parameters<typeof PerceptionDriftService.classify>[0]) {
   try {

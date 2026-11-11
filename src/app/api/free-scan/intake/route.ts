@@ -31,6 +31,8 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { getAuthContext } from '@/lib/auth/get-auth-context';
 import { OperationalEventService, EVENT_TYPES, EVENT_SOURCES, SEVERITIES } from '@/lib/services/operational-event-service';
+import { NotificationService } from '@/lib/services/notification.service';
+import { validateBusinessWebsite } from '@/lib/validation/website';
 
 // ── Input validation ──────────────────────────────────────────────────────────
 
@@ -38,7 +40,7 @@ const IntakeSchema = z.object({
   externalScanId:        z.string().min(8).max(64),
   source:                z.literal('lmo-backend'),
   businessName:          z.string().min(2).max(200),
-  website:               z.string().url(),
+  website:               z.string().url().refine((v) => validateBusinessWebsite(v).valid, (v) => ({ message: validateBusinessWebsite(v).reason ?? 'Please enter your business website address.' })),
   industry:              z.string().max(100).nullish(),
   email:                 z.string().email(),
   requestContact:        z.boolean().optional().default(false),
@@ -204,6 +206,14 @@ export async function POST(req: NextRequest) {
       requestContact: input.requestContact,
     },
   });
+
+  // Notify Jeremy (admin org) — a website free scan is a possible lead.
+  void NotificationService.freeScanCompleted(
+    input.businessName,
+    input.website,
+    input.email,
+    scanId,
+  );
 
   return NextResponse.json({ scanId, traceId }, { status: 201 });
 }

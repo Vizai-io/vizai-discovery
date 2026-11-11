@@ -32,6 +32,7 @@ import { computeScanDelta } from "@/lib/services/scan-delta.service";
 import { db } from "@/lib/db";
 import type { PerceptionScanInput } from "@/lib/types/perception-scan";
 import { OperationalEventService, EVENT_TYPES, EVENT_SOURCES, SEVERITIES } from "@/lib/services/operational-event-service";
+import { validateBusinessWebsite } from "@/lib/validation/website";
 
 export const maxDuration = 120;
 
@@ -141,6 +142,13 @@ export async function POST(request: NextRequest) {
         { error: "Missing required field: business_name" },
         { status: 400 },
       );
+    }
+
+    if (website_url) {
+      const siteCheck = validateBusinessWebsite(website_url);
+      if (!siteCheck.valid) {
+        return NextResponse.json({ error: siteCheck.reason }, { status: 400 });
+      }
     }
 
     if (ground_truth) {

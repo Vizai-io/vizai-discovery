@@ -14,6 +14,44 @@ import { getAuthContext } from "@/lib/auth/get-auth-context";
 
 // ── PATCH ─────────────────────────────────────────────────────────────────────
 
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const profile = await CompanyProfileRepository.findById(id, auth.organizationId);
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      id: profile.id,
+      business_name: profile.businessName,
+      website_url: profile.websiteUrl,
+      official_description: profile.officialDescription,
+      official_business_type: profile.officialBusinessType,
+      official_services: profile.officialServices,
+      official_locations: profile.officialLocations,
+      official_industries: profile.officialIndustries,
+      official_differentiators: profile.officialDifferentiators,
+      official_customer_types: profile.officialCustomerTypes,
+      updated_at: profile.updatedAt,
+    });
+  } catch (err: any) {
+    console.error("Error fetching company profile:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to fetch company profile" },
+      { status: 500 },
+    );
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

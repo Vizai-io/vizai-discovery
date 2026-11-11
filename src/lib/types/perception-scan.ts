@@ -245,3 +245,113 @@ export interface PerceptionAdapter {
    */
   queryPerception(prompt: string, businessName: string): Promise<ModelResponse>;
 }
+
+// ============================================================
+// CUSTOMER-INTENT (QUERY-BASED) SCAN TYPES
+// ============================================================
+
+/**
+ * A single web-grounded answer from a model.
+ * Unlike ModelResponse (structured JSON from memory), this is the raw
+ * natural-language answer to a customer-style question, grounded in
+ * live web search, with the sources the model actually used.
+ */
+export interface GroundedAnswer {
+  model_id: string;
+  provider: string;
+  question: string;
+  answer_text: string;
+  /** URLs the model grounded its answer in (from groundingMetadata) */
+  sources: string[];
+  /** True when the response carried grounding metadata (i.e. it really searched) */
+  grounded: boolean;
+  timestamp: string;
+  success: boolean;
+  error_message?: string;
+  latency_ms: number;
+}
+
+export type CustomerIntentKind =
+  | "transactional"
+  | "comparative"
+  | "price"
+  | "troubleshooting"
+  | "direct";
+
+/** One customer-style question the scan asks the AI. */
+export interface CustomerIntentQuery {
+  id: string;
+  kind: CustomerIntentKind;
+  question: string;
+}
+
+/** The scored outcome of one customer-intent query. */
+export interface CustomerIntentQueryResult {
+  query: CustomerIntentQuery;
+  /** The business was named in the answer */
+  mentioned: boolean;
+  /** The business was presented as a recommendation / pick */
+  recommended: boolean;
+  /** Short excerpt of what the AI said about the business (or that it said nothing) */
+  excerpt: string;
+  /** The other businesses the AI recommended instead (names, if any) */
+  recommended_instead: string[];
+  /** Sources the model grounded this answer in */
+  sources: string[];
+  /** The raw grounded answer (for audit) */
+  raw_answer: string;
+  success: boolean;
+  error_message?: string;
+}
+
+/** Blind search: generic industry questions (no name). Shown as a score. */
+export interface CustomerIntentDiscovery {
+  /** 0-100: the blind-search score (average of found and recommended on discovery queries) */
+  score: number;
+  /** 0-100: share of discovery queries where the business was mentioned */
+  found_score: number;
+  /** 0-100: share of discovery queries where the business was recommended */
+  recommended_score: number;
+  /** The businesses the AI recommended instead (names) */
+  recommended_instead: string[];
+  queries: CustomerIntentQueryResult[];
+}
+
+/** Direct search: by name. Shown as a summary + short details list, not a score. */
+export interface CustomerIntentDirect {
+  /** Short summary of what the AI found about the business */
+  summary: string;
+  /** Services the AI says the business provides */
+  services: string[];
+  /** Contact details the AI found (website from the scan input; phone/email if the AI stated them) */
+  contact: {
+    website?: string;
+    phone?: string;
+    email?: string;
+  };
+  /** Locations the AI associates with the business */
+  locations: string[];
+  queries: CustomerIntentQueryResult[];
+}
+
+/**
+ * The honest result of a customer-intent scan, in two views.
+ * - discovery (blind search): generic industry questions, shown as a score.
+ * - direct (by name): what the AI found about the business, shown as a
+ *   summary + short details list. There is no truth file yet at this stage,
+ *   so the business owner judges what is true vs inaccurate.
+ */
+export interface CustomerIntentScanResult {
+  business_name: string;
+  website_url?: string;
+  /** The blind-search (discovery) view — shown as a score. */
+  discovery: CustomerIntentDiscovery;
+  /** The direct (by-name) view — shown as a summary + details, not a score. */
+  direct: CustomerIntentDirect;
+  /** Overall 0-100 headline: the discovery (blind-search) score. */
+  overall_score: number;
+  top_gaps: string[];
+  summary: string;
+  model_id: string;
+  scanned_at: string;
+}
