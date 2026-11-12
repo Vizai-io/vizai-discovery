@@ -10,4 +10,6 @@ export { ConsultationRequestRepository } from "./consultation-request.repository
 export { ScanScheduleRepository } from "./scan-schedule.repository";
 export type { ScanScheduleWithProfile } from "./scan-schedule.repository";
 export { NotificationRepository } from "./notification.repository";
+export { LeadRepository } from "./lead.repository";
+export type { CreateLeadInput, UpdateLeadInput } from "./lead.repository";
 export type { CreateNotificationInput } from "./notification.repository";

@@ -23,7 +23,7 @@ import {
   isClaimPublishable,
   type ClaimOrigin,
   type EvidenceSourceType,
-} from "@/lib/truth/claim-gates";
+} from "../truth/claim-gates";
 
 // TruthClaim categories that represent evidence-gated credentials (entity-profile-v1.0
 // credentialType enum). Anything else is a public-profile fact.

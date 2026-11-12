@@ -36,6 +36,37 @@ export const RecommendationRepository = {
     });
   },
 
+  /**
+   * Create a single recommendation (e.g. from the Recommendation Agent).
+   * Returns the created record.
+   */
+  async create(data: {
+    perceptionScanId: string;
+    organizationId: string;
+    priority: Priority;
+    category: string;
+    title: string;
+    reason: string;
+    recommendedAction: string;
+    serviceLink?: string | null;
+    source?: string;
+  }): Promise<Recommendation> {
+    return db.recommendation.create({
+      data: {
+        perceptionScanId: data.perceptionScanId,
+        organizationId: data.organizationId,
+        priority: data.priority,
+        category: data.category,
+        title: data.title,
+        reason: data.reason,
+        recommendedAction: data.recommendedAction,
+        serviceLink: data.serviceLink ?? null,
+        source: data.source ?? "INTELLIGENCE",
+        status: "OPEN",
+      },
+    });
+  },
+
   async findByScan(perceptionScanId: string): Promise<Recommendation[]> {
     return db.recommendation.findMany({
       where: { perceptionScanId },

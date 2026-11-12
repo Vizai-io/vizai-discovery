@@ -57,6 +57,8 @@ const getFreeScanResult = cache(async (id: string) => {
     // intake scans store it under scores.overall.
     const overallScore: number | null =
       jsonReport?.overallScore ?? jsonReport?.scores?.overall ?? null;
+    // Query-based customer-intent scan (honest, web-grounded score), when present.
+    const customerIntent = (jsonReport as any)?.customerIntent ?? null;
 
     return {
       scanId:       scan.id,
@@ -64,6 +66,7 @@ const getFreeScanResult = cache(async (id: string) => {
       businessName: scan.companyProfile?.businessName ?? null,
       websiteUrl:   scan.companyProfile?.websiteUrl ?? null,
       overallScore,
+      customerIntent,
     };
   } catch {
     return null;
@@ -129,6 +132,32 @@ export default async function FreeScanTeaserPage(
 
   const businessName: string = data.businessName ?? "Your Business";
   const overallScore: number = data.overallScore ?? 0;
+  // Honest score from the query-based customer-intent scan, when present.
+  const ci = (data as any).customerIntent as {
+    overall_score?: number;
+    found_score?: number;
+    recommended_score?: number;
+    top_gaps?: string[];
+    summary?: string;
+    discovery?: {
+      score?: number;
+      found_score?: number;
+      recommended_score?: number;
+      recommended_instead?: string[];
+    };
+    direct?: {
+      summary?: string;
+      services?: string[];
+      contact?: { website?: string; phone?: string; email?: string };
+      locations?: string[];
+    };
+  } | null;
+  // Blind-search score is the headline (new two-view structure); fall back
+  // to the flat overall_score from scans stored before the change.
+  const displayScore: number = ci?.discovery?.score ?? ci?.overall_score ?? overallScore;
+  const discFound: number = ci?.discovery?.found_score ?? ci?.found_score ?? 0;
+  const discRecommended: number =
+    ci?.discovery?.recommended_score ?? ci?.recommended_score ?? 0;
 
   // Register CTA carries the scan context so onboarding can pre-fill and
   // claim this scan into the newly created organization.
@@ -172,9 +201,75 @@ export default async function FreeScanTeaserPage(
           </div>
           <div className="p-6 bg-primary text-white rounded-[2rem] shadow-xl text-center min-w-[140px]">
             <div className="text-[10px] font-bold uppercase tracking-widest opacity-60">Visibility Score</div>
-            <div className="text-5xl font-black">{overallScore.toFixed(1)}</div>
+            <div className="text-5xl font-black">{displayScore.toFixed(1)}</div>
           </div>
         </div>
+
+        {/* Customer-intent score (honest, web-grounded) - shown, not locked */}
+        {ci && (
+          <div className="space-y-6">
+            {/* Blind search: the score */}
+            <div>
+              <h3 className="text-lg font-black text-primary tracking-tight mb-3">Blind search - what AI finds when customers ask for your service</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <Card className="p-4 text-center">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Found</div>
+                  <div className="text-3xl font-black text-primary">{discFound}</div>
+                  <div className="text-xs text-muted-foreground">of customer questions mention you</div>
+                </Card>
+                <Card className="p-4 text-center">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Recommended</div>
+                  <div className="text-3xl font-black text-primary">{discRecommended}</div>
+                  <div className="text-xs text-muted-foreground">of questions recommend you</div>
+                </Card>
+              </div>
+            </div>
+            {ci.top_gaps && ci.top_gaps.length > 0 && (
+              <Card className="p-6 space-y-3">
+                <h3 className="text-lg font-black text-primary tracking-tight">Where AI is sending your customers instead</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground leading-relaxed">
+                  {ci.top_gaps.slice(0, 4).map((gap: string, i: number) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="text-destructive font-bold">•</span>
+                      <span>{gap}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-sm leading-relaxed">
+                  This is what the scan found by asking the AI the questions your customers actually ask. The full per-question breakdown and the fix are inside the full audit.
+                </p>
+              </Card>
+            )}
+            {/* Direct search: summary + short details list (not a score) */}
+            {ci.direct && (
+              <Card className="p-6 space-y-4">
+                <h3 className="text-lg font-black text-primary tracking-tight">Direct search - what AI says about {businessName}</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">{ci.direct.summary}</p>
+                <p className="text-xs text-muted-foreground">
+                  There is no truth file yet, so this is what the AI found - you decide what is true and what is not.
+                </p>
+                <ul className="space-y-2 text-sm leading-relaxed">
+                  {ci.direct.services && ci.direct.services.length > 0 && (
+                    <li><span className="font-semibold">Services:</span> {ci.direct.services.join(", ")}</li>
+                  )}
+                  {ci.direct.contact?.website && (
+                    <li><span className="font-semibold">Website:</span> {ci.direct.contact.website}</li>
+                  )}
+                  {ci.direct.contact?.phone && (
+                    <li><span className="font-semibold">Phone:</span> {ci.direct.contact.phone}</li>
+                  )}
+                  {ci.direct.contact?.email && (
+                    <li><span className="font-semibold">Email:</span> {ci.direct.contact.email}</li>
+                  )}
+                  {ci.direct.locations && ci.direct.locations.length > 0 && (
+                    <li><span className="font-semibold">Locations:</span> {ci.direct.locations.join(", ")}</li>
+                  )}
+                </ul>
+              </Card>
+            )}
+          </div>
+        )}
+
 
         {/* Locked content overlay */}
         <div className="relative">

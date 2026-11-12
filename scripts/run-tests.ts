@@ -5,6 +5,7 @@ const tests = [
   "src/lib/registry/__tests__/registry-publish.test.ts",
   "src/lib/registry/__tests__/publish-routes-ui.test.ts",
   "src/lib/registry/__tests__/external-publish.test.ts",
+  "src/lib/registry/__tests__/ai-native-profile.test.ts",
   "src/lib/registry/__tests__/canon-convergence.test.ts",
   "src/lib/truth/__tests__/hash-parity.spec.ts",
   "src/lib/truth/__tests__/claim-gate.spec.ts",

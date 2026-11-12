@@ -71,7 +71,7 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  const missing = parsed.error.errors
+  const missing = parsed.error.issues
     .map((e) => `  • ${e.path.join(".")}: ${e.message}`)
     .join("\n");
 

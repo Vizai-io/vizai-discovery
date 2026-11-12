@@ -25,14 +25,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { ScanEngine } from '@/lib/services/scan-engine';
+import { runCustomerIntentScan } from '@/lib/services/perception/customer-intent-scan';
 import { validateFreeScanRequest } from '@/lib/actions/usage-actions';
 import { OperationalEventService, EVENT_TYPES, EVENT_SOURCES, SEVERITIES } from '@/lib/services/operational-event-service';
+import { NotificationService } from '@/lib/services/notification.service';
+import { LeadRepository } from '@/lib/repositories';
+import { validateBusinessWebsite } from '@/lib/validation/website';
 
 // ── Input validation ──────────────────────────────────────────────────────────
 
 const FreeScanSchema = z.object({
   companyName:      z.string().min(2).max(200),
-  website:          z.string().url(),
+  website:          z.string().url().refine((v) => validateBusinessWebsite(v).valid, { error: (issue) => validateBusinessWebsite(issue.input as string).reason ?? 'Please enter your business website address.' }),
   industry:         z.string().min(1).max(100),
   targetGeography:  z.string().min(1).max(200),
   email:            z.string().email(),
@@ -156,14 +160,31 @@ export async function POST(req: NextRequest) {
   });
 
   // ── Step 4: Run the deterministic scan engine ────────────────────────────
+  // Step 4: Run the deterministic scan engine + the query-based
+  // customer-intent scan (the honest, web-grounded score) in parallel.
+  // The customer-intent scan is best-effort: if it fails, the free scan
+  // still completes with the engine scores and no customerIntent block.
   let scanResults: Awaited<ReturnType<typeof ScanEngine.runFreeScan>>;
+  let customerIntent: Awaited<ReturnType<typeof runCustomerIntentScan>> | null = null;
   try {
-    scanResults = await ScanEngine.runFreeScan({
-      companyName:     input.companyName,
-      website:         input.website,
-      industry:        input.industry,
-      targetGeography: input.targetGeography,
-    });
+    [scanResults, customerIntent] = await Promise.all([
+      ScanEngine.runFreeScan({
+        companyName:     input.companyName,
+        website:         input.website,
+        industry:        input.industry,
+        targetGeography: input.targetGeography,
+      }),
+      runCustomerIntentScan({
+        businessName: input.companyName,
+        websiteUrl:   input.website,
+        industry:     input.industry,
+        services:     [input.industry],
+        location:     input.targetGeography,
+      }).catch((err: any) => {
+        console.error('[free-scan] Customer-intent scan failed (non-fatal)', { traceId, scanId, error: err?.message });
+        return null;
+      }),
+    ]);
   } catch (err: any) {
     console.error('[free-scan] Scan engine failed', {
       traceId,
@@ -198,6 +219,7 @@ export async function POST(req: NextRequest) {
           consistencyLabel:         'MODERATE_DIVERGENCE',
           jsonReport: {
             overallScore,
+            customerIntent: customerIntent ?? null,
             categoryScores,
             competitorComparison:         scanResults.competitorComparison,
             benchmark:                    scanResults.benchmark,
@@ -261,6 +283,55 @@ export async function POST(req: NextRequest) {
         recommendationCount: priorityActions.length,
       },
     });
+
+    // Notify Jeremy (admin org) — a new free scan is a possible lead.
+    void NotificationService.freeScanCompleted(
+      input.companyName,
+      input.website,
+      input.email,
+      scanId,
+    );
+
+    // Create the lead in the admin org — the scan becomes a lead profile,
+    // held for next steps. Fire-and-forget: a lead failure never breaks
+    // the scan response. The scan's key results are snapshotted on the
+    // lead so the reply agent can work without a cross-org scan read.
+    void (async () => {
+      try {
+        const existing = await LeadRepository.findByScan(scanId, "admin-org");
+        if (existing) return;
+        const ci = customerIntent as any;
+        await LeadRepository.create({
+          organizationId: "admin-org",
+          perceptionScanId: scanId,
+          businessName: input.companyName,
+          websiteUrl: input.website,
+          industry: input.industry,
+          contactEmail: input.email,
+          source: "FREE_SCAN",
+          scanSnapshot: {
+            overallScore,
+            discoveryScore: ci?.discovery?.score ?? null,
+            foundScore: ci?.discovery?.found_score ?? null,
+            recommendedScore: ci?.discovery?.recommended_score ?? null,
+            recommendedInstead: ci?.discovery?.recommended_instead ?? [],
+            directSummary: ci?.direct?.summary ?? null,
+            directServices: ci?.direct?.services ?? [],
+            directContact: ci?.direct?.contact ?? {},
+            directLocations: ci?.direct?.locations ?? [],
+            topGaps: ci?.top_gaps ?? [],
+            recommendations: priorityActions.map((rec: any) => ({
+              priority: rec.priority,
+              category: rec.category,
+              title: rec.title,
+            })),
+          },
+        });
+        console.log("[free-scan] Lead created", { traceId, scanId, business: input.companyName });
+      } catch (leadErr: any) {
+        console.error("[free-scan] Lead creation failed (scan unaffected)", { traceId, scanId, error: leadErr?.message });
+      }
+    })();
   } catch (err: any) {
     console.error('[free-scan] Persistence failure', {
       traceId,

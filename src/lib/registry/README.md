@@ -19,6 +19,9 @@ It introduces **no new infrastructure** (honors `Vizai-discovery/.claude/CLAUDE.
 | `publish-gates.ts` | The 7 gates (evidence / clean / forbidden-terms / held-claim / schema / operator / ci). Gates 1–3 mirror the registry CI verbatim. |
 | `fixtures/wills-canon.fixture.ts` | Synthetic Wills-shaped Canon (public facts mirror the live published profile; held credentials + private block). |
 | `../services/registry-publish.service.ts` | Orchestrator: `buildPublishDraft(canon)` → draft publish packet. |
+| `ai-native-profile.ts` | Pure renderer (WP-21C-GH): VERIFIED Canon facts → `index.html` (+ embedded schema.org JSON-LD) + `llms.txt`. Canon-only content; held credentials omitted by absence. |
+| `../services/ai-native-profile.service.ts` | DB-backed generator: loads a canon's VERIFIED TruthClaim rows and renders the AI-native files (read-only; generation is not publishing). |
+| `../app/api/truth-canon/[id]/ai-native-profile/route.ts` | ADMIN-only GET route returning the generated files + provenance metadata. |
 
 ## Evidence gate (DEC-027, mapped to app primitives)
 A credential crosses to `credentials[]` **only if** its `TruthClaim.status = VERIFIED`

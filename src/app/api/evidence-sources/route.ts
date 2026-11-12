@@ -20,7 +20,7 @@ const EvidenceSchema = z.object({
   url: z.string().url().optional().nullable(),
   evidenceText: z.string().optional().nullable(),
   sourceDate: z.string().optional().nullable(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET(request: NextRequest) {

@@ -135,6 +135,43 @@ enum TruthClaimStatus {
   ARCHIVED
 }
 
+// Truth Canon model alignment (GR13/GR15) — Canon truth type is distinct
+// from `origin` (provenance); verificationState is the customer's per-fact
+// worksheet decision, distinct from `status` (Canon lifecycle state).
+enum TruthType {
+  OBSERVED
+  DECLARED
+  VERIFIED
+}
+
+enum TruthVerificationState {
+  PENDING
+  CONFIRMED
+  EDITED
+  REMOVED
+  UNSURE
+}
+
+enum TruthEvidenceStatus {
+  no_evidence_provided
+  evidence_requested
+  evidence_received
+  evidence_verified
+  expired_or_stale
+  do_not_publish
+}
+
+enum TruthEvidenceType {
+  certificate
+  renewal_notice
+  award_letter
+  official_directory_listing
+  membership_record
+  government_registry_record
+  customer_provided_document
+  other
+}
+
 // WP-21B / DEC-032 — immutable provenance axis, separate from lifecycle status.
 enum ClaimOrigin {
   OBSERVED
@@ -384,14 +421,14 @@ model CompanyProfile {
   isActive       Boolean @default(true)
 
   // Ground truth fields
-  officialDescription     String?  @db.Text
-  officialBusinessType    String?
-  officialServices        String[] @default([])
-  officialLocations       String[] @default([])
-  officialIndustries      String[] @default([])
-  officialDifferentiators String[] @default([])
-  officialCustomerTypes   String[] @default([])
-  registryListingConsentAt DateTime?
+  officialDescription        String?   @db.Text
+  officialBusinessType       String?
+  officialServices           String[]  @default([])
+  officialLocations          String[]  @default([])
+  officialIndustries         String[]  @default([])
+  officialDifferentiators    String[]  @default([])
+  officialCustomerTypes      String[]  @default([])
+  registryListingConsentAt   DateTime?
   registryListingConsentedBy String?
 
   createdAt DateTime @default(now())
@@ -569,6 +606,55 @@ model Recommendation {
   @@index([priority])
   @@index([status])
   @@map("recommendations")
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  OPPORTUNITY
+  WON
+  LOST
+}
+
+enum LeadDraftStatus {
+  NONE
+  DRAFT
+  APPROVED
+  SENT
+}
+
+// LEAD — a potential customer who ran a free scan. The scan's key results
+// are snapshotted here (scanSnapshot) so the reply agent and the UI can work
+// with the scan data without a cross-org scan read (free scans live in the
+// free-scan org; leads live in the admin org). The reply draft is held on
+// the lead for Jeremy to confirm before anything is sent.
+model Lead {
+  id               String          @id @default(cuid())
+  organizationId   String
+  perceptionScanId String?         @unique
+  businessName     String
+  websiteUrl       String?
+  industry         String?
+  contactName      String?
+  contactEmail     String?
+  source           String          @default("FREE_SCAN")
+  status           LeadStatus      @default(NEW)
+  scanSnapshot     Json?
+  draftSubject     String?
+  draftBody        String?         @db.Text
+  draftStatus      LeadDraftStatus @default(NONE)
+  draftedAt        DateTime?
+  // Opportunity setup (set when Jeremy confirms the lead).
+  companyProfileId String?
+  confirmedAt      DateTime?
+  confirmedBy      String?
+  intakeChecklist  Json?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([organizationId, status])
+  @@index([perceptionScanId])
+  @@map("leads")
 }
 
 // ─────────────────────────────────────────────────
@@ -816,6 +902,21 @@ model TruthClaim {
   verifiedAt       DateTime?
   verifiedBy       String?
   publishAllowed   Boolean          @default(false)
+  truthType        TruthType         @default(OBSERVED)
+  verificationState TruthVerificationState @default(PENDING)
+  key              String?
+  sourceUrl        String?
+  sourceDate       DateTime?
+  declaredBy       String?
+  evidenceRequired Boolean           @default(false)
+  evidenceStatus   TruthEvidenceStatus @default(no_evidence_provided)
+  evidenceType     TruthEvidenceType?
+  issuingBody      String?
+  issueDate        DateTime?
+  expiryOrRenewalDate DateTime?
+  evidenceLocation String?
+  supersededById   String?
+  canonVersionNumber Int?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -827,6 +928,8 @@ model TruthClaim {
 
   @@index([organizationId, status])
   @@index([companyProfileId, category])
+  @@index([companyProfileId, truthType])
+  @@index([companyProfileId, verificationState])
   @@index([canonVersionId])
   @@map("truth_claims")
 }

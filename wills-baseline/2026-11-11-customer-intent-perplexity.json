@@ -1,0 +1,216 @@
+{
+  "business_name": "Wills Transfer Limited",
+  "website_url": "https://www.willstransfer.com",
+  "discovery": {
+    "score": 0,
+    "found_score": 0,
+    "recommended_score": 0,
+    "recommended_instead": [
+      "Warehouse Bridge",
+      "Ottawa 3PL / Logistics Ottawa",
+      "Mercury",
+      "VersaCold Logistics Services",
+      "The Erb Group",
+      "Charger Logistics",
+      "CAD $21 per pallet/month",
+      "CAD $10\u2013$15 per pallet"
+    ],
+    "queries": [
+      {
+        "query": {
+          "id": "transactional",
+          "kind": "transactional",
+          "question": "I need a Cold chain provider in Ontario, Canada. Who should I use?"
+        },
+        "mentioned": false,
+        "recommended": false,
+        "excerpt": "Not mentioned.",
+        "recommended_instead": [
+          "Warehouse Bridge",
+          "Ottawa 3PL / Logistics Ottawa",
+          "Mercury"
+        ],
+        "sources": [
+          "https://www.shipmercury.com/location/cold-chain-logistics-toronto",
+          "https://warehousebridge.ca/services/cold-storage/",
+          "https://www.3pllinks.com/post/complete-guide-cold-chain-compliance-canadian-food-brands",
+          "https://www.gcca.org/wp-content/uploads/2026/10/GCCA_2026_Cold-Chain-Innovation-Buyers-Guide.pdf",
+          "https://ottawa3pl.ca/services/cold-chain-logistics",
+          "https://logisticsottawa.ca/canada-services/cold-chain-logistics-canada",
+          "https://vertexlogicalsolutions.com/locations/canada/ontario/toronto-3pl",
+          "https://logisticsottawa.ca/industries/food-beverage-logistics-ottawa",
+          "https://supportontariomade.ca/explore-products/cold-chain-packaging-solutions",
+          "https://www.coldstorage.com/"
+        ],
+        "raw_answer": "For a general **food or beverage cold-chain operation in Ontario**, **Conestoga Cold Storage** is the strongest option identified. It operates facilities in Kitchener, Mississauga, and Halton Hills and offers blast freezing, refrigerated warehousing, case picking, distribution, import/export inspections, and third-party audits.[10]\n\nOther viable options:\n\n- **3PL Links** \u2014 Woodbridge; food-grade and bonded storage, temperature-zone monitoring, and GTA-to-U.S./Quebec refrigerated transportation.[3]\n- **Warehouse Bridge** \u2014 Toronto/GTA; matches customers with pre-vetted 3PL facilities offering frozen, refrigerated, and ambient-controlled storage.[2]\n- **Ottawa 3PL / Logistics Ottawa** \u2014 suitable for Eastern Ontario; offers temperature-controlled storage, refrigerated delivery, and service from frozen through controlled-ambient temperatures.[5][8]\n- **Mercury** \u2014 suitable for life-science, medical, specimen, refrigerated, frozen, or cryogenic shipments, including temperature-controlled transport and packaging support.[1]\n\n**Recommendation:** Use **Conestoga Cold Storage** for food/beverage storage and distribution. For pharmaceuticals, biologics, or specimens, use **Mercury** instead. The best provider for your specific needs remains **unclear** without the product type, required temperature, storage volume, delivery geography, and regulatory requirements.",
+        "success": true,
+        "error_message": null
+      },
+      {
+        "query": {
+          "id": "comparative",
+          "kind": "comparative",
+          "question": "What are the best Cold chain companies in Ontario, Canada?"
+        },
+        "mentioned": false,
+        "recommended": false,
+        "excerpt": "Not mentioned.",
+        "recommended_instead": [
+          "VersaCold Logistics Services",
+          "The Erb Group",
+          "Charger Logistics"
+        ],
+        "sources": [
+          "https://revenuebase.ai/companies/cold-chain-shipping-services/canada",
+          "https://www.coldstorage.com/",
+          "https://www.freshplaza.com/north-america/article/9421196/lineage-logistics-broadens-north-american-network/",
+          "https://revenuebase.ai/companies/cold-chain-companies/canada",
+          "https://revenuebase.ai/companies/cool-chain-management-companies/canada/mississauga",
+          "https://revenuebase.ai/companies/cold-storage-and-warehousing/canada",
+          "https://revenuebase.ai/companies/medical-device-cold-chain-logistics-companies/canada/mississauga",
+          "https://www.inven.ai/company-lists/top-16-cold-chain-logistics-companies",
+          "https://revenuebase.ai/companies/cold-chain-logistics-platforms/canada",
+          "https://revenuebase.ai/companies/refrigerated-freight-carriers/canada"
+        ],
+        "raw_answer": "The strongest Ontario cold-chain candidates supported by the available sources are:\n\n- **VersaCold Logistics Services** \u2014 headquartered in Vaughan; operates a large temperature-controlled network and is identified as a major Canadian cold-chain company.[3][6][8]\n- **Conestoga Cold Storage** \u2014 headquartered in Mississauga, with automated cold-storage and distribution facilities in Kitchener, Mississauga, and Halton Hills.[2][8]\n- **The Erb Group** \u2014 headquartered in New Hamburg, Ontario, and listed among Canada\u2019s leading cold-chain logistics companies.[8]\n- **Charger Logistics** \u2014 headquartered in Brampton and identified in industry directories as a refrigerated-freight carrier.[4][10]\n- **Skyline Cargo** \u2014 based in Mississauga and described as transporting temperature-sensitive pharmaceuticals across Ontario.[1]\n\nThere is **no clear, authoritative public ranking** proving which company is objectively \u201cbest.\u201d The appropriate choice depends on whether the requirement is refrigerated transport, frozen storage, food distribution, or pharmaceutical logistics. The available evidence most clearly supports **VersaCold and Conestoga Cold Storage** for large-scale cold storage and distribution.",
+        "success": true,
+        "error_message": null
+      },
+      {
+        "query": {
+          "id": "price",
+          "kind": "price",
+          "question": "What is the cheapest Cold chain provider in Ontario, Canada?"
+        },
+        "mentioned": false,
+        "recommended": false,
+        "excerpt": "Not mentioned.",
+        "recommended_instead": [
+          "CAD $21 per pallet/month",
+          "CAD $10\u2013$15 per pallet",
+          "CAD $55 per pallet/month",
+          "CAD $4.95 per order"
+        ],
+        "sources": [
+          "https://clutch.co/ca/logistics/supply-chain-management/ontario",
+          "https://warehousebridge.ca/services/cold-storage/",
+          "https://warehousebridge.ca/locations/toronto/cold-storage/",
+          "https://clutch.co/ca/logistics/trucking-companies/refrigerated/toronto",
+          "https://vertexlogicalsolutions.com/locations/canada/ontario/toronto-3pl",
+          "https://logisticsottawa.ca/canada-services/cold-chain-logistics-canada",
+          "https://3plinsider.com/companies",
+          "https://warehousebridge.ca/industries/food-and-beverage/",
+          "https://www.robintransportation.com/cold-chain-logistics/",
+          "https://ottawa3pl.ca/services/cold-chain-logistics"
+        ],
+        "raw_answer": "The **cheapest Ontario cold-chain provider is unclear**. No authoritative source provides a comparable, province-wide provider price ranking.\n\nAvailable published prices show:\n\n- **Warehouse Bridge:** refrigerated storage in Toronto/GTA from **CAD $21 per pallet/month**, plus **CAD $10\u2013$15 per pallet** for receiving or shipping.[3]\n- **Logistics Ottawa:** refrigerated warehouse-only service from **CAD $55 per pallet/month**; refrigerated fulfillment from **CAD $4.95 per order**, excluding packaging.[6]\n- Ontario provider comparisons are not like-for-like: prices depend on temperature, volume, storage duration, handling, transport, and fulfillment requirements.[3][6]\n\nTherefore, **Warehouse Bridge has the lowest publicly stated Ontario price found**, but it cannot be confirmed as the cheapest overall provider without comparable quotations.",
+        "success": true,
+        "error_message": null
+      },
+      {
+        "query": {
+          "id": "troubleshooting",
+          "kind": "troubleshooting",
+          "question": "How do I find a reliable Cold chain provider in Ontario, Canada for my business?"
+        },
+        "mentioned": false,
+        "recommended": false,
+        "excerpt": "Not mentioned.",
+        "recommended_instead": [],
+        "sources": [
+          "https://ottawa3pl.ca/services/cold-chain-logistics",
+          "https://www.warematch.com/location/canada/ontario/halton-hills",
+          "https://logisticsottawa.ca/canada-services/cold-chain-logistics-canada",
+          "https://www.coldstorage.com/",
+          "https://distinctive-solutions.ca/packaging-solutions/cold-chain-packaging/",
+          "https://revenuebase.ai/companies/cold-chain-logistics-providers/canada",
+          "https://www.3pllinks.com/post/how-to-choose-the-right-temperature-controlled-logistics-provider",
+          "https://revenuebase.ai/companies/cold-chain-shipping-services/canada",
+          "https://revenuebase.ai/companies/cold-chain-delivery-services/canada",
+          "https://investbrampton.ca/key-sectors/logistics/"
+        ],
+        "raw_answer": "To find a reliable Ontario cold-chain provider:\n\n- **Define requirements first:** product type, required temperature range, volumes, storage duration, delivery areas, shipping frequency, and whether you need warehousing, transportation, packaging, or all three.\n- **Shortlist established Ontario operators:** Conestoga Cold Storage has facilities in Kitchener, Mississauga, and Halton Hills and offers blast freezing, storage, case picking, distribution, and third-party audits.[4] Go Cold Solutions in Brampton provides temperature-controlled warehousing, distribution, and supply-chain services.[10]\n- **Verify controls, not just marketing claims:** require documented temperature mapping, continuous monitoring, alarm escalation, backup refrigeration or power, equipment-maintenance records, and excursion-investigation procedures. These are described as core controls for temperature-controlled operations.[1][3]\n- **Check regulatory fit:** for food, ask how the provider meets applicable Canadian requirements, including the Safe Food for Canadians Regulations; for pharmaceuticals, require evidence of suitable GDP-compliant handling if applicable.[1][3]\n- **Request evidence:** references from comparable customers, insurance details, service-level agreements, on-time-delivery data, incident history, and sample temperature reports.\n- **Run a controlled pilot:** test receiving, storage, loading, transit, delivery, data reporting, and failure-response procedures before moving all inventory.\n- **Compare total cost:** include storage, handling, transportation, packaging, monitoring, fuel surcharges, accessorial fees, product-loss liability, and emergency services\u2014not only the quoted rate.\n\nThe search results do not establish which provider is best for your specific business; that remains **unclear** until your product, temperature range, locations, volume, and regulatory requirements are assessed.",
+        "success": true,
+        "error_message": null
+      }
+    ]
+  },
+  "direct": {
+    "summary": "Wills Transfer Limited is a Canadian **third-party logistics (3PL) provider** founded in 1945 and based in Smiths Falls, Ontario.[1][2]\n\nIt helps businesses manage their supply chains by providing:\n\n- Warehousing and commercial storage\n- Inventory management\n- Order fulfillment, including picking and packing\n- Distribution and transportation\n- Cross-docking and container de-stuffing\n- Kitting, labeling, asset tagging, and other value-added services\n- Refrigerated storage\n- Rail-car siding and...",
+    "services": [
+      "Cold chain",
+      "logistics",
+      "pharma"
+    ],
+    "contact": {
+      "website": "https://www.willstransfer.com",
+      "phone": null,
+      "email": null
+    },
+    "locations": [
+      "Ontario"
+    ],
+    "queries": [
+      {
+        "query": {
+          "id": "direct-name",
+          "kind": "direct",
+          "question": "Tell me about Wills Transfer Limited. What do they do?"
+        },
+        "mentioned": true,
+        "recommended": true,
+        "excerpt": "Wills Transfer Limited is a Canadian **third-party logistics (3PL) provider** founded in 1945 and based in Smiths Falls, Ontario.[1][2] It helps businesses manage their supply chains by providing: - Warehousing and commercial storage - Inventory management - Order fulfillment,",
+        "recommended_instead": [],
+        "sources": [
+          "https://www.willstransfer.com/",
+          "https://www.willstransfer.com/about/our-mission-purpose-and-values/",
+          "https://www.willstransfer.com/blog/things-you-should-know/",
+          "https://www.willstransfer.com/blog/wills-transfer-best-managed-companies-gold-standard-winner/",
+          "https://www.fulfill.com/3pl/profile/wills-transfer",
+          "https://www.willstransfer.com/?v=24320138001100",
+          "https://www.willstransfer.com/distribution/",
+          "https://www.willstransfer.com/logistics-management-services/"
+        ],
+        "raw_answer": "Wills Transfer Limited is a Canadian **third-party logistics (3PL) provider** founded in 1945 and based in Smiths Falls, Ontario.[1][2]\n\nIt helps businesses manage their supply chains by providing:\n\n- Warehousing and commercial storage\n- Inventory management\n- Order fulfillment, including picking and packing\n- Distribution and transportation\n- Cross-docking and container de-stuffing\n- Kitting, labeling, asset tagging, and other value-added services\n- Refrigerated storage\n- Rail-car siding and trailer-shunting services\n- E-commerce, retail, Amazon FBA, and business-to-business fulfillment[1][2]\n\nThe company says it operates seven facilities with more than one million square feet of warehouse capacity and serves Eastern Ontario, Western Quebec, Toronto, Montreal, and the U.S. Eastern Seaboard.[1][7]",
+        "success": true,
+        "error_message": null
+      },
+      {
+        "query": {
+          "id": "direct-services",
+          "kind": "direct",
+          "question": "What services does Wills Transfer Limited offer in Ontario, Canada?"
+        },
+        "mentioned": true,
+        "recommended": true,
+        "excerpt": "Wills Transfer Limited offers the following services in Ontario, primarily serving Eastern Ontario: - Warehousing and commercial storage, including ambient, refrigerated, and frozen storage.[1][4] - Third-party logistics (3PL), logistics management, and outsourcing solutions.[1]",
+        "recommended_instead": [],
+        "sources": [
+          "https://www.willstransfer.com/",
+          "https://www.willstransfer.com/distribution/",
+          "https://www.willstransfer.com/warehousing-services/scalable-warehousing-solutions/",
+          "https://www.willstransfer.com/warehousing-services/",
+          "https://www.willstransfer.com/about/our-mission-purpose-and-values/",
+          "https://www.willstransfer.com/pharmaceutical-warehousing-and-distribution/",
+          "https://www.willstransfer.com/logistics-management-services/",
+          "https://www.willstransfer.com/?v=24320138001100",
+          "https://www.willstransfer.com/?v=55722612011100",
+          "https://www.willstransfer.com/?v=19042026021100"
+        ],
+        "raw_answer": "Wills Transfer Limited offers the following services in Ontario, primarily serving Eastern Ontario:\n\n- Warehousing and commercial storage, including ambient, refrigerated, and frozen storage.[1][4]\n- Third-party logistics (3PL), logistics management, and outsourcing solutions.[1][7]\n- Order fulfillment, including receiving, inventory tracking, pick-and-pack, packing, and shipment preparation.[1]\n- Distribution and transportation services.[1][2]\n- Inventory management and warehouse-management-system access.[2][5]\n- Cross-docking, container de-stuffing, vendor-managed inventory, and rail-car siding.[2][5]\n- Value-added services such as kitting, assembly, labeling and relabeling, asset tagging, custom packaging, co-packing, subscription-box assembly, and stretch-wrapping.[1]\n- Shunting services.[5][7]\n- Specialized pharmaceutical logistics, including climate-controlled storage, cold-chain management, lot and batch tracking, and delivery to pharmacies, hospitals, and medical facilities.[6]\n- Controlled-goods storage and security-cleared handling; the company states that it is Controlled Goods certified and operates approved Security Level B storage facilities.[1]\n\nThe sources describe coverage across Eastern Ontario and beyond, including Ottawa, Toronto, Montreal, Western Quebec, and the U.S. Eastern Seaboard.[2][7]",
+        "success": true,
+        "error_message": null
+      }
+    ]
+  },
+  "overall_score": 0,
+  "top_gaps": [
+    "Not mentioned when customers ask \"I need a Cold chain provider in Ontario, Canada. Who should I use?\" \u2014 AI recommended Warehouse Bridge, Ottawa 3PL / Logistics Ottawa, Mercury instead.",
+    "Not mentioned when customers ask \"What are the best Cold chain companies in Ontario, Canada?\" \u2014 AI recommended VersaCold Logistics Services, The Erb Group, Charger Logistics instead.",
+    "Not mentioned when customers ask \"What is the cheapest Cold chain provider in Ontario, Canada?\" \u2014 AI recommended CAD $21 per pallet/month, CAD $10\u2013$15 per pallet, CAD $55 per pallet/month instead.",
+    "Not mentioned when customers ask \"How do I find a reliable Cold chain provider in Ontario, Canada for my business?\"."
+  ],
+  "summary": "Blind search: Wills Transfer Limited appeared in 0 of 4 generic questions (score 0/100). Direct search: Wills Transfer Limited is a Canadian **third-party logistics (3PL) provider** founded in 1945 and based in Smiths Falls, Ontario.[1][2]\n\nIt helps businesses manage their supply chains by providing:\n\n- Warehousing and commercial storage\n- Inventory management\n- Order fulfillment, including picking and packing\n- Distribution and transportation\n- Cross-docking and container de-stuffing\n- Kitting, labeling, asset tagging, and other value-added services\n- Refrigerated storage\n- Rail-car siding and...",
+  "model_id": "perplexity:sonar",
+  "scanned_at": "2026-11-11T22:35:32Z"
+}

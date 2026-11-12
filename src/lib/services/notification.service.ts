@@ -46,6 +46,8 @@
 
 import { NotificationRepository } from "@/lib/repositories";
 import type { ScanDelta } from "./scan-delta.service";
+import { Resend } from "resend";
+import { db } from "@/lib/db";
 
 const H24 = 24 * 60 * 60 * 1000;
 
@@ -53,9 +55,9 @@ const H24 = 24 * 60 * 60 * 1000;
 // Extend DeliveryChannel union when adding email/webhook support.
 // Only "in_app" is active. The others are structural placeholders.
 
-type DeliveryChannel = "in_app"; // | "email" | "webhook"
+type DeliveryChannel = "in_app" | "email"; // | "webhook"
 
-const ACTIVE_CHANNELS: DeliveryChannel[] = ["in_app"];
+const ACTIVE_CHANNELS: DeliveryChannel[] = ["in_app", "email"];
 
 /**
  * Route a created notification to its delivery channels.
@@ -66,19 +68,62 @@ const ACTIVE_CHANNELS: DeliveryChannel[] = ["in_app"];
  *   case "webhook": await postToWebhook(notificationId, orgId); break;
  */
 async function deliverToChannels(
-  _notificationId: string,
-  _organizationId: string,
-  _channels: DeliveryChannel[],
+  notificationId: string,
+  organizationId: string,
+  channels: DeliveryChannel[],
 ): Promise<void> {
-  for (const channel of _channels) {
+  for (const channel of channels) {
     switch (channel) {
       case "in_app":
         // Already persisted — no additional delivery needed
         break;
-      // Future channels are no-ops until implemented:
-      // case "email":   break;
+      case "email":
+        await sendEmailNotification(notificationId, organizationId);
+        break;
       // case "webhook": break;
     }
+  }
+}
+
+/**
+ * Email delivery via Resend. Never throws — a failed email must not
+ * break the in-app notification. Requires RESEND_API_KEY; when it is
+ * not set, email is skipped (in-app notification still works) and a
+ * warning is logged so the missing key stays visible. Recipients are
+ * the org's ADMIN users.
+ */
+async function sendEmailNotification(
+  notificationId: string,
+  organizationId: string,
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("[notifications] RESEND_API_KEY not set — skipping email delivery", { notificationId });
+    return;
+  }
+  try {
+    const notification = await db.notification.findUnique({ where: { id: notificationId } });
+    if (!notification) return;
+    const admins = await db.user.findMany({
+      where: { organizationId, role: "ADMIN" },
+      select: { email: true },
+    });
+    const recipients = admins.map((u) => u.email).filter(Boolean);
+    if (recipients.length === 0) {
+      console.warn("[notifications] No ADMIN users to email for org", { organizationId, notificationId });
+      return;
+    }
+    const from = process.env.NOTIFICATION_FROM_EMAIL || "VizAI <notifications@vizai.io>";
+    const resend = new Resend(apiKey);
+    await resend.emails.send({
+      from,
+      to: recipients,
+      subject: `[VizAI] ${notification.title}`,
+      html: `<h2>${notification.title}</h2><p>${notification.message}</p><p><a href="https://app.vizai.io/notifications">View in VizAI</a></p>`,
+      text: `${notification.title}\n\n${notification.message}\n\nView in VizAI: https://app.vizai.io/notifications`,
+    });
+  } catch (err: any) {
+    console.error("[notifications] Email delivery failed", { notificationId, error: err?.message });
   }
 }
 
@@ -163,6 +208,66 @@ export const NotificationService = {
       title: "Scheduled scan failed",
       message: `The visibility scan for ${businessName} could not complete. Reason: ${error}. The next scheduled run will retry automatically.`,
       groupKey: "scan_failed",
+    });
+  },
+
+  /**
+   * Fired when a public free scan is submitted (a new lead). Notified to
+   * the admin org, not the free-scan org — the free-scan org has no admin
+   * users. Each lead notifies (no cooldown; dedup only on a repeated
+   * scanId).
+   */
+  async freeScanCompleted(
+    businessName: string,
+    website: string,
+    visitorEmail: string,
+    scanId?: string,
+  ): Promise<void> {
+    const adminOrgId = process.env.ADMIN_ORG_ID || "admin-org";
+    await emit({
+      organizationId: adminOrgId,
+      type: "SCAN_COMPLETED",
+      severity: "SUCCESS",
+      title: "New free scan — possible lead",
+      message: `${businessName} (${website}) just ran a free visibility scan. Visitor email: ${visitorEmail}. Review the result and follow up.`,
+      relatedScanId: scanId,
+      groupKey: "free_scan",
+    });
+  },
+
+  /**
+   * Fired when an AI model is unavailable during a scan (e.g. invalid API
+   * key, provider outage). The scan continues with the remaining models
+   * but is marked degraded. Deduped to at most one alert per model per
+   * 24h so a persistently-down model does not spam the inbox.
+   */
+  async modelHealthAlert(
+    organizationId: string,
+    modelId: string,
+    error: string,
+  ): Promise<void> {
+    // Free scans run under the 'free-scan' org, which has no admin users —
+    // route those alerts to the admin org so Jeremy actually sees them.
+    const notifyOrgId =
+      organizationId === "free-scan"
+        ? process.env.ADMIN_ORG_ID || "admin-org"
+        : organizationId;
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recent = await db.notification.count({
+      where: {
+        organizationId: notifyOrgId,
+        groupKey: `model_health:${modelId}`,
+        createdAt: { gte: since },
+      },
+    });
+    if (recent > 0) return;
+    await emit({
+      organizationId: notifyOrgId,
+      type: "SCAN_FAILED",
+      severity: "CRITICAL",
+      title: `AI model unavailable: ${modelId}`,
+      message: `The ${modelId} model failed during a scan and was skipped. Reason: ${error}. Check the provider key / status, or scans will keep running degraded on the remaining models.`,
+      groupKey: `model_health:${modelId}`,
     });
   },
 

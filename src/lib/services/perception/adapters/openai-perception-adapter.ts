@@ -73,24 +73,39 @@ CRITICAL: Your response MUST be valid JSON matching this exact structure:
 If you have limited knowledge about this business, still fill in what you can and set confidence to "low".
 Do NOT make up information. If you don't know something, leave that array empty.`;
 
-    try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Auto-repair: if the primary key is rejected (401/403, e.g. revoked),
+    // retry once with a fallback key when one is configured
+    // (OPENAI_API_KEY_FALLBACK). A dead primary key no longer silently
+    // degrades every scan.
+    const requestBody = JSON.stringify({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      max_tokens: 2000,
+    });
+    const doFetch = (key: string) =>
+      fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${key}`,
         },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: prompt },
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.2,
-          max_tokens: 2000,
-        }),
+        body: requestBody,
       });
+
+    try {
+      let response = await doFetch(apiKey);
+      if (response.status === 401 || response.status === 403) {
+        const fallbackKey = process.env.OPENAI_API_KEY_FALLBACK;
+        if (fallbackKey && fallbackKey !== apiKey) {
+          console.warn("[openai-adapter] Primary key rejected, retrying with fallback key");
+          response = await doFetch(fallbackKey);
+        }
+      }
 
       if (!response.ok) {
         const errorText = await response.text();

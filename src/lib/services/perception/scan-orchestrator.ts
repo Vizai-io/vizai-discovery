@@ -34,6 +34,7 @@ import {
   generateRecommendations,
 } from "./analysis";
 import { generateJSONReport, generateMarkdownReport } from "./report-generator";
+import { NotificationService } from "@/lib/services/notification.service";
 
 export interface ScanProgress {
   step: string;
@@ -112,6 +113,22 @@ export async function runPerceptionScan(
       }
     }),
   );
+
+  // Alert on any model that failed, so a dead key or provider outage is
+  // visible instead of silently degrading the scan. Deduped to at most
+  // one alert per model per day (see NotificationService.modelHealthAlert).
+  const orgId = input.organization_id;
+  if (orgId) {
+    for (const r of modelResults) {
+      if (!r.success) {
+        void NotificationService.modelHealthAlert(
+          orgId,
+          r.model_id,
+          r.error_message || "Unknown error",
+        );
+      }
+    }
+  }
 
   // Check if ALL models failed
   const successfulResults = modelResults.filter((r) => r.success);
