@@ -61,9 +61,18 @@ export const CanonicalTruthService = {
    * Retrieve the organization's active CompanyProfile as a normalized canonical profile.
    * Returns null if no active profile exists.
    */
-  async getCanonicalProfile(organizationId: string): Promise<CanonicalProfile | null> {
-    const profile = await db.companyProfile.findFirst({
-      where: { organizationId, isActive: true },
+  async getCanonicalProfile(
+    organizationId: string,
+    companyProfileId?: string,
+  ): Promise<CanonicalProfile | null> {
+    // When a profile is given, use that one (per-profile drafts). Otherwise
+    // keep the legacy behaviour: the oldest active profile in the org.
+    const profile = companyProfileId
+      ? await db.companyProfile.findFirst({
+          where: { id: companyProfileId, organizationId, isActive: true },
+        })
+      : await db.companyProfile.findFirst({
+          where: { organizationId, isActive: true },
       orderBy: { createdAt: "asc" }, // deterministic — oldest primary profile
     });
 
@@ -87,8 +96,9 @@ export const CanonicalTruthService = {
    */
   async getOrCreateDraft(
     organizationId: string,
+    companyProfileId?: string,
   ): Promise<DraftState | null> {
-    const canonical = await this.getCanonicalProfile(organizationId);
+    const canonical = await this.getCanonicalProfile(organizationId, companyProfileId);
     if (!canonical) return null;
 
     const { profile_id } = canonical;
@@ -210,18 +220,21 @@ export const CanonicalTruthService = {
    * Get a summary of the organization's publishing state.
    * Used by the publishing panel and the canonical-truth API.
    */
-  async getPublishingState(organizationId: string): Promise<{
+  async getPublishingState(
+    organizationId: string,
+    companyProfileId?: string,
+  ): Promise<{
     canonical: CanonicalProfile | null;
     draft: DraftState | null;
     history: TruthPublishRecord[];
   }> {
-    const canonical = await this.getCanonicalProfile(organizationId);
+    const canonical = await this.getCanonicalProfile(organizationId, companyProfileId);
     if (!canonical) {
       return { canonical: null, draft: null, history: [] };
     }
 
     const [draft, history] = await Promise.all([
-      this.getOrCreateDraft(organizationId),
+      this.getOrCreateDraft(organizationId, companyProfileId),
       TruthPublishRepository.findHistory(canonical.profile_id, 5),
     ]);
 

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity, Loader2, CreditCard, Network, BookOpenCheck } from "lucide-react";
+import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity, Loader2, CreditCard, Network, BookOpenCheck, CheckCircle2 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AuthDebugBanner } from "@/components/dev/auth-debug-banner";
 import Link from "next/link";
@@ -55,6 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { title: "Scans",           icon: Search,          href: "/scans" },
     { title: "Rankings",        icon: Trophy,          href: "/rankings" },
     { title: "Recommendations", icon: Lightbulb,       href: "/recommendations" },
+    { title: "Approvals",       icon: CheckCircle2,    href: "/approvals" },
     { title: "History",         icon: History,         href: "/history" },
     { title: "Billing",         icon: CreditCard,      href: "/billing" },
   ];
