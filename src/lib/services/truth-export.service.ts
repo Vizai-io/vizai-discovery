@@ -114,7 +114,7 @@ function parseStatementValue(claim: VerifiedClaimRow): string | null {
  * but must NOT appear in canonical truth (used for public outputs) unless
  * its evidence is verified AND publishing is allowed.
  */
-function passesEvidenceGate(claim: VerifiedClaimRow): boolean {
+export function passesEvidenceGate(claim: VerifiedClaimRow): boolean {
   if (!claim.evidenceRequired) return true;
   return claim.evidenceStatus === "evidence_verified" && claim.publishAllowed;
 }

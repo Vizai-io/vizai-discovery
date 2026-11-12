@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { PerceptionDriftService } from "@/lib/services/perception-drift.service";
 import { buildCanonicalBusiness } from "@/lib/services/truth-export.service";
 import { buildPublishDraft } from "@/lib/services/registry-publish.service";
+import { AiNativeProfileService } from "@/lib/services/ai-native-profile.service";
 import {
   canonToAppShaped,
   buildRegistryDraftWrites,
@@ -770,6 +771,28 @@ export const ExternalRegistryPublishService = {
             orderBy: { version: "desc" },
           });
 
+    // WP-21C-GH: best-effort AI-native files (index.html + llms.txt) for the same
+    // Canon facts, so the manual PR package is complete. A generation failure
+    // must never fail the registry export - it is recorded operator-only in
+    // internalReview.aiNativeError.
+    let aiNative: { indexHtml: string; llmsTxt: string; indexPath: string; llmsPath: string } | null = null;
+    let aiNativeError: string | null = null;
+    if (rp.canonVersionId) {
+      try {
+        const gen = await AiNativeProfileService.generateForCanon(rp.canonVersionId, organizationId);
+        aiNative = {
+          indexHtml: gen.indexHtml,
+          llmsTxt: gen.llmsTxt,
+          indexPath: gen.suggestedPaths.indexHtml,
+          llmsPath: gen.suggestedPaths.llmsTxt,
+        };
+      } catch (err: any) {
+        aiNativeError = err?.message ?? "AI-native generation failed.";
+      }
+    } else {
+      aiNativeError = "RegistryProfile has no canonVersionId - AI-native files unavailable.";
+    }
+
     return buildExportPackage({
       registryProfileId: rp.id,
       payload,
@@ -778,6 +801,8 @@ export const ExternalRegistryPublishService = {
       truthPublishRecordId: tpr?.id ?? null,
       truthPublishRecordVersion: tpr?.version ?? null,
       exportPayload: (tpr?.exportPayload as Record<string, unknown> | null) ?? null,
+      aiNative,
+      aiNativeError,
     });
   },
 
