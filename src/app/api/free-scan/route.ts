@@ -36,7 +36,7 @@ import { validateBusinessWebsite } from '@/lib/validation/website';
 
 const FreeScanSchema = z.object({
   companyName:      z.string().min(2).max(200),
-  website:          z.string().url().refine((v) => validateBusinessWebsite(v).valid, (v) => ({ message: validateBusinessWebsite(v).reason ?? 'Please enter your business website address.' })),
+  website:          z.string().url().refine((v) => validateBusinessWebsite(v).valid, { error: (issue) => validateBusinessWebsite(issue.input as string).reason ?? 'Please enter your business website address.' }),
   industry:         z.string().min(1).max(100),
   targetGeography:  z.string().min(1).max(200),
   email:            z.string().email(),

@@ -40,7 +40,7 @@ const IntakeSchema = z.object({
   externalScanId:        z.string().min(8).max(64),
   source:                z.literal('lmo-backend'),
   businessName:          z.string().min(2).max(200),
-  website:               z.string().url().refine((v) => validateBusinessWebsite(v).valid, (v) => ({ message: validateBusinessWebsite(v).reason ?? 'Please enter your business website address.' })),
+  website:               z.string().url().refine((v) => validateBusinessWebsite(v).valid, { error: (issue) => validateBusinessWebsite(issue.input as string).reason ?? 'Please enter your business website address.' }),
   industry:              z.string().max(100).nullish(),
   email:                 z.string().email(),
   requestContact:        z.boolean().optional().default(false),
