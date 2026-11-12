@@ -52,7 +52,7 @@ type CanonPayload = {
   organization_id: string;
   company_profile_id: string;
   generated_from: "platform_postgres";
-  business: ReturnType<typeof buildCanonicalBusiness>;
+  business: Awaited<ReturnType<typeof buildCanonicalBusiness>>;
   entities: Array<{ type: TruthEntityType; name: string; slug: string; data: Record<string, unknown> }>;
   claims: Array<{ category: string; statement: string; value: Record<string, unknown>; confidence: number }>;
   evidence: Array<{ id: string; title: string; type: EvidenceSourceType; url: string | null; contentHash: string | null }>;
@@ -204,7 +204,7 @@ async function buildCanonPayload(profile: CanonProfile): Promise<CanonPayload> {
     organization_id: profile.organizationId,
     company_profile_id: profile.id,
     generated_from: "platform_postgres",
-    business: buildCanonicalBusiness(profile),
+    business: await buildCanonicalBusiness(profile),
     entities: buildEntities(profile),
     claims: buildClaims(profile),
     evidence,

@@ -135,6 +135,43 @@ enum TruthClaimStatus {
   ARCHIVED
 }
 
+// Truth Canon model alignment (GR13/GR15) — Canon truth type is distinct
+// from `origin` (provenance); verificationState is the customer's per-fact
+// worksheet decision, distinct from `status` (Canon lifecycle state).
+enum TruthType {
+  OBSERVED
+  DECLARED
+  VERIFIED
+}
+
+enum TruthVerificationState {
+  PENDING
+  CONFIRMED
+  EDITED
+  REMOVED
+  UNSURE
+}
+
+enum TruthEvidenceStatus {
+  no_evidence_provided
+  evidence_requested
+  evidence_received
+  evidence_verified
+  expired_or_stale
+  do_not_publish
+}
+
+enum TruthEvidenceType {
+  certificate
+  renewal_notice
+  award_letter
+  official_directory_listing
+  membership_record
+  government_registry_record
+  customer_provided_document
+  other
+}
+
 // WP-21B / DEC-032 — immutable provenance axis, separate from lifecycle status.
 enum ClaimOrigin {
   OBSERVED
@@ -865,6 +902,21 @@ model TruthClaim {
   verifiedAt       DateTime?
   verifiedBy       String?
   publishAllowed   Boolean          @default(false)
+  truthType        TruthType         @default(OBSERVED)
+  verificationState TruthVerificationState @default(PENDING)
+  key              String?
+  sourceUrl        String?
+  sourceDate       DateTime?
+  declaredBy       String?
+  evidenceRequired Boolean           @default(false)
+  evidenceStatus   TruthEvidenceStatus @default(no_evidence_provided)
+  evidenceType     TruthEvidenceType?
+  issuingBody      String?
+  issueDate        DateTime?
+  expiryOrRenewalDate DateTime?
+  evidenceLocation String?
+  supersededById   String?
+  canonVersionNumber Int?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -876,6 +928,8 @@ model TruthClaim {
 
   @@index([organizationId, status])
   @@index([companyProfileId, category])
+  @@index([companyProfileId, truthType])
+  @@index([companyProfileId, verificationState])
   @@index([canonVersionId])
   @@map("truth_claims")
 }

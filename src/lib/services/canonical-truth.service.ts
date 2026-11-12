@@ -82,7 +82,7 @@ export const CanonicalTruthService = {
       organization_id: organizationId,
       profile_id: profile.id,
       business_name: profile.businessName,
-      business: buildCanonicalBusiness(profile),
+      business: await buildCanonicalBusiness(profile),
     };
   },
 

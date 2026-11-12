@@ -20,6 +20,8 @@
 
 import { createHash } from "crypto";
 
+import { db } from "@/lib/db";
+
 // ── Canonical profile shape ────────────────────────────────────────────────────
 
 export type CanonicalBusiness = {
@@ -54,11 +56,125 @@ function normalizeArray(arr: string[]): string[] {
   return [...new Set(arr.map((s) => s.trim()).filter(Boolean))].sort();
 }
 
+// ── VERIFIED-claims build (Truth Canon model alignment, GR13/GR15) ─────────────
+
+/**
+ * TruthClaim row shape needed by the canonical build (subset select).
+ * `value` is the claim's structured JSON (e.g. { service: "..." }).
+ */
+export type VerifiedClaimRow = {
+  category: string;
+  statement: string;
+  value: unknown;
+  evidenceRequired: boolean;
+  evidenceStatus: string;
+  publishAllowed: boolean;
+};
+
+/**
+ * Extract the field value from a TruthClaim row: prefer the structured
+ * `value` JSON (tries each key in order — backfilled Canon v1.0 rows and
+ * buildClaims rows use slightly different key spellings), fall back to
+ * parsing the templated `statement`.
+ */
+function claimFieldValue(claim: VerifiedClaimRow, valueKeys: string[]): string | null {
+  const v = claim.value;
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const key of valueKeys) {
+      const raw = (v as Record<string, unknown>)[key];
+      if (typeof raw === "string" && raw.trim()) return raw.trim();
+    }
+  }
+  return parseStatementValue(claim);
+}
+
+function parseStatementValue(claim: VerifiedClaimRow): string | null {
+  const s = claim.statement.trim();
+  // "<name> description: <desc>" / "<name> differentiator: <diff>"
+  const colon = s.match(/^(?:.*?) (?:description|differentiator):\s*(.+)$/i);
+  if (colon) return colon[1].trim();
+  // "<name> is a <type>."
+  if (claim.category === "business_type") {
+    const isA = s.match(/^.*? is a (.+?)\.?$/i);
+    if (isA) return isA[1].trim();
+  }
+  // "<name> provides <service>." / "<name> operates in <location>."
+  const provides = s.match(/^.*? (?:provides|operates in) (.+?)\.?$/i);
+  if (provides) return provides[1].trim();
+  // "<name> serves the <industry> industry." / "<name> serves <customer>."
+  const servesIndustry = s.match(/^.*? serves the (.+?) industry\.?$/i);
+  if (servesIndustry) return servesIndustry[1].trim();
+  const serves = s.match(/^.*? serves (.+?)\.?$/i);
+  if (serves) return serves[1].trim();
+  return null;
+}
+
+/**
+ * GR15 evidence gate: an evidence-required fact may be internally verified
+ * but must NOT appear in canonical truth (used for public outputs) unless
+ * its evidence is verified AND publishing is allowed.
+ */
+function passesEvidenceGate(claim: VerifiedClaimRow): boolean {
+  if (!claim.evidenceRequired) return true;
+  return claim.evidenceStatus === "evidence_verified" && claim.publishAllowed;
+}
+
+/**
+ * Build a CanonicalBusiness from VERIFIED TruthClaim rows.
+ * Categories follow buildClaims in truth-infrastructure.service.ts
+ * (`customer_segment` there; `customer_type` accepted as an alias).
+ * Returns null when no usable VERIFIED row exists — the caller then falls
+ * back to the flat official_* fields.
+ */
+export function buildCanonicalBusinessFromClaims(
+  profile: { businessName: string; websiteUrl: string | null },
+  claims: VerifiedClaimRow[],
+): CanonicalBusiness | null {
+  const usable = claims.filter(passesEvidenceGate);
+  if (usable.length === 0) return null;
+
+  const single = (category: string, valueKeys: string[]): string | null => {
+    const row = usable.find((c) => c.category === category);
+    return row ? claimFieldValue(row, valueKeys) : null;
+  };
+  const list = (categories: string[], valueKeys: string[]): string[] =>
+    normalizeArray(
+      usable
+        .filter((c) => categories.includes(c.category))
+        .map((c) => claimFieldValue(c, valueKeys))
+        .filter((x): x is string => x !== null),
+    );
+
+  return {
+    name: profile.businessName.trim(),
+    website: profile.websiteUrl?.trim() || null,
+    description: single("description", ["description"]),
+    business_type: single("business_type", ["businessType", "business_type", "type"]),
+    services: list(["service"], ["service"]),
+    locations: list(["location"], ["location"]),
+    industries: list(["industry"], ["industry"]),
+    differentiators: list(["differentiator"], ["differentiator"]),
+    customer_types: list(
+      ["customer_segment", "customer_type"],
+      ["customerType", "customer_type", "customerSegment"],
+    ),
+  };
+}
+
 /**
  * Build a normalized, deterministic CanonicalBusiness from CompanyProfile fields.
  * Called by CanonicalTruthService — not directly.
+ *
+ * Truth Canon model alignment (GR13): when VERIFIED TruthClaim rows exist for
+ * the profile (truthType=VERIFIED, verificationState CONFIRMED/EDITED,
+ * status=VERIFIED, passing the GR15 evidence gate), the business is built
+ * FROM THOSE ROWS — Observed/Declared facts never enter canonical truth.
+ * When no usable VERIFIED row exists, falls back to the flat official_*
+ * fields (migration fallback; the flat fields stay as they are).
  */
-export function buildCanonicalBusiness(profile: {
+export async function buildCanonicalBusiness(profile: {
+  id: string;
+  organizationId: string;
   businessName: string;
   websiteUrl: string | null;
   officialDescription: string | null;
@@ -68,8 +184,8 @@ export function buildCanonicalBusiness(profile: {
   officialIndustries: string[];
   officialDifferentiators: string[];
   officialCustomerTypes: string[];
-}): CanonicalBusiness {
-  return {
+}): Promise<CanonicalBusiness> {
+  const flat: CanonicalBusiness = {
     name: profile.businessName.trim(),
     website: profile.websiteUrl?.trim() || null,
     description: profile.officialDescription?.trim() || null,
@@ -80,6 +196,38 @@ export function buildCanonicalBusiness(profile: {
     differentiators: normalizeArray(profile.officialDifferentiators),
     customer_types: normalizeArray(profile.officialCustomerTypes),
   };
+
+  const claims = await db.truthClaim.findMany({
+    where: {
+      organizationId: profile.organizationId,
+      companyProfileId: profile.id,
+      truthType: "VERIFIED",
+      verificationState: { in: ["CONFIRMED", "EDITED"] },
+      status: "VERIFIED",
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      category: true,
+      statement: true,
+      value: true,
+      evidenceRequired: true,
+      evidenceStatus: true,
+      publishAllowed: true,
+    },
+  });
+
+  const fromClaims = buildCanonicalBusinessFromClaims(profile, claims);
+  if (fromClaims) {
+    const usable = claims.filter(passesEvidenceGate).length;
+    console.info(
+      `[canonical-truth] source=verified-claims profile=${profile.id} verified=${claims.length} usable=${usable}`,
+    );
+    return fromClaims;
+  }
+  console.info(
+    `[canonical-truth] source=flat-fallback profile=${profile.id} verified=${claims.length}`,
+  );
+  return flat;
 }
 
 // ── Export formatters ──────────────────────────────────────────────────────────
