@@ -31,6 +31,10 @@ function formatLead(l: NonNullable<Awaited<ReturnType<typeof LeadRepository.find
     draft_body: l.draftBody,
     draft_status: l.draftStatus,
     drafted_at: l.draftedAt,
+    company_profile_id: l.companyProfileId,
+    confirmed_at: l.confirmedAt,
+    confirmed_by: l.confirmedBy,
+    intake_checklist: l.intakeChecklist,
     created_at: l.createdAt,
     updated_at: l.updatedAt,
   };
@@ -65,6 +69,8 @@ const UpdateLeadSchema = z.object({
   draftSubject: z.string().max(300).optional().nullable(),
   draftBody: z.string().optional().nullable(),
   draftStatus: z.enum(["NONE", "DRAFT", "APPROVED", "SENT"]).optional(),
+  companyProfileId: z.string().min(1).optional().nullable(),
+  intakeChecklist: z.unknown().optional(),
 }).refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
 
 export async function PATCH(
@@ -101,6 +107,8 @@ export async function PATCH(
       ...(input.draftStatus
         ? { draftStatus: input.draftStatus as LeadDraftStatus, draftedAt: new Date() }
         : {}),
+      ...(input.companyProfileId !== undefined ? { companyProfileId: input.companyProfileId } : {}),
+      ...(input.intakeChecklist !== undefined ? { intakeChecklist: input.intakeChecklist } : {}),
     });
 
     return NextResponse.json(formatLead(lead));

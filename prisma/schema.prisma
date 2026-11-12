@@ -607,6 +607,11 @@ model Lead {
   draftBody        String?         @db.Text
   draftStatus      LeadDraftStatus @default(NONE)
   draftedAt        DateTime?
+  // Opportunity setup (set when Jeremy confirms the lead).
+  companyProfileId String?
+  confirmedAt      DateTime?
+  confirmedBy      String?
+  intakeChecklist  Json?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 

@@ -24,6 +24,10 @@ export type UpdateLeadInput = {
   draftBody?: string | null;
   draftStatus?: LeadDraftStatus;
   draftedAt?: Date | null;
+  companyProfileId?: string | null;
+  confirmedAt?: Date | null;
+  confirmedBy?: string | null;
+  intakeChecklist?: unknown;
 };
 
 export const LeadRepository = {
@@ -104,6 +108,10 @@ export const LeadRepository = {
         ...(data.draftBody !== undefined ? { draftBody: data.draftBody } : {}),
         ...(data.draftStatus !== undefined ? { draftStatus: data.draftStatus } : {}),
         ...(data.draftedAt !== undefined ? { draftedAt: data.draftedAt } : {}),
+        ...(data.companyProfileId !== undefined ? { companyProfileId: data.companyProfileId } : {}),
+        ...(data.confirmedAt !== undefined ? { confirmedAt: data.confirmedAt } : {}),
+        ...(data.confirmedBy !== undefined ? { confirmedBy: data.confirmedBy } : {}),
+        ...(data.intakeChecklist !== undefined ? { intakeChecklist: data.intakeChecklist as never } : {}),
       },
     });
   },

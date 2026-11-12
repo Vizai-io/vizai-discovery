@@ -37,6 +37,10 @@ function formatLead(l: Awaited<ReturnType<typeof LeadRepository.findByOrg>>[numb
     draft_body: l.draftBody,
     draft_status: l.draftStatus,
     drafted_at: l.draftedAt,
+    company_profile_id: l.companyProfileId,
+    confirmed_at: l.confirmedAt,
+    confirmed_by: l.confirmedBy,
+    intake_checklist: l.intakeChecklist,
     created_at: l.createdAt,
     updated_at: l.updatedAt,
   };
