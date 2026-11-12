@@ -1,14 +1,14 @@
 /**
- * @fileOverview Next.js middleware — authentication gate.
+ * @fileOverview Next.js proxy - authentication gate.
  *
- * Runs in Edge Runtime on every matching request.
+ * Runs on the Node.js runtime on every matching request (Next 16: proxy replaced middleware; no Edge Runtime).
  * Responsibilities:
  * 1. Refresh the Supabase session (keeps tokens alive)
  * 2. Redirect unauthenticated users away from protected routes
  * 3. Redirect authenticated users away from auth pages
  *
- * NOTE: Role-based admin authorization is NOT checked here — Edge Runtime
- * cannot use Prisma. Admin role verification happens in:
+ * NOTE: Role-based admin authorization is NOT checked here. Admin role
+ * verification happens in:
  *   - src/app/admin/layout.tsx (server component, Node.js)
  *   - API routes via requireAdmin()
  */
@@ -22,7 +22,7 @@ const PROTECTED_PREFIXES = ["/dashboard", "/scans", "/admin"];
 // Routes that should redirect to /dashboard if already authenticated
 const AUTH_PREFIXES = ["/auth/sign-in", "/auth/register"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next({
     request: { headers: request.headers },
   });
