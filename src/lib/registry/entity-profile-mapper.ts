@@ -106,7 +106,7 @@ export function mapCanonToProfile(
     method: canon.verification.method,
     lastVerified: canon.verification.lastVerified,
   };
-  if (canon.verification.tier) verification.tier = canon.verification.tier;
+  // No `tier`: the registry schema has no tier property — emitting one would fail schema validation.
   verification.canonVersion = `${canon.version}.0`;
   if (canon.verification.customerApprovalDate) {
     verification.customerApprovalDate = canon.verification.customerApprovalDate;
@@ -160,8 +160,16 @@ export function mapCanonToProfile(
   };
   if (Object.keys(profile).length > 0) artifact.profile = profile;
   if (credentials.length > 0) artifact.credentials = credentials;
-  // profileVersion is an INTEGER (DEC-030 gate 4). Omitted unless explicitly supplied,
-  // so the Wills fixture reproduces the live published profile (which carries none).
+  if (canon.publication) {
+    artifact.publication = {
+      policyVersion: canon.publication.policyVersion,
+      consentReceipt: { ...canon.publication.consentReceipt },
+    };
+  }
+  // profileVersion is an INTEGER (DEC-030 gate 4). Omitted unless explicitly supplied.
+  // The live published profile carries profileVersion 1 (since the Jul 16, 2026 update);
+  // omitting it produces an artifact that FAILS the registry schema (profileVersion
+  // is required), so callers preparing a real draft must always pass it.
   if (typeof opts.profileVersion === "number") artifact.profileVersion = opts.profileVersion;
 
   return { artifact, excluded };

@@ -10,6 +10,13 @@
  *
  * Pure: no DB, no Prisma, no network. The caller (truth-infrastructure.service)
  * loads the rows and resolves identity/dates, then calls this.
+ *
+ * Parity contract (WP-19F): the registry profile is reproduced from the
+ * TruthClaim rows — slug / commonName / dates / publication come from the
+ * caller (stored CompanyProfile fields, canon/attestation dates, recorded
+ * consent), never from today() or from slugifying the legal name.
+ * `description` and `differentiator` rows have no registry-profile field and
+ * are dropped; profile `claims` come only from category `claim` rows.
  */
 
 import type {
@@ -42,10 +49,13 @@ const ENTITY_PROFILE_CATEGORY = new Set<string>([
 // WP-19G-VIZAI-REVISE: when a businessType/industry string is not itself a category enum value,
 // map it via conservative keyword fragments (substring match on the normalized value). The exact-enum
 // check always wins; unmatched values still fall back to "other". This lets a descriptive businessType
-// (e.g. "AI software / business intelligence platform") resolve to "technology" while profile.businessType
-// keeps the full phrase — category and businessType are independent fields in entity-profile-v1.0.
+// (e.g. "AI software / business intelligence platform") resolve to "technology", and
+// "Third-party logistics (3PL), warehousing, fulfillment, distribution" resolve to "logistics",
+// while profile.businessType keeps the full phrase — category and businessType are independent
+// fields in entity-profile-v1.0.
 const CATEGORY_KEYWORDS: Array<{ category: string; fragments: string[] }> = [
   { category: "technology", fragments: ["software", "saas", "business-intelligence", "analytics", "artificial-intelligence", "fintech", "technology", "cybersecurity"] },
+  { category: "logistics", fragments: ["logistics", "3pl", "warehousing", "warehouse", "fulfillment", "distribution", "transportation", "freight", "trucking", "courier", "supply-chain"] },
 ];
 
 function mapCategory(raw?: string): string {
@@ -56,6 +66,58 @@ function mapCategory(raw?: string): string {
     if (fragments.some((f) => norm.includes(f))) return category;
   }
   return "other";
+}
+
+// WP-19F parity: try each candidate IN ORDER through the keyword table and take
+// the first that maps to a real category. A vague officialBusinessType that maps
+// to "other" must not win by position over the businessType phrase (which the
+// keyword table resolves to e.g. "logistics"); industries[0] is the last resort.
+function mapCategoryFromCandidates(...candidates: Array<string | undefined>): string {
+  for (const c of candidates) {
+    const mapped = mapCategory(c);
+    if (mapped !== "other") return mapped;
+  }
+  return "other";
+}
+
+// Canadian province names by code, for location display names (below).
+const PROVINCE_NAMES_BY_CODE: Record<string, string> = {
+  ON: "Ontario",
+  QC: "Quebec",
+  BC: "British Columbia",
+  AB: "Alberta",
+  MB: "Manitoba",
+  SK: "Saskatchewan",
+  NS: "Nova Scotia",
+  NB: "New Brunswick",
+  PE: "Prince Edward Island",
+  NL: "Newfoundland and Labrador",
+  YT: "Yukon",
+  NT: "Northwest Territories",
+  NU: "Nunavut",
+};
+
+/**
+ * Bare city name for a location value. TruthClaim location values carry
+ * "<City>, <Province>" (and, in the pre-parity rows, a trailing
+ * " (headquarters)" role marker); the registry profile carries the bare city
+ * in `name` with the province in `region` and the role in `role`, so both
+ * suffixes are stripped here. "Smiths Falls, Ontario (headquarters)" and
+ * "Smiths Falls, Ontario" both become "Smiths Falls".
+ */
+function locationDisplayName(raw: string, region?: string): string {
+  let name = raw.trim();
+  name = name.replace(/\s*\((headquarters|facility)\)\s*$/i, "").trim();
+  const province = region ? PROVINCE_NAMES_BY_CODE[region.toUpperCase()] : undefined;
+  const candidates = province ? [province] : Object.values(PROVINCE_NAMES_BY_CODE);
+  for (const p of candidates) {
+    const suffix = `, ${p}`;
+    if (name.toLowerCase().endsWith(suffix.toLowerCase())) {
+      name = name.slice(0, -suffix.length).trim();
+      break;
+    }
+  }
+  return name;
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -88,11 +150,15 @@ export interface CanonToAppShapedInput {
   approvedBy?: string | null;
   businessName: string;
   primaryDomain: string; // caller resolves from websiteUrl (throws if absent)
-  entitySlug: string; // caller computes via slugify(businessName)
+  entitySlug: string; // caller resolves: stored CompanyProfile.entitySlug, else slugified trading name
+  /** Trading/common name (stored CompanyProfile.commonName, else legal-suffix strip). Defaults to businessName. */
+  commonName?: string;
   category?: string; // raw hint (officialBusinessType / first industry); mapped to enum
-  lastVerified: string; // YYYY-MM-DD (caller supplies — keeps this pure/deterministic)
-  dateAdded: string;
-  lastUpdated: string;
+  lastVerified: string; // YYYY-MM-DD — canon/attestation date from the caller, NEVER today()
+  dateAdded: string; // YYYY-MM-DD — worksheet/canon-created date from the caller, NEVER today()
+  lastUpdated: string; // YYYY-MM-DD — canon.updatedAt from the caller, NEVER today()
+  /** Recorded registry consent (the caller throws without registryListingConsentAt). Omitted -> no publication emitted. */
+  publication?: { status: "recorded" | "not-required-public-observation" };
   claims: TransformerClaim[]; // PRIMARY source
 }
 
@@ -104,10 +170,19 @@ export interface CanonToAppShapedInput {
  */
 export function canonToAppShaped(input: CanonToAppShapedInput): AppShapedCanon {
   const services: string[] = [];
-  const locations: Array<{ name: string }> = [];
+  const locations: Array<{ name: string; region?: string; role?: string }> = [];
   const industries: string[] = [];
-  const narrative: string[] = [];
+  // Registry profile `claims` come ONLY from category `claim` rows (value { claim }).
+  // `description` and `differentiator` rows have no registry-profile field and are
+  // dropped here (they remain in the canonical truth and the AI-native profile).
+  const publicClaims: string[] = [];
+  // `business_type` + `identity` rows merge into the single `identity` claim the
+  // second-stage mapper routes via PROFILE_SCALAR_KEYS.
+  const identityParts: Record<string, unknown> = {};
   let businessType: string | undefined;
+  let scaleValue: Record<string, unknown> | undefined;
+  let contactValue: Record<string, unknown> | undefined;
+  let profilesValue: Record<string, unknown> | undefined;
   const credentialClaims: CanonCredentialClaim[] = [];
 
   for (const c of input.claims) {
@@ -142,33 +217,83 @@ export function canonToAppShaped(input: CanonToAppShapedInput): AppShapedCanon {
       case "service":
         if (typeof v.service === "string") services.push(v.service);
         break;
-      case "location":
-        if (typeof v.location === "string") locations.push({ name: v.location });
+      case "location": {
+        if (typeof v.location === "string") {
+          const region = typeof v.region === "string" ? v.region : undefined;
+          const role = typeof v.role === "string" ? v.role : undefined;
+          const loc: { name: string; region?: string; role?: string } = {
+            name: locationDisplayName(v.location, region),
+          };
+          if (region) loc.region = region;
+          if (role) loc.role = role;
+          locations.push(loc);
+        }
         break;
+      }
       case "industry":
         if (typeof v.industry === "string") industries.push(v.industry);
         break;
       case "business_type":
-        if (typeof v.businessType === "string") businessType = v.businessType;
+        if (typeof v.businessType === "string") {
+          businessType = v.businessType;
+          identityParts.businessType = v.businessType;
+        }
         break;
-      case "description":
-        if (typeof v.description === "string") narrative.push(v.description);
+      case "identity":
+        for (const k of ["country", "yearFounded", "ownership"] as const) {
+          if (k in v) identityParts[k] = v[k];
+        }
         break;
-      case "differentiator":
-        if (typeof v.differentiator === "string") narrative.push(v.differentiator);
+      case "scale":
+        scaleValue = { ...scaleValue, ...v };
         break;
-      // customer_segment and any unmapped category -> no entity-profile-v1.0 field -> dropped
+      case "contact":
+        contactValue = { ...contactValue, ...v };
+        break;
+      case "profiles":
+        profilesValue = { ...profilesValue, ...v };
+        break;
+      case "claim": {
+        const s =
+          typeof v.claim === "string"
+            ? v.claim
+            : typeof c.value === "string"
+              ? c.value
+              : undefined;
+        if (s) publicClaims.push(s);
+        break;
+      }
+      // description, differentiator, customer_segment and any unmapped category
+      // have no entity-profile-v1.0 field -> dropped (never merged into claims).
       default:
         break;
     }
   }
 
   const claims: CanonClaim[] = [];
-  if (businessType) claims.push({ category: "identity", value: { businessType }, status: "VERIFIED" });
-  if (services.length) claims.push({ category: "services", value: services, status: "VERIFIED" });
+  if (Object.keys(identityParts).length > 0) {
+    claims.push({ category: "identity", value: identityParts, status: "VERIFIED" });
+  }
+  if (scaleValue) claims.push({ category: "scale", value: scaleValue, status: "VERIFIED" });
   if (locations.length) claims.push({ category: "locations", value: locations, status: "VERIFIED" });
+  if (services.length) claims.push({ category: "services", value: services, status: "VERIFIED" });
   if (industries.length) claims.push({ category: "industries", value: industries, status: "VERIFIED" });
-  if (narrative.length) claims.push({ category: "claims", value: narrative, status: "VERIFIED" });
+  if (publicClaims.length) claims.push({ category: "claims", value: publicClaims, status: "VERIFIED" });
+  if (contactValue) claims.push({ category: "contact", value: contactValue, status: "VERIFIED" });
+  if (profilesValue) claims.push({ category: "profiles", value: profilesValue, status: "VERIFIED" });
+
+  // `publication` is emitted only when the caller passes recorded consent
+  // (loadCanonForArtifact throws without registryListingConsentAt); without it
+  // the artifact fails the registry schema, which requires publication.
+  const publication = input.publication
+    ? {
+        policyVersion: "1.0" as const,
+        consentReceipt: {
+          status: input.publication.status,
+          reference: `canon:${input.entitySlug}:${input.version}.0`,
+        },
+      }
+    : undefined;
 
   return {
     version: input.version,
@@ -178,17 +303,17 @@ export function canonToAppShaped(input: CanonToAppShapedInput): AppShapedCanon {
     entity: {
       slug: input.entitySlug,
       legalName: input.businessName,
-      commonName: input.businessName,
+      commonName: input.commonName ?? input.businessName,
       primaryDomain: input.primaryDomain,
     },
-    category: mapCategory(input.category ?? businessType ?? industries[0]),
+    category: mapCategoryFromCandidates(input.category, businessType, industries[0]),
     verification: {
       status: "claimed_verified",
       method: "customer-canon-approval",
       lastVerified: input.lastVerified,
-      tier: "claimed_verified",
     },
     metadata: { dateAdded: input.dateAdded, lastUpdated: input.lastUpdated },
+    ...(publication ? { publication } : {}),
     claims,
     credentialClaims,
   };

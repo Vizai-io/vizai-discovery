@@ -16,7 +16,7 @@ import { mapCanonToProfile } from "../entity-profile-mapper";
 import { gateForbiddenTerms, runGates } from "../publish-gates";
 import { contentHash } from "../content-hash";
 import { validate } from "../json-schema-mini";
-import { willsCanonFixture, WILLS_PUBLISHED_CONTENT_HASH } from "../fixtures/wills-canon.fixture";
+import { willsCanonFixture } from "../fixtures/wills-canon.fixture";
 import { buildPublishDraft } from "../../services/registry-publish.service";
 import type { AppShapedCanon } from "../types";
 
@@ -36,7 +36,8 @@ function check(name: string, cond: boolean, detail = ""): void {
   }
 }
 
-const { artifact, excluded } = mapCanonToProfile(willsCanonFixture);
+// The live file carries profileVersion 1; the synced schema requires it.
+const { artifact, excluded } = mapCanonToProfile(willsCanonFixture, { profileVersion: 1 });
 const raw = JSON.stringify(artifact, null, 2);
 const lower = raw.toLowerCase();
 
@@ -77,7 +78,7 @@ canon2.credentialClaims = [
     evidence: [{ supportLevel: "STRONG", sourceType: "CUSTOMER_PROVIDED" }],
   },
 ];
-const { artifact: art2 } = mapCanonToProfile(canon2);
+const { artifact: art2 } = mapCanonToProfile(canon2, { profileVersion: 1 });
 check(
   "T5 verified + STRONG credential crosses and validates",
   !!art2.credentials &&
@@ -119,11 +120,49 @@ for (const k of Object.keys(artifact).reverse()) reordered[k] = (artifact as unk
 const h3 = contentHash(reordered);
 check("T8 contentHash deterministic and key-order independent", h1 === h2 && h2 === h3, `${h1} ${h2} ${h3}`);
 
-// T9 — Wills fixture hash parity with the published target
+// T9 — shape + named-field parity with the CURRENT live published profile
+// (WP-19F: byte/hash parity is impossible by construction — canonVersion is
+// derived as `${version}.0`, so a v2 regeneration yields "2.0"; the retired
+// pre-Jul-16 hash asserted an artifact with `tier` and no profileVersion /
+// publication, which the live file no longer matches).
+const liveProfile = (artifact.profile ?? {}) as Record<string, unknown>;
+const liveLocations = (liveProfile.locations ?? []) as Array<Record<string, unknown>>;
 check(
-  "T9 Wills fixture contentHash == published Wills hash",
-  h1 === WILLS_PUBLISHED_CONTENT_HASH,
-  `got ${h1}`,
+  "T9 Wills artifact matches the live published profile (shape + named fields)",
+  artifact.schemaVersion === "1.0" &&
+    artifact.entitySlug === "wills-transfer" &&
+    artifact.profileVersion === 1 &&
+    artifact.businessIdentifier.legalName === "Wills Transfer Limited" &&
+    artifact.businessIdentifier.commonName === "Wills Transfer" &&
+    artifact.businessIdentifier.primaryDomain === "willstransfer.com" &&
+    artifact.category === "logistics" &&
+    artifact.verification.status === "claimed_verified" &&
+    artifact.verification.method === "customer-canon-approval" &&
+    artifact.verification.canonVersion === "1.0" &&
+    artifact.verification.lastVerified === "2026-06-13" &&
+    !("tier" in artifact.verification) &&
+    artifact.publication?.policyVersion === "1.0" &&
+    artifact.publication?.consentReceipt.status === "recorded" &&
+    artifact.publication?.consentReceipt.reference === "canon:wills-transfer:1.0" &&
+    artifact.metadata.dateAdded === "2026-06-13" &&
+    artifact.metadata.lastUpdated === "2026-07-16" &&
+    liveProfile.businessType === "Third-party logistics (3PL), warehousing, fulfillment, distribution" &&
+    liveProfile.country === "Canada" &&
+    liveProfile.yearFounded === 1945 &&
+    liveProfile.ownership === "Fourth-generation family business" &&
+    JSON.stringify(liveProfile.scale) === JSON.stringify({ facilityCount: 7, totalSquareFeet: "1000000+", locationCount: 5, region: "Eastern Ontario" }) &&
+    liveLocations.length === 5 &&
+    liveLocations[0].name === "Smiths Falls" && liveLocations[0].region === "ON" && liveLocations[0].role === "headquarters" &&
+    liveLocations[4].name === "Perth" && liveLocations[4].region === "ON" && liveLocations[4].role === "facility" &&
+    Array.isArray(liveProfile.services) && (liveProfile.services as unknown[]).length === 19 &&
+    Array.isArray(liveProfile.industriesServed) && (liveProfile.industriesServed as unknown[]).length === 10 &&
+    JSON.stringify(liveProfile.claims) === JSON.stringify([
+      "Serving Eastern Ontario and Western Quebec since 1945",
+      "Provides innovative logistics solutions that contribute to customers' success",
+    ]) &&
+    JSON.stringify(liveProfile.contact) === JSON.stringify({ phone: "+1-613-283-0225", tollFree: "+1-800-267-7937", email: "info@willstransfer.com", website: "https://www.willstransfer.com" }) &&
+    JSON.stringify(liveProfile.profiles) === JSON.stringify({ linkedin: "https://ca.linkedin.com/company/wills-transfer-limited", facebook: "https://www.facebook.com/WillsTransferLimited/" }),
+  JSON.stringify({ slug: artifact.entitySlug, category: artifact.category, verification: artifact.verification, publication: artifact.publication, metadata: artifact.metadata, claims: liveProfile.claims }),
 );
 
 // T10 — no DB writes (no Prisma/db imports in the modules)
@@ -149,15 +188,19 @@ for (const file of moduleFiles) {
 check("T10 no DB writes (no prisma/db imports in modules)", !dbNetViolations.some((v) => /prisma|supabase|pg/i.test(v)), dbNetViolations.join(" | "));
 check("T11 no network calls (no http/fetch imports in modules)", dbNetViolations.length === 0, dbNetViolations.join(" | "));
 
-// Bonus — buildPublishDraft end-to-end (uses the service's schema import) + parity + operator gate
-const packet = buildPublishDraft(willsCanonFixture, { expectedContentHash: WILLS_PUBLISHED_CONTENT_HASH });
+// Bonus — buildPublishDraft end-to-end (uses the service's schema import) + operator gate.
+// No expectedContentHash: hash parity with the retired pre-Jul-16 artifact is
+// impossible by construction (see the fixture header); the check is that the
+// draft is schema-valid, technically passing, and still awaiting a human.
+const packet = buildPublishDraft(willsCanonFixture, { profileVersion: 1 });
 check(
-  "T12 buildPublishDraft: parity match, operator PENDING, not ready to publish",
-  packet.contentHashParity?.match === true &&
+  "T12 buildPublishDraft: technicalPass, operator PENDING, not ready to publish",
+  packet.technicalPass === true &&
     packet.operatorApproval.status === "PENDING_HUMAN_APPROVAL" &&
     packet.readyToPublish === false &&
-    packet.technicalPass === true,
-  JSON.stringify({ parity: packet.contentHashParity?.match, ready: packet.readyToPublish }),
+    packet.generatedArtifact.profileVersion === 1 &&
+    packet.generatedArtifact.publication?.consentReceipt.reference === "canon:wills-transfer:1.0",
+  JSON.stringify({ tech: packet.technicalPass, ready: packet.readyToPublish, gates: packet.gateResults }),
 );
 
 console.log("-".repeat(60));

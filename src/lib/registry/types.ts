@@ -55,8 +55,13 @@ export interface AppShapedCanon {
     status: string;
     method: string;
     lastVerified: string;
-    tier?: string;
+    // No `tier`: the registry schema has no tier property (removed in the WP-19F parity fix).
     customerApprovalDate?: string;
+  };
+  /** Publication/consent assertion (registry schema requires it). Set by canonToAppShaped from recorded consent. */
+  publication?: {
+    policyVersion: "1.0";
+    consentReceipt: { status: "recorded" | "not-required-public-observation"; reference: string };
   };
   metadata: { dateAdded: string; lastUpdated: string };
   claims: CanonClaim[];
@@ -80,14 +85,18 @@ export interface EntityProfile {
     status: string;
     method: string;
     lastVerified: string;
-    tier?: string;
+    // No `tier`: the registry schema has no tier property.
     canonVersion?: string;
     customerApprovalDate?: string;
+  };
+  publication?: {
+    policyVersion: "1.0";
+    consentReceipt: { status: "recorded" | "not-required-public-observation"; reference: string };
   };
   profile?: Record<string, unknown>;
   credentials?: Array<Record<string, unknown>>;
   metadata: { dateAdded: string; lastUpdated: string };
-  /** Integer per DEC-030 gate 4 (mapped to TruthPublishRecord.version). Omitted in V1 — see service. */
+  /** Integer per DEC-030 gate 4 (mapped to TruthPublishRecord.version). Required by the registry schema; omitted only when the caller does not supply one. */
   profileVersion?: number;
 }
 

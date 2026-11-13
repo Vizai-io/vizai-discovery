@@ -53,10 +53,19 @@ const claims: TransformerClaim[] = [
   verified({ category: "service", value: { service: "Warehousing" } }),
   verified({ category: "service", value: { service: "Distribution" } }),
   { category: "service", value: { service: "Fulfillment" }, status: "NEEDS_EVIDENCE" }, // held -> excluded
-  verified({ category: "location", value: { location: "Smiths Falls" } }),
-  verified({ category: "location", value: { location: "Brockville" } }),
+  verified({ category: "location", value: { location: "Smiths Falls, Ontario", region: "ON", role: "headquarters" } }),
+  verified({ category: "location", value: { location: "Brockville, Ontario", region: "ON", role: "facility" } }),
   verified({ category: "industry", value: { industry: "Food & beverage" } }),
-  verified({ category: "description", value: { description: "Serving Eastern Ontario since 1945" } }),
+  // New parity categories (WP-19F): identity scalars, scale, contact, profiles,
+  // and the two public `claim` rows. The description/differentiator rows below
+  // prove those categories are DROPPED from the registry profile.
+  verified({ category: "identity", value: { country: "Canada", yearFounded: 1945, ownership: "Fourth-generation family business" } }),
+  verified({ category: "scale", value: { facilityCount: 7, totalSquareFeet: "1000000+", locationCount: 5, region: "Eastern Ontario" } }),
+  verified({ category: "contact", value: { phone: "+1-613-283-0225", tollFree: "+1-800-267-7937", email: "info@willstransfer.com", website: "https://www.willstransfer.com" } }),
+  verified({ category: "profiles", value: { linkedin: "https://ca.linkedin.com/company/wills-transfer-limited", facebook: "https://www.facebook.com/WillsTransferLimited/" } }),
+  verified({ category: "claim", value: { claim: "Serving Eastern Ontario and Western Quebec since 1945" } }),
+  verified({ category: "claim", value: { claim: "Provides innovative logistics solutions that contribute to customers' success" } }),
+  verified({ category: "description", value: { description: "A Canadian logistics provider (description — must not cross)" } }),
   verified({ category: "differentiator", value: { differentiator: "Fourth-generation family business" } }),
   verified({ category: "customer_segment", value: { customerType: "Retailers" } }), // dropped (no field)
   // credentials (held):
@@ -78,12 +87,16 @@ const input: CanonToAppShapedInput = {
   approvedAt: "2026-06-13T00:00:00.000Z",
   approvedBy: "operator",
   businessName: "Wills Transfer Limited",
+  commonName: "Wills Transfer",
   primaryDomain: "willstransfer.com",
-  entitySlug: "wills-transfer-limited",
+  entitySlug: "wills-transfer",
   category: "Logistics",
   lastVerified: "2026-06-13",
   dateAdded: "2026-06-13",
   lastUpdated: "2026-06-13",
+  // Recorded registry consent — the mapper derives the publication receipt
+  // `canon:wills-transfer:1.0` from the slug + canon version.
+  publication: { status: "recorded" },
   claims,
 };
 
@@ -93,15 +106,31 @@ const artifact = packet.generatedArtifact;
 const raw = JSON.stringify(artifact, null, 2);
 const profile = (artifact.profile ?? {}) as Record<string, unknown>;
 
-// T1 — transformer maps claims correctly (aggregation, status filter, drops)
+// T1 — transformer maps claims correctly (aggregation, status filter, drops).
+// WP-19F: profile `claims` come ONLY from `claim` rows; description and
+// differentiator rows are dropped (the differentiator string survives only as
+// profile.ownership, never in claims); locations carry region/role with the
+// bare city name.
 check(
   "T1 transformer aggregates VERIFIED claims by category; held + unmapped dropped",
   JSON.stringify(profile.services) === JSON.stringify(["Warehousing", "Distribution"]) &&
-    Array.isArray(profile.locations) && (profile.locations as unknown[]).length === 2 &&
+    JSON.stringify(profile.locations) === JSON.stringify([
+      { name: "Smiths Falls", region: "ON", role: "headquarters" },
+      { name: "Brockville", region: "ON", role: "facility" },
+    ]) &&
     JSON.stringify(profile.industriesServed) === JSON.stringify(["Food & beverage"]) &&
     (profile.businessType === "Third-party logistics (3PL)") &&
-    Array.isArray(profile.claims) && (profile.claims as string[]).includes("Fourth-generation family business") &&
-    !raw.includes("Fulfillment") && !raw.includes("Retailers"),
+    profile.country === "Canada" && profile.yearFounded === 1945 &&
+    profile.ownership === "Fourth-generation family business" &&
+    JSON.stringify(profile.scale) === JSON.stringify({ facilityCount: 7, totalSquareFeet: "1000000+", locationCount: 5, region: "Eastern Ontario" }) &&
+    JSON.stringify(profile.contact) === JSON.stringify({ phone: "+1-613-283-0225", tollFree: "+1-800-267-7937", email: "info@willstransfer.com", website: "https://www.willstransfer.com" }) &&
+    JSON.stringify(profile.profiles) === JSON.stringify({ linkedin: "https://ca.linkedin.com/company/wills-transfer-limited", facebook: "https://www.facebook.com/WillsTransferLimited/" }) &&
+    JSON.stringify(profile.claims) === JSON.stringify([
+      "Serving Eastern Ontario and Western Quebec since 1945",
+      "Provides innovative logistics solutions that contribute to customers' success",
+    ]) &&
+    !raw.includes("Fulfillment") && !raw.includes("Retailers") &&
+    !raw.includes("must not cross") && !(profile.claims as string[]).includes("Fourth-generation family business"),
   raw,
 );
 
@@ -142,7 +171,7 @@ const inputStrong: CanonToAppShapedInput = {
     },
   ],
 };
-const art5 = buildPublishDraft(canonToAppShaped(inputStrong)).generatedArtifact;
+const art5 = buildPublishDraft(canonToAppShaped(inputStrong), { profileVersion: 3 }).generatedArtifact;
 check(
   "T5 verified + STRONG credential crosses and still validates",
   !!art5.credentials && art5.credentials.length === 1 &&
@@ -262,7 +291,7 @@ const techInput: CanonToAppShapedInput = {
     verified({ category: "industry", value: { industry: "Business intelligence" } }),
   ],
 };
-const techArt = buildPublishDraft(canonToAppShaped(techInput)).generatedArtifact;
+const techArt = buildPublishDraft(canonToAppShaped(techInput), { profileVersion: 3 }).generatedArtifact;
 const techProfile = (techArt.profile ?? {}) as Record<string, unknown>;
 check(
   "T15 tech businessType -> category technology; profile.businessType phrase preserved; schema valid",
@@ -270,6 +299,43 @@ check(
     techProfile.businessType === "AI software / business intelligence platform" &&
     validate(schema, techArt).length === 0,
   JSON.stringify({ category: techArt.category, businessType: techProfile.businessType }),
+);
+
+// T16 (WP-19F parity) — Wills-shaped artifact reproduces the live profile's
+// named fields: slug, names, category, no tier, publication, profileVersion.
+check(
+  "T16 parity shape: slug/names/category/no-tier/publication/profileVersion",
+  artifact.entitySlug === "wills-transfer" &&
+    artifact.businessIdentifier.commonName === "Wills Transfer" &&
+    artifact.businessIdentifier.legalName === "Wills Transfer Limited" &&
+    artifact.category === "logistics" &&
+    !("tier" in artifact.verification) &&
+    artifact.verification.canonVersion === "1.0" &&
+    artifact.publication?.policyVersion === "1.0" &&
+    artifact.publication?.consentReceipt.status === "recorded" &&
+    artifact.publication?.consentReceipt.reference === "canon:wills-transfer:1.0" &&
+    artifact.profileVersion === 3 &&
+    artifact.metadata.dateAdded === "2026-06-13" &&
+    artifact.metadata.lastUpdated === "2026-06-13",
+  JSON.stringify({ slug: artifact.entitySlug, category: artifact.category, verification: artifact.verification, publication: artifact.publication }),
+);
+
+// T17 (WP-19F parity) — the businessType phrase maps to `logistics` through the
+// keyword table even when no input.category hint is supplied.
+const noHintInput: CanonToAppShapedInput = {
+  ...input,
+  category: undefined,
+  claims: [
+    verified({ category: "business_type", value: { businessType: "Third-party logistics (3PL), warehousing, fulfillment, distribution" } }),
+    verified({ category: "service", value: { service: "Warehousing" } }),
+  ],
+};
+const noHintArt = buildPublishDraft(canonToAppShaped(noHintInput), { profileVersion: 3 }).generatedArtifact;
+check(
+  "T17 businessType phrase -> category logistics with no category hint",
+  noHintArt.category === "logistics" &&
+    (noHintArt.profile as Record<string, unknown>).businessType === "Third-party logistics (3PL), warehousing, fulfillment, distribution",
+  JSON.stringify({ category: noHintArt.category }),
 );
 
 console.log("-".repeat(60));

@@ -12,6 +12,7 @@ import { PerceptionDriftService } from "@/lib/services/perception-drift.service"
 import { buildCanonicalBusiness } from "@/lib/services/truth-export.service";
 import { buildPublishDraft } from "@/lib/services/registry-publish.service";
 import { AiNativeProfileService } from "@/lib/services/ai-native-profile.service";
+import { deriveCommonName, slugifyName } from "@/lib/registry/ai-native-profile";
 import {
   canonToAppShaped,
   buildRegistryDraftWrites,
@@ -38,6 +39,8 @@ type CanonProfile = {
   organizationId: string;
   businessName: string;
   websiteUrl: string | null;
+  entitySlug?: string | null;
+  commonName?: string | null;
   officialDescription: string | null;
   officialBusinessType: string | null;
   officialServices: string[];
@@ -86,8 +89,11 @@ function domainFromUrl(url: string | null | undefined): string | null {
   }
 }
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
+function isoDate(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
 }
 
 async function getPrimaryProfile(organizationId: string, companyProfileId?: string): Promise<CanonProfile | null> {
@@ -610,6 +616,11 @@ export const RegistryProfileService = {
    * WP-19F: load the canon + its TruthClaim rows (PRIMARY source) + evidence links,
    * resolve identity (canonPayload is fallback/reference only), and shape the
    * transformer input for `canonToAppShaped`.
+   *
+   * Identity/dates/publication are resolved here (WP-19F parity): stored
+   * CompanyProfile slug/commonName (else legal-suffix-strip derivation),
+   * worksheet/attestation dates (never today()), and the recorded-consent
+   * publication receipt.
    */
   async loadCanonForArtifact(canonVersionId: string, organizationId: string) {
     const canon = await db.truthCanonVersion.findFirst({
@@ -653,7 +664,39 @@ export const RegistryProfileService = {
       })),
     }));
 
-    const date = today();
+    // Identity (WP-19F parity): stored CompanyProfile.entitySlug / commonName
+    // win; otherwise derive the trading name (legal-suffix strip, as the
+    // AI-native generator does) and slugify that — never the legal name.
+    // "Wills Transfer Limited" -> commonName "Wills Transfer", slug "wills-transfer".
+    const commonName = canon.companyProfile?.commonName ?? deriveCommonName(businessName);
+    const entitySlug = canon.companyProfile?.entitySlug ?? slugifyName(commonName);
+
+    // Dates (WP-19F parity): NEVER today(). The verification anchor is the signed
+    // worksheet — the OWNER_ATTESTATION evidence sourceDate (2026-06-13 for
+    // Wills) — mirroring AiNativeProfileService's lastVerified precedence
+    // (attestation sourceDate -> latest claim verifiedAt -> canon approvedAt).
+    // dateAdded uses the same worksheet date: canon.createdAt is the Nov 2026
+    // backfill date, not the Canon v1.0 date. lastUpdated is canon.updatedAt —
+    // it differs from the live v1.0 file's 2026-07-16, which matches no canon
+    // date (known, documented difference, not a failure).
+    const attestation = await db.evidenceSource.findFirst({
+      where: { organizationId, companyProfileId: canon.companyProfileId, type: "OWNER_ATTESTATION" },
+      orderBy: { sourceDate: "desc" },
+      select: { sourceDate: true },
+    });
+    const worksheetDate = isoDate(attestation?.sourceDate);
+    const latestVerifiedAt = canon.claims.reduce<Date | null>((max, cl) => {
+      if (!cl.verifiedAt) return max;
+      return !max || cl.verifiedAt > max ? cl.verifiedAt : max;
+    }, null);
+    const lastVerified =
+      worksheetDate ?? isoDate(latestVerifiedAt) ?? isoDate(canon.approvedAt) ?? isoDate(canon.createdAt);
+    const dateAdded = worksheetDate ?? isoDate(canon.createdAt);
+    const lastUpdated = isoDate(canon.updatedAt);
+    if (!lastVerified || !dateAdded || !lastUpdated) {
+      throw new Error("Cannot build public profile: canon is missing verification dates.");
+    }
+
     return {
       companyProfileId: canon.companyProfileId,
       input: {
@@ -662,12 +705,17 @@ export const RegistryProfileService = {
         approvedAt: canon.approvedAt ? canon.approvedAt.toISOString() : null,
         approvedBy: canon.approvedBy,
         businessName,
+        commonName,
         primaryDomain,
-        entitySlug: slugify(businessName),
+        entitySlug,
         category: canon.companyProfile?.officialBusinessType ?? fallback?.business?.business_type ?? undefined,
-        lastVerified: date,
-        dateAdded: date,
-        lastUpdated: date,
+        lastVerified,
+        dateAdded,
+        lastUpdated,
+        // Registry consent was verified above (throws without it), so the
+        // consent receipt is `recorded`; the mapper derives the reference
+        // `canon:<slug>:<canonVersion>` from the slug + canon version.
+        publication: { status: "recorded" as const },
         claims,
       },
     };

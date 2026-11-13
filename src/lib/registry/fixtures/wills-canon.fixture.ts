@@ -2,10 +2,19 @@
  * WP-19D — Wills-shaped app Canon fixture (SYNTHETIC; fixtures-only, no DB read).
  *
  * Resembles an APPROVED TruthCanonVersion + its TruthClaims + credential claims
- * with evidence links. Public-safe facts mirror the already-published
- * business-registry/registry/wills-transfer/profile.json EXACTLY, so the generated
- * artifact's contentHash equals the live registry/Beacon hash
- * (sha256:e23d89ed561ee5d47502a3cb693593b4fe0e83651fe65e88caf6044f3a584124).
+ * with evidence links. Public-safe facts mirror the CURRENT live
+ * business-registry/registry/wills-transfer/profile.json in SHAPE and in every
+ * named field (slug, names, category, verification, publication, profile body,
+ * metadata dates) — that is the acceptance test, NOT byte equality and NOT the
+ * old contentHash.
+ *
+ * Why byte parity is impossible by construction: verification.canonVersion is
+ * derived as `${canon.version}.0`, so regenerating from the v2 draft would yield
+ * "2.0" against the live file's "1.0"; metadata.lastUpdated comes from the
+ * canon row's updatedAt, while the live file's 2026-07-16 matches no canon
+ * date. The retired pre-Jul-16-2026 hash (sha256:e23d89…) asserted an artifact
+ * that carried `tier` and omitted profileVersion and publication — the live
+ * file no longer matches it, so no test asserts against it.
  *
  * Includes held credentials (excluded by absence) and a `private` block (stripped).
  * No real private evidence content.
@@ -29,11 +38,16 @@ export const willsCanonFixture: AppShapedCanon = {
     status: "claimed_verified",
     method: "customer-canon-approval",
     lastVerified: "2026-06-13",
-    tier: "claimed_verified",
+    // No `tier`: the registry schema has no tier property; the live profile omits it.
     // customerApprovalDate intentionally omitted — the live published profile omits it
-    // (it is schema-permitted; emitting it would change the contentHash). See WP-19C §12.
+    // (it is schema-permitted). See WP-19C §12.
   },
-  metadata: { dateAdded: "2026-06-13", lastUpdated: "2026-06-13" },
+  // Publication/consent assertion, as in the live file (recorded consent, Canon v1.0).
+  publication: {
+    policyVersion: "1.0",
+    consentReceipt: { status: "recorded", reference: "canon:wills-transfer:1.0" },
+  },
+  metadata: { dateAdded: "2026-06-13", lastUpdated: "2026-07-16" },
   claims: [
     {
       category: "identity",
@@ -158,8 +172,12 @@ export const willsCanonFixture: AppShapedCanon = {
     onboardingResponse: { contactName: "REDACTED-PERSON", internalEmail: "ops-internal@willstransfer.com" },
     internalNotes: "SQF held_from_this_publication pending certificate; do_not_publish until evidence_verified",
   },
-};
-
-/** The known published Wills contentHash (live registry profile + Truth Beacon). */
-export const WILLS_PUBLISHED_CONTENT_HASH =
-  "sha256:e23d89ed561ee5d47502a3cb693593b4fe0e83651fe65e88caf6044f3a584124";
+}
+/**
+ * RETIRED: the pre-Jul-16-2026 published hash (sha256:e23d89…) asserted exact
+ * byte-parity with an artifact that carried `tier` and omitted profileVersion
+ * and publication. The live file has since changed (tier removed, profileVersion 1
+ * and publication added, metadata.lastUpdated 2026-07-16), and regenerating
+ * from the v2 draft yields canonVersion "2.0" — so no single hash can be the
+ * acceptance test any more. Tests assert shape + named-field parity instead.
+ */

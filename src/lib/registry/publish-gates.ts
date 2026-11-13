@@ -38,9 +38,11 @@ const BANNED_NEGATIVE = [
 ];
 
 // Top-level keys allowed by the schema (clean-artifact structural check).
+// Mirrors the registry schema's top-level keys (WP-19F parity sync):
+// `publication` is required; `profileUrl` is not a registry property.
 const SCHEMA_TOP_KEYS = new Set([
   "schemaVersion", "entitySlug", "businessIdentifier", "category", "verification",
-  "profileVersion", "profileUrl", "profile", "credentials", "metadata",
+  "profileVersion", "publication", "profile", "credentials", "metadata",
 ]);
 // Private/internal keys that must never appear anywhere in the artifact.
 const PRIVATE_KEY_DENYLIST = new Set([

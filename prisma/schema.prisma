@@ -418,6 +418,11 @@ model CompanyProfile {
   organizationId String
   businessName   String
   websiteUrl     String?
+  // Registry identity (WP-19F parity): operator-controlled slug + trading name.
+  // Null = derive at publish time (legal-suffix strip + slugify, as the
+  // AI-native generator does). Backfilled for Wills Transfer.
+  entitySlug     String?
+  commonName     String?
   isActive       Boolean @default(true)
 
   // Ground truth fields
