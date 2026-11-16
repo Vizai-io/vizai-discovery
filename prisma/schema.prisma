@@ -83,6 +83,7 @@ enum NotificationType {
   BILLING_PAYMENT_FAILED
   BILLING_WARNING
   CONSULTATION_REQUEST_SUBMITTED
+  WORKSHEET_SUBMITTED // customer submitted the verification worksheet (WP-21C submit event)
   // ── Sprint 12: Intelligence alerting ─────────────────────────────────────
   CONTINUITY_STATE_DECLINED // org continuity state rank dropped ≥1
   ARCHETYPE_TRANSITION // org moved to an at-risk operational archetype

@@ -10,6 +10,10 @@
  *
  * Body: { expiresInDays?: number } (default 14, clamped 1..30)
  * Response: { token, url, expiresAt, companyProfileId }
+ *
+ * Origin: the returned url uses NEXT_PUBLIC_APP_URL when it is set
+ * (non-empty) - that is the public origin the customer opens. When it is
+ * unset or empty, the request origin is used (local-dev behaviour).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -63,7 +67,18 @@ export async function POST(
     }
 
     const token = createTruthVerifyToken(profile.id, profile.organizationId, expiresInDays);
-    const origin = new URL(request.url).origin;
+    // Public-origin override: the worksheet link is sent to the customer,
+    // so it must open from outside this PC. When NEXT_PUBLIC_APP_URL is
+    // set (non-empty) it is the origin of the returned url; when it is
+    // unset or empty, fall back to the request origin (local-dev behaviour,
+    // unchanged). The value is Jeremy's decision (Tailscale Serve URL or
+    // deployed platform URL) - no value is set by this build. Trailing
+    // slashes are stripped so the url never gets a double slash. NOTE: an
+    // empty string counts as unset - ?? alone would not catch it.
+    const publicOrigin = (process.env.NEXT_PUBLIC_APP_URL ?? "")
+      .trim()
+      .replace(/\/+$/, "");
+    const origin = publicOrigin || new URL(request.url).origin;
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
 
     return NextResponse.json({

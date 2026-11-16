@@ -381,6 +381,14 @@ export default function TruthInfrastructurePage() {
                     </a>
                   </Button>
                 ))}
+                {state.latestApproved && (
+                  <Button asChild variant="outline" size="sm" className="gap-1.5">
+                    <a href={`/monitoring/registry-publish?canonVersionId=${state.latestApproved.id}`}>
+                      <BookOpenCheck className="h-3.5 w-3.5" />
+                      Registry Publish
+                    </a>
+                  </Button>
+                )}
               </div>
             </div>
           ) : (

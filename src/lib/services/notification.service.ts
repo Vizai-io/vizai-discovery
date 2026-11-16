@@ -19,6 +19,7 @@
  *  ONBOARDING_COMPLETE        — Infinity (one-time ever)
  *  BILLING_PAYMENT_FAILED     — none (always critical)
  *  BILLING_WARNING            — 24h
+ *  WORKSHEET_SUBMITTED       - 1h per profile (per-profile dedup on groupKey)
  *
  * ── Group key scheme ───────────────────────────────────────────────────────────
  *  scan:{scanId}       — SCAN_COMPLETED, VISIBILITY_IMPROVED, VISIBILITY_DECLINED
@@ -26,6 +27,7 @@
  *  recommendations     — RECOMMENDATION_BACKLOG_GROWING, RECOMMENDATION_MILESTONE
  *  billing             — BILLING_PAYMENT_FAILED, BILLING_WARNING
  *  onboarding          — ONBOARDING_COMPLETE
+ *  verify:{companyProfileId} - WORKSHEET_SUBMITTED
  *
  * ── Channel abstraction ────────────────────────────────────────────────────────
  *  Current channels: in_app only
@@ -409,6 +411,59 @@ export const NotificationService = {
       title: "Consultation request received",
       message: `${contactName} submitted a consultation request for: ${serviceInterest}. Review and follow up within 24 hours.`,
       groupKey: "consultation",
+    });
+  },
+  /**
+   * Fired when a customer submits the verification worksheet.
+   * Group: verify:{companyProfileId} - the business name and answer
+   * counts go in the message text (Notification has no
+   * relatedCompanyProfileId field).
+   *
+   * Dedup: at most one notification per profile per hour. The shared
+   * emit() cooldown is org-wide per type, which is too coarse here -
+   * one org can hold several profiles, and a second customer's submit
+   * must not be swallowed by the first's. So the per-profile check is
+   * done here on groupKey before emitting. A customer re-submitting
+   * after a reload inside the hour is a duplicate; a genuinely fresh
+   * submission later still notifies.
+   */
+  async worksheetSubmitted(
+    organizationId: string,
+    companyProfileId: string,
+    businessName: string,
+    counts: {
+      confirmed: number;
+      edited: number;
+      removed: number;
+      unsure: number;
+      pending: number;
+    },
+  ): Promise<void> {
+    const groupKey = `verify:${companyProfileId}`;
+    const since = new Date(Date.now() - 60 * 60 * 1000);
+    const recent = await db.notification.count({
+      where: {
+        organizationId,
+        type: "WORKSHEET_SUBMITTED",
+        groupKey,
+        createdAt: { gte: since },
+      },
+    });
+    if (recent > 0) return;
+    const parts = [
+      `${counts.confirmed} confirmed`,
+      `${counts.edited} edited`,
+      `${counts.removed} removed`,
+      `${counts.unsure} unsure`,
+    ];
+    if (counts.pending > 0) parts.push(`${counts.pending} left unanswered`);
+    await emit({
+      organizationId,
+      type: "WORKSHEET_SUBMITTED",
+      severity: "SUCCESS",
+      title: "Verification worksheet submitted",
+      message: `${businessName} submitted their verification worksheet: ${parts.join(", ")}. Review the answers - anything edited or unsure needs a follow-up before it is published.`,
+      groupKey,
     });
   },
 };

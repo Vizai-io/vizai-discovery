@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity, Loader2, CreditCard, Network, BookOpenCheck, CheckCircle2 } from "lucide-react";
+import { LayoutDashboard, Building2, Search, Trophy, Lightbulb, History, Settings, LogOut, Activity, Loader2, CreditCard, Network, BookOpenCheck, CheckCircle2, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AuthDebugBanner } from "@/components/dev/auth-debug-banner";
 import Link from "next/link";
@@ -46,16 +47,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return null;
   }
 
-  const menuItems = [
+  const menuItems: Array<{ title: string; icon: LucideIcon; href: string; adminOnly?: boolean }> = [
     { title: "Dashboard",       icon: LayoutDashboard, href: "/dashboard" },
     { title: "Intelligence",    icon: Network,         href: "/intelligence" },
     { title: "Truth Infra",      icon: BookOpenCheck,   href: "/truth-infrastructure" },
     { title: "Monitoring",      icon: Activity,        href: "/monitoring" },
+    { title: "Registry Publish", icon: BookOpenCheck,  href: "/monitoring/registry-publish", adminOnly: true },
     { title: "Companies",       icon: Building2,       href: "/companies" },
     { title: "Scans",           icon: Search,          href: "/scans" },
     { title: "Rankings",        icon: Trophy,          href: "/rankings" },
     { title: "Recommendations", icon: Lightbulb,       href: "/recommendations" },
     { title: "Approvals",       icon: CheckCircle2,    href: "/approvals" },
+    { title: "Leads",           icon: Users,           href: "/leads", adminOnly: true },
     { title: "History",         icon: History,         href: "/history" },
     { title: "Billing",         icon: CreditCard,      href: "/billing" },
   ];
@@ -82,11 +85,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </SidebarHeader>
           <SidebarContent className="p-4">
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {menuItems
+                .filter((item) => !item.adminOnly || userProfile?.role === "admin")
+                .map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.href || (item.href === '/scans' && pathname.startsWith('/scans/'))}
+                    isActive={pathname === item.href || (item.href === '/scans' && pathname.startsWith('/scans/')) || (item.href === '/monitoring' && pathname.startsWith('/monitoring/'))}
                     tooltip={item.title}
                   >
                     <Link href={item.href}>

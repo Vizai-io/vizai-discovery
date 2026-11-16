@@ -150,6 +150,14 @@ export default function ApprovalsPage() {
     act(`approve-reply-${id}`, `/api/leads/${id}`, "PATCH", { draftStatus: "APPROVED" }, "Reply draft approved — ready to send.");
   const dismissReply = (id: string) =>
     act(`dismiss-reply-${id}`, `/api/leads/${id}`, "PATCH", { draftStatus: "NONE", draftSubject: null, draftBody: null }, "Reply draft cleared.");
+  // Confirm the lead itself (NEW/CONTACTED -> OPPORTUNITY). Independent of
+  // the reply-draft decision above: a reply can be approved without the lead
+  // being confirmed, and vice versa. The route takes no body and records
+  // confirmedBy from the session, so the call is a plain same-origin POST
+  // with no Authorization header. act() passes the route's error through,
+  // so a 409 ("Lead is already an opportunity") surfaces verbatim.
+  const confirmLead = (id: string) =>
+    act(`confirm-lead-${id}`, `/api/leads/${id}/confirm`, "POST", {}, "Lead confirmed — moved to Opportunity.");
   const startRec = (id: string) =>
     act(`start-rec-${id}`, `/api/recommendations/${id}`, "PATCH", { status: "IN_PROGRESS" }, "Recommendation started.");
   const dismissRec = (id: string) =>
@@ -243,6 +251,21 @@ export default function ApprovalsPage() {
                     {acting === `approve-reply-${d.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                     Approve — ready to send
                   </Button>
+                  {(d.lead_status === "NEW" || d.lead_status === "CONTACTED") ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={acting === `confirm-lead-${d.id}`}
+                      onClick={() => confirmLead(d.id)}
+                    >
+                      {acting === `confirm-lead-${d.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      Confirm as opportunity
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="self-center">
+                      {d.lead_status === "OPPORTUNITY" ? "Confirmed" : `Lead ${d.lead_status}`}
+                    </Badge>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"

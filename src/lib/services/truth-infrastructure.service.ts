@@ -788,6 +788,90 @@ export const RegistryProfileService = {
   },
 
   /**
+   * CANDIDATE LOOKUP — read-only, NO DB write. Returns the already-approved
+   * READY candidate for a canon (if any), so the review panel can restore the
+   * READY banner + Export section on reload without re-prepare/re-approve.
+   *
+   *   - No READY RegistryProfile for the canon => `{ found: false }`.
+   *   - READY profile found => re-runs `prepareRegistryPublishDraft`
+   *     (read-only, same code path as prepare) and compares the Beacon
+   *     contentHash. A hash mismatch => `{ found: false, drift: true, ... }`
+   *     so the panel shows Prepare (with a stale-candidate note) instead of
+   *     a stale Export. A canon that is no longer APPROVED/PUBLISHED throws
+   *     here exactly as the prepare flow does (same status mapping).
+   *   - `contentHash` is ALWAYS `RegistryProfile.payloadHash` (authoritative)
+   *     — never the TruthPublishRecord's `payload_hash`.
+   *   - The TruthPublishRecord is matched the same way `exportPackage` does
+   *     (payload.profileVersion, else latest DRAFT). A READY profile with no
+   *     matching record => `{ found: false }`; re-prepare/re-approve
+   *     recreates the record via upsert.
+   *   - Every return also carries the registry-consent context
+   *     (`companyProfileId`, `registryListingConsentAt`,
+   *     `registryListingConsentedBy`) — even `{ found: false }` — so the
+   *     panel's consent control renders and works with no READY candidate.
+   *     Non-throwing lookup: a missing / not-yet-approved canon yields nulls.
+   */
+  async getReadyCandidate(canonVersionId: string, organizationId: string) {
+    // Registry-consent context for the review panel's consent control — always
+    // returned, even when no READY candidate exists (consent is the gate for
+    // Prepare, so the control is most needed exactly when `found` is false).
+    // Non-throwing lookup: a missing / not-yet-approved canon just yields nulls.
+    const canon = await db.truthCanonVersion.findFirst({
+      where: { id: canonVersionId, organizationId },
+      select: {
+        companyProfileId: true,
+        companyProfile: {
+          select: { registryListingConsentAt: true, registryListingConsentedBy: true },
+        },
+      },
+    });
+    const consent = {
+      companyProfileId: canon?.companyProfileId ?? null,
+      registryListingConsentAt:
+        canon?.companyProfile?.registryListingConsentAt?.toISOString() ?? null,
+      registryListingConsentedBy: canon?.companyProfile?.registryListingConsentedBy ?? null,
+    };
+    const rp = await db.registryProfile.findFirst({
+      where: { canonVersionId, organizationId, status: "READY" },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!rp) return { found: false as const, ...consent };
+
+    // Hash-drift guard: re-prepare (read-only) and compare. Throws for a
+    // canon that is no longer APPROVED/PUBLISHED — same as prepare.
+    const draft = await this.prepareRegistryPublishDraft(canonVersionId, organizationId);
+    const currentHash = draft.packet.contentHash;
+    const savedHash = rp.payloadHash;
+    if (savedHash !== currentHash) {
+      return { found: false as const, drift: true as const, savedHash, currentHash, ...consent };
+    }
+
+    const payload = (rp.payload ?? {}) as Record<string, unknown>;
+    const version = typeof payload.profileVersion === "number" ? payload.profileVersion : undefined;
+    const tpr =
+      version !== undefined
+        ? await db.truthPublishRecord.findFirst({
+            where: { organizationId, companyProfileId: rp.companyProfileId, version },
+          })
+        : await db.truthPublishRecord.findFirst({
+            where: { organizationId, companyProfileId: rp.companyProfileId, status: "DRAFT" },
+            orderBy: { version: "desc" },
+          });
+    if (!tpr) return { found: false as const, ...consent };
+
+    return {
+      found: true as const,
+      registryProfileId: rp.id,
+      publishRecordId: tpr.id,
+      registryProfileStatus: rp.status,
+      truthPublishStatus: tpr.status,
+      contentHash: rp.payloadHash,
+      profileVersion: version ?? tpr.version,
+      ...consent,
+    };
+  },
+
+  /**
    * ⚠ WRITE METHOD — compatibility alias for the existing `truth-canon/[id]/publish` route.
    * Equivalent to `approveRegistryPublishDraft` with no operator id: it PERSISTS RegistryProfile
    * READY + a DRAFT TruthPublishRecord. NOT a preview — use `prepareRegistryPublishDraft` to

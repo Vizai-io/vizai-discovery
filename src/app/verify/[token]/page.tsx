@@ -70,6 +70,7 @@ export default async function VerifyPage({
       status: true,
       sourceUrl: true,
       evidenceRequired: true,
+      evidenceStatus: true,
       key: true,
     },
   });
@@ -83,6 +84,7 @@ export default async function VerifyPage({
     status: c.status,
     sourceUrl: c.sourceUrl,
     evidenceRequired: c.evidenceRequired,
+    evidenceStatus: c.evidenceStatus,
     key: c.key,
   }));
 

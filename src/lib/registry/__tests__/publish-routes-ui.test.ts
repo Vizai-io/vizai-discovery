@@ -1,5 +1,5 @@
 /**
- * WP-19F-UI — tests for the prepare/approve routes + review component wiring.
+ * WP-19F-UI — tests for the prepare/approve/candidate routes + review component wiring.
  *
  * Run (standalone — no Next test harness in this app):
  *   npx ts-node --transpile-only --compiler-options '{"module":"commonjs","moduleResolution":"node"}' \
@@ -95,6 +95,98 @@ check(
     mountPage.includes("canonVersionId") &&
     !/from\s+["'][^"']*truth-publish-panel/.test(mountPage) && // no actual import of the lineage-A panel
     !/["'][^"']*\/api\/canonical-truth/.test(mountPage), // no quoted canonical-truth endpoint
+  "",
+);
+
+
+// T7 — candidate route is GET-only, ADMIN-gated, read-only: calls getReadyCandidate; never writes
+const candidateRoute = read("app", "api", "truth-canon", "[id]", "publish", "candidate", "route.ts");
+check(
+  "T7 candidate route is GET-only + ADMIN-gated + read-only (getReadyCandidate, no writes)",
+  candidateRoute.includes("export async function GET") &&
+    !candidateRoute.includes("export async function POST") &&
+    candidateRoute.includes('auth.role !== "ADMIN"') &&
+    candidateRoute.includes("getReadyCandidate") &&
+    !/\.upsert\(|\$transaction|\.create\(|\.update\(/.test(candidateRoute),
+  "",
+);
+
+// T8 — service getReadyCandidate: READY findFirst, re-prepare hash check, payloadHash authoritative, drift signal
+const service = read("lib", "services", "truth-infrastructure.service.ts");
+const candidateFn = service.slice(service.indexOf("async getReadyCandidate"));
+const candidateBody = candidateFn.slice(0, candidateFn.indexOf("\n  },"));
+check(
+  "T8 getReadyCandidate looks up READY, re-prepares + compares hash, returns payloadHash, signals drift",
+  candidateBody.includes('status: "READY"') &&
+    candidateBody.includes("prepareRegistryPublishDraft(canonVersionId, organizationId)") &&
+    candidateBody.includes("savedHash !== currentHash") &&
+    candidateBody.includes("drift: true") &&
+    candidateBody.includes("contentHash: rp.payloadHash") &&
+    !candidateBody.includes("tpr.payloadHash") &&
+    candidateBody.includes("found: false") &&
+    candidateBody.includes("found: true"),
+  "",
+);
+
+// T9 — panel restores a READY candidate on mount: candidate GET, setApproved, drift notice, prepare clears it
+check(
+  "T9 review component restores a READY candidate on mount (candidate GET, setApproved, drift notice, prepare clears it)",
+  component.includes("useEffect") &&
+    component.includes("/publish/candidate") &&
+    component.includes("setApproved(data as ApproveResult)") &&
+    component.includes("candidateStale") &&
+    component.includes("stale") &&
+    component.includes("loadingCandidate") &&
+    component.includes("setCandidateStale(false)"),
+  "",
+);
+
+// T10 — candidate lookup also returns registry-consent context on every path (incl. no candidate)
+check(
+  "T10 getReadyCandidate returns companyProfileId + consent fields even when no READY candidate exists",
+  candidateBody.includes("companyProfileId") &&
+    candidateBody.includes("registryListingConsentAt") &&
+    candidateBody.includes("registryListingConsentedBy") &&
+    candidateBody.includes("truthCanonVersion.findFirst") &&
+    candidateBody.includes("...consent"),
+  "",
+);
+
+// T11 — panel has a consent control: POST record, DELETE revoke behind confirm + READY guard, shows recorded state
+const consentRoute = read("app", "api", "company-profiles", "[id]", "registry-consent", "route.ts");
+check(
+  "T11 review component records/revokes consent via the existing route, guarded when a READY candidate exists",
+  component.includes("/registry-consent") &&
+    component.includes('method: "POST"') &&
+    component.includes('method: "DELETE"') &&
+    component.includes("window.confirm") &&
+    component.includes("does NOT un-publish") &&
+    component.includes("readyCandidateFound") &&
+    component.includes("Record registry listing consent") &&
+    component.includes("registryListingConsentAt") &&
+    consentRoute.includes("requireHumanAdmin"),
+  "",
+);
+
+// T12 -- export section surfaces the AI-native files (P2 #11): UI ExportPackage type
+// carries source + aiNative (mirroring the route response), and the Export
+// section has a Copy button per file wired to the file contents via the
+// existing copyText helper; a missing aiNative degrades to a note, never
+// empty copy buttons.
+const exportSection = read("components", "publishing", "external-publish-section.tsx");
+check(
+  "T12 export section types source + aiNative and offers Copy index.html / Copy llms.txt with a not-generated note",
+  exportSection.includes("source: { registryProfileId: string; truthPublishRecordId: string | null; canonVersion: string | null }") &&
+    exportSection.includes("aiNative:") &&
+    exportSection.includes("indexHtml: string") &&
+    exportSection.includes("llmsTxt: string") &&
+    exportSection.includes("indexPath: string") &&
+    exportSection.includes("llmsPath: string") &&
+    exportSection.includes("Copy index.html") &&
+    exportSection.includes("Copy llms.txt") &&
+    exportSection.includes("copyText(aiNative.indexHtml") &&
+    exportSection.includes("copyText(aiNative.llmsTxt") &&
+    exportSection.includes("were not generated for this export"),
   "",
 );
 

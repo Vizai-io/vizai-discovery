@@ -23,10 +23,17 @@ type ExportPackage = {
   profileVersion: number;
   contentHash: string;
   suggestedRegistryPath: string;
+  source: { registryProfileId: string; truthPublishRecordId: string | null; canonVersion: string | null };
   prTitle: string;
   prDescription: string;
   validationChecklist: string[];
-  internalReview: { heldClaimsExcluded: any[] };
+  aiNative: {
+    indexHtml: string;
+    llmsTxt: string;
+    indexPath: string;
+    llmsPath: string;
+  } | null;
+  internalReview: { heldClaimsExcluded: any[]; aiNativeError?: string | null };
 };
 
 function copyText(text: string, label: string) {
@@ -100,6 +107,11 @@ export function ExternalPublishSection({
 
   const canMark = !!prUrl.trim() && !!confirmedHash.trim() && !published;
 
+  // AI-native files ride along in the export package (WP-21C-GH). Null when
+  // generation failed or was not included -- the section below degrades to a
+  // note instead of rendering empty copy buttons.
+  const aiNative = pkg?.aiNative ?? null;
+
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden mt-4">
       <div className="px-5 py-4 border-b border-border flex items-center gap-2.5">
@@ -152,6 +164,32 @@ export function ExternalPublishSection({
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => copyText(pkg.prDescription, "PR description")}>
                 <Copy className="w-3.5 h-3.5" /> Copy PR description
               </Button>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-foreground/70 mb-1">AI-native files</p>
+              {aiNative?.indexHtml ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="text-xs">{aiNative.indexPath}</code>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => copyText(aiNative.indexHtml, "index.html")}>
+                    <Copy className="w-3.5 h-3.5" /> Copy index.html
+                  </Button>
+                </div>
+              ) : null}
+              {aiNative?.llmsTxt ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="text-xs">{aiNative.llmsPath}</code>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => copyText(aiNative.llmsTxt, "llms.txt")}>
+                    <Copy className="w-3.5 h-3.5" /> Copy llms.txt
+                  </Button>
+                </div>
+              ) : null}
+              {!aiNative?.indexHtml && !aiNative?.llmsTxt && (
+                <p className="text-xs text-muted-foreground">
+                  AI-native files (index.html, llms.txt) were not generated for this export.
+                  {pkg?.internalReview?.aiNativeError ? ` ${pkg.internalReview.aiNativeError}` : ""}
+                </p>
+              )}
             </div>
 
             <div>

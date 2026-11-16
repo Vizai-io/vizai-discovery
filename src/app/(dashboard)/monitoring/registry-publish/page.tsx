@@ -3,8 +3,9 @@
 /**
  * @fileOverview /monitoring/registry-publish — WP-19F-UI-MOUNT
  *
- * Hidden admin page (intentionally NOT in nav) that mounts the standalone B-lineage
- * `RegistryPublishReviewPanel`. The operator supplies a `canonVersionId` — either via
+ * Admin page (linked from the sidebar and the Truth Infrastructure page) that mounts
+ * the standalone B-lineage `RegistryPublishReviewPanel`. The operator supplies a
+ * `canonVersionId` — either via
  * `?canonVersionId=<id>` in the URL or by pasting it into the input below — then reviews
  * and approves an INTERNAL public-registry candidate.
  *
